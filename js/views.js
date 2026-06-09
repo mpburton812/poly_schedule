@@ -11,6 +11,15 @@ import {
   normalizeBatchNight,
   getBedroomOptionsForHome
 } from './helpers.js';
+import {
+  WORKFLOW,
+  filterProposalsForTab,
+  getWorkflowState,
+  allowsAbstain,
+  isPassivePerson,
+  getAutoArchiveDays,
+  isCalendarEvent
+} from './proposal-workflow.js';
 
 export { DEFAULT_AVATARS };
 
@@ -44,7 +53,9 @@ export const Views = {
       sun.setDate(startOfWeek.getDate() + 7);
       sun.setHours(23,59,59,999);
       
-      const isCorrectWeek = eDate >= mon && eDate < sun && e.status === 'confirmed';
+      const isCorrectWeek = eDate >= mon && eDate < sun
+        && e.type !== 'batch_sleeping'
+        && (e.status === 'confirmed' || getWorkflowState(e) === WORKFLOW.APPROVED);
       if (!isCorrectWeek) return false;
 
       // Filter by selected partner
@@ -71,7 +82,11 @@ export const Views = {
     });
 
     // Extract pending proposals for summary
-    const pendingProposals = state.events.filter(e => e.status === 'pending');
+    const pendingProposals = state.events.filter(e =>
+      getWorkflowState(e) === WORKFLOW.PROPOSED &&
+      (e.proposer === state.currentUser?.name ||
+        (e.participantRoles || []).some(p => p.name === state.currentUser?.name))
+    );
 
     let daysHtml = '';
 
@@ -223,48 +238,66 @@ export const Views = {
   /**
    * Renders the Proposals Center View
    */
-  proposals(state, activeTab = 'pending') {
-    // Filter proposals based on status
-    let filtered = [];
-    if (activeTab === 'pending') {
-      filtered = state.events.filter(e => e.status === 'pending' || e.status === 'rejected');
-    } else if (activeTab === 'reviewed') {
-      filtered = state.events.filter(e =>
-        (e.status === 'pending' || e.status === 'rejected') &&
-        e.responses[state.currentUser?.name]?.status !== 'pending'
-      );
-    } else {
-      // Completed / Confirmed
-      filtered = state.events.filter(e => e.status === 'confirmed');
-    }
+  proposals(state, activeTab = 'proposed') {
+    const userName = state.currentUser?.name;
+    const filtered = filterProposalsForTab(state.events, activeTab, userName, state.config);
+
+    const tabLabels = {
+      drafts: 'Drafts',
+      proposed: 'Proposed',
+      approved: 'Approved',
+      archived: 'Archived',
+      declined: 'Declined'
+    };
 
     let listHtml = '';
     if (filtered.length === 0) {
       listHtml = `
         <div style="text-align: center; padding: 48px 0; color: var(--on-surface-variant);">
           <span class="material-symbols-outlined" style="font-size: 48px; opacity: 0.3;">checklist_rtl</span>
-          <p class="font-title-lg" style="margin-top: var(--space-sm);">No proposals found in "${activeTab}"</p>
+          <p class="font-title-lg" style="margin-top: var(--space-sm);">No proposals in "${tabLabels[activeTab] || activeTab}"</p>
         </div>
       `;
     } else {
       filtered.forEach(p => {
-        const isReceiver = p.proposer !== state.currentUser?.name;
-        const userVote = p.responses?.[state.currentUser?.name]?.status || 'pending';
-        
-        // graphical schedule impact calculation
-        const startH = new Date(p.start).getHours();
-        const durationH = Math.round((new Date(p.end) - new Date(p.start)) / (1000 * 60 * 60));
-        
-        // Map to percentages for timeline 08:00 to 00:00 (16 hour span)
-        const leftPercent = Math.max(0, Math.min(100, ((startH - 8) / 16) * 100));
-        const widthPercent = Math.max(10, Math.min(100 - leftPercent, (durationH / 16) * 100));
+        const ws = getWorkflowState(p);
+        const isProposer = p.proposer === userName;
+        const isReceiver = !isProposer;
+        const userVote = p.responses?.[userName]?.status || 'pending';
+        const canVote = ws === WORKFLOW.PROPOSED && isReceiver && userVote === 'pending' && p.responses?.[userName];
 
-        // Format Date / Duration String
         const startDate = new Date(p.start);
+        const dayStart = new Date(startDate);
+        dayStart.setHours(0, 0, 0, 0);
+        const dayEnd = new Date(dayStart);
+        dayEnd.setDate(dayEnd.getDate() + 1);
+
+        const existingOnDay = state.events.filter(e => {
+          if (e.id === p.id) return false;
+          if (!isCalendarEvent(e)) return false;
+          const eStart = new Date(e.start);
+          return eStart >= dayStart && eStart < dayEnd;
+        });
+
+        const toImpactSegment = (eventStart, eventEnd) => {
+          const startH = new Date(eventStart).getHours() + new Date(eventStart).getMinutes() / 60;
+          const endH = new Date(eventEnd).getHours() + new Date(eventEnd).getMinutes() / 60;
+          const left = Math.max(0, Math.min(100, ((startH - 8) / 16) * 100));
+          const width = Math.max(8, Math.min(100 - left, ((endH - startH) / 16) * 100));
+          return { left, width };
+        };
+
+        let existingSegmentsHtml = '';
+        existingOnDay.forEach(e => {
+          const seg = toImpactSegment(e.start, e.end);
+          existingSegmentsHtml += `<div class="impact-segment existing" style="width: ${seg.width}%; left: ${seg.left}%;"></div>`;
+        });
+
+        const proposedSeg = toImpactSegment(p.start, p.end);
         const dateStr = startDate.toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' });
         const timeStr = `${startDate.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' })} - ${new Date(p.end).toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' })}`;
 
-        // Build Response List details
+        const roleMap = Object.fromEntries((p.participantRoles || []).map(r => [r.name, r.role]));
         let responsesHtml = '';
         Object.keys(p.responses || {}).forEach(k => {
           const r = p.responses[k];
@@ -273,14 +306,16 @@ export const Views = {
           const isAbstain = r.status === 'abstain';
           const icon = isPending ? 'pending' : isReject ? 'cancel' : isAbstain ? 'do_not_disturb_on' : 'check_circle';
           const colorClass = isPending ? 'text-outline' : isReject ? 'var(--error)' : isAbstain ? 'var(--on-surface-variant)' : 'var(--secondary)';
-          const nameLabel = k === state.currentUser?.name ? 'You' : k.split(' ')[0];
-          
+          const nameLabel = k === userName ? 'You' : k.split(' ')[0];
+          const roleLabel = roleMap[k] === 'optional' ? ' · Optional' : ' · Required';
+          const passiveLabel = isPassivePerson(k, state.config) ? ' · Passive' : '';
+
           responsesHtml += `
             <div style="margin-bottom: var(--space-xs);">
               <div class="review-user-row">
                 <div class="review-user-info">
                   <span class="material-symbols-outlined" style="color: ${colorClass}; font-size: 18px;">${icon}</span>
-                  <span>${nameLabel}</span>
+                  <span>${nameLabel}<span class="font-label-sm" style="color: var(--on-surface-variant);">${roleLabel}${passiveLabel}</span></span>
                 </div>
                 <span class="font-label-sm" style="color: var(--on-surface-variant);">${responseStatusLabel(r.status)}</span>
               </div>
@@ -289,31 +324,34 @@ export const Views = {
           `;
         });
 
-        // Proposer vs. Receiver actions
         let actionsHtml = '';
-        if (p.status === 'pending' || p.status === 'rejected') {
-          if (isReceiver && userVote === 'pending') {
+        if (ws === WORKFLOW.DRAFT && isProposer) {
+          actionsHtml = `
+            <div style="display: flex; gap: var(--space-base); margin-top: var(--space-md); flex-wrap: wrap;">
+              <button class="btn btn-filled edit-draft-btn" data-id="${p.id}" style="flex: 1; min-width: 120px;">Continue Editing</button>
+              <button class="btn btn-error delete-draft-btn" data-id="${p.id}" style="flex: 1; min-width: 120px;">Delete Draft</button>
+            </div>
+          `;
+        } else if (ws === WORKFLOW.PROPOSED) {
+          if (canVote) {
+            const abstainBtn = allowsAbstain(p.type)
+              ? `<button class="btn btn-outline vote-btn" data-id="${p.id}" data-vote="abstain" style="flex: 1; min-width: 90px;">Abstain</button>`
+              : '';
             actionsHtml = `
               <div style="display: flex; gap: var(--space-base); margin-top: var(--space-md); flex-wrap: wrap;">
                 <button class="btn btn-filled vote-btn" data-id="${p.id}" data-vote="accept" style="flex: 1; min-width: 90px;">Accept</button>
-                <button class="btn btn-outline vote-btn" data-id="${p.id}" data-vote="abstain" style="flex: 1; min-width: 90px;">Abstain</button>
+                ${abstainBtn}
                 <button class="btn btn-outline vote-btn" data-id="${p.id}" data-vote="reject" style="flex: 1; min-width: 90px;">Reject</button>
               </div>
             `;
-          } else if (!isReceiver) {
-            // Proposer Perspective
+          } else if (isProposer) {
             actionsHtml = `
-              <div style="display: flex; gap: var(--space-base); margin-top: var(--space-md);">
-                <button class="btn btn-tonal modify-proposal-btn" data-id="${p.id}" style="flex: 1;">
-                  <span class="material-symbols-outlined" style="font-size: 16px;">edit</span> Modify
-                </button>
-                <button class="btn btn-error cancel-proposal-btn" data-id="${p.id}" style="flex: 1;">
-                  <span class="material-symbols-outlined" style="font-size: 16px;">delete</span> Cancel
-                </button>
-                <button class="btn btn-outline retract-proposal-btn" data-id="${p.id}" style="padding: var(--space-sm) var(--space-md);">Retract</button>
+              <div style="display: flex; gap: var(--space-base); margin-top: var(--space-md); flex-wrap: wrap;">
+                <button class="btn btn-error cancel-proposal-btn" data-id="${p.id}" style="flex: 1; min-width: 120px;">Cancel Proposal</button>
+                <button class="btn btn-outline retract-proposal-btn" data-id="${p.id}" style="flex: 1; min-width: 120px;">Retract to Draft</button>
               </div>
             `;
-          } else {
+          } else if (isReceiver && userVote !== 'pending') {
             const voteColor = userVote === 'accept' ? 'var(--secondary)' : userVote === 'abstain' ? 'var(--on-surface-variant)' : 'var(--error)';
             actionsHtml = `
               <div style="margin-top: var(--space-md); padding: var(--space-sm); background-color: var(--surface-container-high); border-radius: var(--radius-default); text-align: center; color: var(--on-surface-variant); font-size: 0.85rem;">
@@ -321,11 +359,28 @@ export const Views = {
               </div>
             `;
           }
+        } else if (ws === WORKFLOW.APPROVED && isProposer) {
+          actionsHtml = `
+            <div style="display: flex; gap: var(--space-base); margin-top: var(--space-md);">
+              <button class="btn btn-outline archive-proposal-btn" data-id="${p.id}" style="flex: 1;">Archive</button>
+            </div>
+          `;
+        } else if (ws === WORKFLOW.DECLINED && isProposer) {
+          actionsHtml = `
+            <div style="display: flex; gap: var(--space-base); margin-top: var(--space-md); flex-wrap: wrap;">
+              <button class="btn btn-filled reopen-proposal-btn" data-id="${p.id}" style="flex: 1; min-width: 120px;">Reopen as Draft</button>
+              <button class="btn btn-error delete-declined-btn" data-id="${p.id}" style="flex: 1; min-width: 120px;">Delete</button>
+            </div>
+          `;
         }
 
-        const statusBadge = p.status === 'rejected'
-          ? `<span class="font-label-sm" style="background-color: var(--error-container); color: var(--error); padding: 2px 8px; border-radius: var(--radius-sm); font-size: 9px; font-weight: bold; margin-left: 8px;">REJECTED</span>`
-          : '';
+        const statusBadgeMap = {
+          [WORKFLOW.DECLINED]: `<span class="font-label-sm" style="background-color: var(--error-container); color: var(--error); padding: 2px 8px; border-radius: var(--radius-sm); font-size: 9px; font-weight: bold; margin-left: 8px;">DECLINED</span>`,
+          [WORKFLOW.APPROVED]: `<span class="font-label-sm" style="background-color: var(--secondary-container); color: var(--secondary); padding: 2px 8px; border-radius: var(--radius-sm); font-size: 9px; font-weight: bold; margin-left: 8px;">APPROVED</span>`,
+          [WORKFLOW.ARCHIVED]: `<span class="font-label-sm" style="background-color: var(--surface-container-highest); color: var(--on-surface-variant); padding: 2px 8px; border-radius: var(--radius-sm); font-size: 9px; font-weight: bold; margin-left: 8px;">ARCHIVED</span>`,
+          [WORKFLOW.DRAFT]: `<span class="font-label-sm" style="background-color: var(--tertiary-container); color: var(--on-tertiary-container); padding: 2px 8px; border-radius: var(--radius-sm); font-size: 9px; font-weight: bold; margin-left: 8px;">DRAFT</span>`
+        };
+        const statusBadge = statusBadgeMap[ws] || '';
 
         listHtml += `
           <div class="proposal-card ${p.type === 'sleeping' || p.type === 'batch_sleeping' ? 'sleeping' : ''}" id="prop-${p.id}">
@@ -354,15 +409,11 @@ export const Views = {
                 </div>
               </div>
 
-              <!-- Graphical impact bars -->
               <div class="impact-bar-container">
                 <div class="impact-bar-title">${startDate.toLocaleString(undefined, { weekday: 'short' }).toUpperCase()} SCHEDULE IMPACT</div>
                 <div class="impact-bar">
-                  <!-- Mock existing blocks -->
-                  <div class="impact-segment existing" style="width: 20%; left: 5%;"></div>
-                  <div class="impact-segment existing" style="width: 15%; left: 45%;"></div>
-                  <!-- Proposed block -->
-                  <div class="impact-segment proposed" style="width: ${widthPercent}%; left: ${leftPercent}%;"></div>
+                  ${existingSegmentsHtml}
+                  <div class="impact-segment proposed" style="width: ${proposedSeg.width}%; left: ${proposedSeg.left}%;"></div>
                 </div>
                 <div class="impact-scale">
                   <span>08:00</span>
@@ -372,9 +423,8 @@ export const Views = {
               </div>
             </div>
 
-            <!-- Approval / Review Status -->
             <div class="review-box" style="margin-top: var(--space-sm);">
-              ${responsesHtml}
+              ${responsesHtml || '<p class="font-label-sm" style="color: var(--on-surface-variant);">No responses yet.</p>'}
             </div>
 
             ${actionsHtml}
@@ -383,15 +433,16 @@ export const Views = {
       });
     }
 
+    const tabs = ['drafts', 'proposed', 'approved', 'archived', 'declined'];
+    const tabsHtml = tabs.map(tab => `
+      <button class="tab-button ${activeTab === tab ? 'active' : ''}" id="btn-tab-${tab}">${tabLabels[tab]}</button>
+    `).join('');
+
     return `
-      <!-- Tab Bar -->
       <nav class="tabs-nav">
-        <button class="tab-button ${activeTab === 'pending' ? 'active' : ''}" id="btn-tab-pending">Pending</button>
-        <button class="tab-button ${activeTab === 'reviewed' ? 'active' : ''}" id="btn-tab-reviewed">Reviewed</button>
-        <button class="tab-button ${activeTab === 'completed' ? 'active' : ''}" id="btn-tab-completed">Completed</button>
+        ${tabsHtml}
       </nav>
 
-      <!-- Proposals List -->
       <section style="display: flex; flex-direction: column; gap: var(--space-lg);">
         ${listHtml}
       </section>
@@ -409,13 +460,23 @@ export const Views = {
     // Populate partner options (checkboxes or select)
     let circleHtml = '';
     state.config.partners.forEach(partner => {
-      // Current user is included as a possible invitee per user request
+      const passive = isPartnerPassive(partner);
+      const selected = (formState.participants || []).includes(partner.name);
+      const roleEntry = (formState.participantRoles || []).find(r => r.name === partner.name);
+      const role = passive ? 'optional' : (roleEntry?.role || 'required');
       circleHtml += `
-        <div class="circle-partner-option" data-name="${partner.name}" style="display: flex; flex-direction: column; align-items: center; gap: var(--space-xs); cursor: pointer; transition: opacity var(--transition-speed); opacity: 0.6;">
-          <div class="profile-avatar" style="width: 56px; height: 56px; border: 2px solid var(--outline-variant); border-radius: var(--radius-full); overflow: hidden;">
+        <div class="circle-partner-option" data-name="${partner.name}" data-passive="${passive ? '1' : '0'}" style="display: flex; flex-direction: column; align-items: center; gap: var(--space-xs); cursor: pointer; transition: opacity var(--transition-speed); opacity: ${selected ? '1' : '0.6'};">
+          <div class="profile-avatar partner-avatar-picker" style="width: 56px; height: 56px; border: 2px solid ${selected ? 'var(--primary)' : 'var(--outline-variant)'}; border-radius: var(--radius-full); overflow: hidden; position: relative;">
             <img src="${partner.avatar}" alt="${partner.name}"/>
+            ${passive ? '<span class="passive-dot" title="Passive participant"></span>' : ''}
           </div>
           <span class="font-label-md">${partner.name.split(' ')[0]}</span>
+          ${passive ? '<span class="font-label-sm passive-label">Passive</span>' : ''}
+          ${selected && !passive ? `
+            <button type="button" class="btn-text role-toggle-btn" data-name="${partner.name}" style="font-size: 0.65rem; padding: 2px 6px; color: var(--primary);">
+              ${role === 'required' ? 'Required' : 'Optional'}
+            </button>
+          ` : ''}
         </div>
       `;
     });
@@ -462,7 +523,7 @@ export const Views = {
       const startDate = formState.batchStartDate || new Date().toISOString().split('T')[0];
       const start = new Date(startDate + 'T12:00:00');
 
-      const renderAssignmentBlock = (assign, assignIndex, canRemove) => {
+      const renderAssignmentBlock = (assign, assignIndex, canRemove, priorParticipants = new Set()) => {
         const home = state.config.residences.find(h => h.id === assign.homeId) || state.config.residences[0];
         const bedrooms = getBedroomOptionsForHome(home);
         const homeOptions = state.config.residences.map(h =>
@@ -473,9 +534,12 @@ export const Views = {
         ).join('');
         const partnerChecks = state.config.partners.map(p => {
           const checked = (assign.participants || []).includes(p.name) ? 'checked' : '';
+          const takenElsewhere = priorParticipants.has(p.name);
+          const disabled = takenElsewhere ? 'disabled' : '';
+          const disabledClass = takenElsewhere ? ' batch-partner-disabled' : '';
           return `
-            <label style="display: inline-flex; align-items: center; gap: 4px; font-size: 0.8rem; margin-right: 8px; cursor: pointer;">
-              <input type="checkbox" class="batch-partner-cb" data-partner="${p.name}" ${checked} style="accent-color: var(--primary);"/>
+            <label class="batch-partner-label${disabledClass}" style="display: inline-flex; align-items: center; gap: 4px; font-size: 0.8rem; margin-right: 8px; cursor: pointer;">
+              <input type="checkbox" class="batch-partner-cb" data-partner="${p.name}" ${checked} ${disabled} style="accent-color: var(--primary);"/>
               ${p.name.split(' ')[0]}
             </label>
           `;
@@ -511,9 +575,13 @@ export const Views = {
         d.setDate(start.getDate() + i);
         const dayLabel = d.toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' });
         const night = normalizeBatchNight(nightAssignments[i], state.config);
-        const blocksHtml = (night.assignments || []).map((assign, j) =>
-          renderAssignmentBlock(assign, j, night.assignments.length > 1)
-        ).join('');
+        const blocksHtml = (night.assignments || []).map((assign, j) => {
+          const priorParticipants = new Set();
+          for (let k = 0; k < j; k++) {
+            (night.assignments[k].participants || []).forEach(name => priorParticipants.add(name));
+          }
+          return renderAssignmentBlock(assign, j, night.assignments.length > 1, priorParticipants);
+        }).join('');
 
         batchRowsHtml += `
           <div class="batch-night-row" data-night-index="${i}">
@@ -549,9 +617,38 @@ export const Views = {
 
     const polyFamilyName = localStorage.getItem('polyschedule_poly_family_name') || 'The Poly Circle';
 
+    const contextStartStr = formState.batchStartDate || new Date().toISOString().split('T')[0];
+    const contextStart = new Date(contextStartStr + 'T12:00:00');
+    const contextWeekStart = new Date(contextStart);
+    contextWeekStart.setDate(contextStart.getDate() - contextStart.getDay());
+    const contextNightCount = type === 'batch_sleeping'
+      ? (formState.batchNightCount || 3)
+      : (type === 'sleeping' ? (formState.batchNightCount || 1) : 1);
+    const proposedDateKeys = new Set();
+    for (let n = 0; n < contextNightCount; n++) {
+      const d = new Date(contextStart);
+      d.setDate(contextStart.getDate() + n);
+      proposedDateKeys.add(d.toDateString());
+    }
+    let microCalCellsHtml = '';
+    for (let i = 0; i < 7; i++) {
+      const d = new Date(contextWeekStart);
+      d.setDate(contextWeekStart.getDate() + i);
+      const isProposed = proposedDateKeys.has(d.toDateString());
+      microCalCellsHtml += `
+        <div class="micro-calendar-cell${isProposed ? ' active-cell' : ''}" data-date="${d.toISOString().split('T')[0]}">
+          <span class="day-num">${d.getDate()}</span>
+          ${isProposed ? '<div class="micro-cal-proposed">PROPOSED</div>' : ''}
+        </div>
+      `;
+    }
+
     return `
       <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: var(--space-lg);">
-        <h2 class="font-title-lg">New Proposal</h2>
+        <div>
+          <h2 class="font-title-lg">New Proposal</h2>
+          <p class="font-label-sm" id="draft-autosave-status" style="color: var(--on-surface-variant); margin-top: 2px;">Draft — changes save automatically</p>
+        </div>
         <button class="btn btn-filled" id="btn-submit-proposal">Send Proposal</button>
       </div>
 
@@ -570,8 +667,8 @@ export const Views = {
       <div class="banner-alert hidden" id="proposal-rules-banner">
         <span class="material-symbols-outlined banner-alert-icon">warning</span>
         <div style="flex-grow: 1;">
-          <p class="banner-alert-title" id="banner-warning-title">Extended Stay Alert</p>
-          <p class="banner-alert-desc" id="banner-warning-desc">Warning message goes here...</p>
+          <p class="banner-alert-title" id="banner-warning-title"></p>
+          <div class="banner-alert-desc" id="banner-warning-desc"></div>
         </div>
         <button class="btn-icon-only" id="banner-warning-close" style="width: 28px; height: 28px; color: inherit;">
           <span class="material-symbols-outlined" style="font-size: 18px;">close</span>
@@ -633,22 +730,9 @@ export const Views = {
               <div class="micro-calendar-header">T</div>
               <div class="micro-calendar-header">F</div>
               <div class="micro-calendar-header">S</div>
-              
-              <!-- Dummy cells representing week slots -->
-              <div class="micro-calendar-cell"><span class="day-num">19</span></div>
-              <div class="micro-calendar-cell active-cell">
-                <span class="day-num">20</span>
-                <div style="position: absolute; bottom: 8px; left: 8px; right: 8px; background-color: var(--primary); color: white; border-radius: var(--radius-sm); text-align: center; font-size: 8px; padding: 2px 0;">PROPOSED</div>
-              </div>
-              <div class="micro-calendar-cell"><span class="day-num">21</span><div style="position: absolute; bottom: 8px; left: 8px; right: 8px; background-color: var(--tertiary-container); opacity: 0.5; height: 8px; border-radius: 4px;"></div></div>
-              <div class="micro-calendar-cell"><span class="day-num">22</span></div>
-              <div class="micro-calendar-cell"><span class="day-num">23</span></div>
-              <div class="micro-calendar-cell" style="background-color: rgba(186, 26, 26, 0.05); border-color: rgba(186, 26, 26, 0.2);"><span class="day-num" style="color: var(--error);">24</span><div style="position: absolute; bottom: 8px; left: 8px; right: 8px; background-color: var(--error); height: 4px; border-radius: 2px;"></div></div>
-              <div class="micro-calendar-cell"><span class="day-num">25</span></div>
+              ${microCalCellsHtml}
             </div>
-            <p id="micro-cal-conflict-notice" class="font-label-sm" style="text-align: center; color: var(--error); margin-top: var(--space-md); display: none;">
-              Potential conflict detected: Sam is travelling.
-            </p>
+            <div id="micro-cal-conflict-notice" class="font-label-sm micro-cal-conflict-notice" style="display: none;"></div>
           </div>
         </div>
       </section>
@@ -881,6 +965,7 @@ export const Views = {
 
   admin(state) {
     const polyFamilyName = localStorage.getItem('polyschedule_poly_family_name') || 'The Poly Circle';
+    const autoArchiveDays = getAutoArchiveDays();
     const logsHtml = (state.logs || []).map(log => {
       const color = log.type === 'error' ? 'var(--error)' : log.type === 'warning' ? 'var(--tertiary)' : 'inherit';
       return `<p class="console-line"><span class="console-time">[${log.time}]</span> <span style="color: ${color};">${log.message}</span></p>`;
@@ -902,6 +987,16 @@ export const Views = {
             <input class="form-input" id="admin-poly-family-name" placeholder="The Poly Circle" type="text" value="${polyFamilyName}"/>
           </div>
           <button class="btn btn-filled" id="btn-save-group-name" style="align-self: flex-start;">Save Name</button>
+        </div>
+
+        <div class="bento-card" style="padding: var(--space-lg); border: 1px solid var(--outline-variant);">
+          <h3 class="font-title-lg" style="font-weight: 700; margin-bottom: var(--space-md);">Proposal Archive</h3>
+          <div class="form-group" style="margin-bottom: var(--space-md);">
+            <label class="form-label" for="admin-auto-archive-days">Auto-archive approved proposals after (days)</label>
+            <input class="form-input" id="admin-auto-archive-days" type="number" min="0" max="365" value="${autoArchiveDays}"/>
+            <p class="font-label-sm" style="color: var(--on-surface-variant); margin-top: var(--space-xs);">Set to 0 to disable automatic archiving (manual only).</p>
+          </div>
+          <button class="btn btn-filled" id="btn-save-auto-archive" style="align-self: flex-start;">Save Archive Setting</button>
         </div>
 
         <div class="bento-card" style="padding: var(--space-lg); border: 1px solid var(--outline-variant);">

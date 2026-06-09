@@ -113,12 +113,16 @@ export function renamePartnerReferences(config, events, oldName, newName) {
   });
 }
 
-export function getProposalOutcome(responses = {}) {
-  const values = Object.values(responses);
-  if (values.length === 0) return 'pending';
-  if (values.some(r => r.status === 'pending')) return 'pending';
-  if (values.some(r => r.status === 'reject')) return 'rejected';
-  if (values.every(r => r.status === 'accept' || r.status === 'abstain')) return 'confirmed';
+export function getProposalOutcome(responses = {}, proposalType = 'event') {
+  const entries = Object.entries(responses || {});
+  if (entries.length === 0) return 'pending';
+  if (entries.some(([, r]) => r.status === 'reject')) return 'rejected';
+  if (entries.some(([, r]) => r.status === 'pending')) return 'pending';
+  if (proposalType === 'event') {
+    if (entries.every(([, r]) => r.status === 'accept' || r.status === 'abstain')) return 'confirmed';
+  } else if (entries.every(([, r]) => r.status === 'accept')) {
+    return 'confirmed';
+  }
   return 'pending';
 }
 

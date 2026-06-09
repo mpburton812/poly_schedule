@@ -5,12 +5,24 @@
 
 import {
   DEFAULT_AVATARS,
-  getProposalOutcome,
   renamePartnerReferences,
   expandBatchSleepingToEvents,
   removePartnerReferences,
   removeHomeReferences
 } from './helpers.js';
+import {
+  WORKFLOW,
+  migrateEvents,
+  evaluateProposedProposal,
+  computeAutoArchiveAt,
+  getAutoArchiveDays,
+  buildInitialResponses,
+  normalizeParticipantRoles,
+  participantNames,
+  cloneProposalAsDraft,
+  getWorkflowState,
+  isCalendarEvent
+} from './proposal-workflow.js';
 
 // Local Storage Keys
 const LOCAL_EVENTS_KEY = 'polyschedule_local_events';
@@ -148,12 +160,19 @@ function generateMockEvents() {
       id: 'p_e1',
       title: 'Thanksgiving Split',
       type: 'event',
-      start: getRelDate(5, 12, 0), // 5 days later noon
+      start: getRelDate(5, 12, 0),
       end: getRelDate(5, 18, 0),
       location: 'Cabin',
-      participants: ['Alex', 'Sam', 'Jordan'],
+      participants: ['Alex Rivera', 'Sam Davis', 'Jordan Smith'],
+      participantRoles: [
+        { name: 'Alex Rivera', role: 'required' },
+        { name: 'Sam Davis', role: 'required' },
+        { name: 'Jordan Smith', role: 'required' }
+      ],
       proposer: 'Alex Rivera',
+      workflowState: WORKFLOW.PROPOSED,
       status: 'pending',
+      revision: 1,
       responses: {
         'Alex Rivera': { status: 'accept', comment: 'Ready to cook!' },
         'Sam Davis': { status: 'accept', comment: 'I\'ll bring the games.' },
@@ -164,19 +183,25 @@ function generateMockEvents() {
       id: 'p_s1',
       title: 'Weekend at Lake Cabin',
       type: 'sleeping',
-      start: getRelDate(4, 22, 0), // 4 days later (Friday)
-      end: getRelDate(6, 8, 0), // 2 nights
+      start: getRelDate(4, 22, 0),
+      end: getRelDate(6, 8, 0),
       homeId: 'h1',
       roomId: 'r1',
       roomName: 'North Bedroom',
       homeName: 'The Sanctuary',
-      participants: ['Alex', 'Sam', 'Casey'],
+      participants: ['Alex Rivera', 'Sam Davis', 'Casey Chen'],
+      participantRoles: [
+        { name: 'Alex Rivera', role: 'required' },
+        { name: 'Sam Davis', role: 'required' },
+        { name: 'Casey Chen', role: 'optional' }
+      ],
       proposer: 'Alex Rivera',
+      workflowState: WORKFLOW.PROPOSED,
       status: 'pending',
+      revision: 1,
       responses: {
         'Alex Rivera': { status: 'accept', comment: '' },
-        'Sam Davis': { status: 'accept', comment: 'Sounds cozy!' },
-        'Casey Chen': { status: 'reject', comment: 'Already have family visiting that weekend.' }
+        'Sam Davis': { status: 'accept', comment: 'Sounds cozy!' }
       }
     }
   ];
@@ -262,6 +287,7 @@ export const CalendarSync = {
         this.events = generateMockEvents();
         localStorage.setItem(LOCAL_EVENTS_KEY, JSON.stringify(this.events));
       }
+      this.migrateAndNormalizeEvents();
     } else {
       // Load actual events from Google Calendar
       try {
@@ -273,11 +299,16 @@ export const CalendarSync = {
     }
 
     this.syncProposalStatuses();
-    this.processExpiredRejectedProposals();
+    this.processAutoArchive();
     
     if (this.onStateUpdate) {
       this.onStateUpdate();
     }
+  },
+
+  migrateAndNormalizeEvents() {
+    this.events = migrateEvents(this.events, this.config);
+    this.persistEvents();
   },
 
   persistEvents() {
@@ -286,65 +317,168 @@ export const CalendarSync = {
     }
   },
 
-  applyProposalOutcome(event) {
-    const outcome = getProposalOutcome(event.responses);
+  applyWorkflowEvaluation(event) {
+    if (getWorkflowState(event) !== WORKFLOW.PROPOSED) return event;
 
-    if (event.status !== 'pending' && event.status !== 'rejected') return event;
-
-    if (outcome === 'confirmed') {
-      event.status = 'confirmed';
-      if (event.type === 'sleeping') {
-        event.title = `SLEEP: ${event.roomName}: ${event.participants.join(' & ')}`;
-      }
-    } else if (outcome === 'rejected') {
+    const result = evaluateProposedProposal(event, this.config);
+    if (result.transition === 'declined') {
+      event.workflowState = WORKFLOW.DECLINED;
       event.status = 'rejected';
+      event.declinedBy = result.declinedBy;
+      event.declinedAt = new Date().toISOString();
+    } else if (result.transition === 'approved') {
+      event.workflowState = WORKFLOW.APPROVED;
+      event.status = 'confirmed';
+      event.approvedAt = new Date().toISOString();
+      event.autoArchiveAt = computeAutoArchiveAt(event.approvedAt, getAutoArchiveDays());
+      if (event.type === 'sleeping') {
+        event.title = `SLEEP: ${event.roomName}: ${(event.participants || []).join(' & ')}`;
+      }
     }
-
     return event;
   },
 
   syncProposalStatuses() {
     let changed = false;
     this.events.forEach(event => {
-      if (event.status !== 'pending') return;
-      const before = event.status;
-      this.applyProposalOutcome(event);
-      if (event.status !== before) changed = true;
+      if (getWorkflowState(event) !== WORKFLOW.PROPOSED) return;
+      const before = event.workflowState;
+      this.applyWorkflowEvaluation(event);
+      if (event.workflowState !== before) changed = true;
     });
     if (changed) this.persistEvents();
   },
 
-  processExpiredRejectedProposals() {
-    const now = new Date();
+  processAutoArchive() {
+    const days = getAutoArchiveDays();
+    if (days <= 0) return;
+    const now = Date.now();
     let changed = false;
-
     this.events.forEach(event => {
-      if (event.status !== 'rejected') return;
-      const start = new Date(event.start);
-      if (now < start) return;
-
-      const durationMs = new Date(event.end) - start;
-      const proposer = event.proposer;
-
-      event.status = 'pending';
-      Object.keys(event.responses || {}).forEach(name => {
-        if (name === proposer) {
-          event.responses[name] = { status: 'accept', comment: 'Organizer' };
-        } else {
-          event.responses[name] = { status: 'pending', comment: '' };
-        }
-      });
-
-      const newStart = new Date(now);
-      newStart.setDate(newStart.getDate() + 7);
-      newStart.setHours(start.getHours(), start.getMinutes(), 0, 0);
-      event.start = newStart.toISOString();
-      event.end = new Date(newStart.getTime() + durationMs).toISOString();
-      event.resentAt = now.toISOString();
-      changed = true;
+      if (getWorkflowState(event) !== WORKFLOW.APPROVED) return;
+      const archiveAt = event.autoArchiveAt
+        ? new Date(event.autoArchiveAt).getTime()
+        : computeAutoArchiveAt(event.approvedAt, days)
+          ? new Date(computeAutoArchiveAt(event.approvedAt, days)).getTime()
+          : null;
+      if (archiveAt && now >= archiveAt) {
+        event.workflowState = WORKFLOW.ARCHIVED;
+        event.archivedAt = new Date().toISOString();
+        changed = true;
+      }
     });
-
     if (changed) this.persistEvents();
+  },
+
+  async createDraft(proposalData) {
+    const draft = {
+      ...proposalData,
+      id: proposalData.id || `prop_${Date.now()}`,
+      workflowState: WORKFLOW.DRAFT,
+      status: 'draft',
+      revision: proposalData.revision || 1,
+      responses: {},
+      approvedAt: null,
+      archivedAt: null,
+      autoArchiveAt: null,
+      expandedEventIds: []
+    };
+    if (!draft.participantRoles && draft.participants) {
+      draft.participantRoles = normalizeParticipantRoles(draft.participants, this.config, draft.type);
+    }
+    draft.participants = participantNames(draft.participantRoles || []);
+    return this.createEvent(draft);
+  },
+
+  async saveDraft(eventId, draftData) {
+    const idx = this.events.findIndex(e => e.id === eventId);
+    if (idx === -1) throw new Error('Draft not found');
+    if (getWorkflowState(this.events[idx]) !== WORKFLOW.DRAFT) {
+      throw new Error('Only drafts can be auto-saved');
+    }
+    const updated = {
+      ...this.events[idx],
+      ...draftData,
+      workflowState: WORKFLOW.DRAFT,
+      status: 'draft'
+    };
+    if (draftData.participantRoles) {
+      updated.participants = participantNames(draftData.participantRoles);
+    }
+    return this.updateEvent(eventId, updated, { skipWorkflow: true });
+  },
+
+  async submitProposal(eventId) {
+    const idx = this.events.findIndex(e => e.id === eventId);
+    if (idx === -1) throw new Error('Proposal not found');
+    const event = this.events[idx];
+    const ws = getWorkflowState(event);
+    if (ws !== WORKFLOW.DRAFT) {
+      throw new Error('Only drafts can be submitted');
+    }
+
+    const participantRoles = event.participantRoles || normalizeParticipantRoles(event.participants, this.config, event.type);
+    const responses = buildInitialResponses(event.proposer, participantRoles, this.config);
+
+    return this.updateEvent(eventId, {
+      workflowState: WORKFLOW.PROPOSED,
+      status: 'pending',
+      participantRoles,
+      participants: participantNames(participantRoles),
+      responses,
+      submittedAt: new Date().toISOString()
+    });
+  },
+
+  async retractProposal(eventId) {
+    const event = this.events.find(e => e.id === eventId);
+    if (!event || getWorkflowState(event) !== WORKFLOW.PROPOSED) {
+      throw new Error('Only proposed items can be retracted');
+    }
+    return this.updateEvent(eventId, {
+      workflowState: WORKFLOW.DRAFT,
+      status: 'draft',
+      responses: {},
+      submittedAt: null,
+      declinedBy: null,
+      declinedAt: null
+    }, { skipWorkflow: true });
+  },
+
+  async cancelProposal(eventId, reason = '') {
+    return this.deleteProposal(eventId, reason || 'Cancelled by proposer');
+  },
+
+  async deleteProposal(eventId, reason = '') {
+    const event = this.events.find(e => e.id === eventId);
+    if (!event) return;
+    await this.deleteEvent(eventId);
+    return { deleted: true, reason, title: event.title };
+  },
+
+  async reopenDeclinedProposal(eventId) {
+    const event = this.events.find(e => e.id === eventId);
+    if (!event || getWorkflowState(event) !== WORKFLOW.DECLINED) {
+      throw new Error('Only declined proposals can be reopened');
+    }
+    const draft = cloneProposalAsDraft(event, this.config);
+    await this.deleteEvent(eventId);
+    return this.createEvent(draft);
+  },
+
+  async archiveProposal(eventId) {
+    const event = this.events.find(e => e.id === eventId);
+    if (!event || getWorkflowState(event) !== WORKFLOW.APPROVED) {
+      throw new Error('Only approved proposals can be archived');
+    }
+    return this.updateEvent(eventId, {
+      workflowState: WORKFLOW.ARCHIVED,
+      archivedAt: new Date().toISOString()
+    }, { skipWorkflow: true });
+  },
+
+  applyProposalOutcome(event) {
+    return this.applyWorkflowEvaluation(event);
   },
 
   renamePartnerInEvents(oldName, newName) {
@@ -401,22 +535,29 @@ export const CalendarSync = {
     return newEvent;
   },
 
-  async updateEvent(eventId, updatedData) {
+  async updateEvent(eventId, updatedData, options = {}) {
     const idx = this.events.findIndex(e => e.id === eventId);
     if (idx === -1) return;
 
     const updated = { ...this.events[idx], ...updatedData };
-    
-    if (updated.status === 'pending' || updated.status === 'rejected') {
-      this.applyProposalOutcome(updated);
+
+    if (!options.skipWorkflow && getWorkflowState(updated) === WORKFLOW.PROPOSED) {
+      this.applyWorkflowEvaluation(updated);
     }
 
-    if (updated.type === 'batch_sleeping' && updated.status === 'confirmed') {
+    if (getWorkflowState(updated) === WORKFLOW.APPROVED && updated.type === 'batch_sleeping') {
       const expanded = expandBatchSleepingToEvents(updated);
-      this.events.splice(idx, 1, ...expanded);
+      expanded.forEach(e => {
+        e.status = 'confirmed';
+        e.workflowState = WORKFLOW.APPROVED;
+      });
+      updated.expandedEventIds = expanded.map(e => e.id);
+      updated.status = 'confirmed';
+      this.events[idx] = updated;
+      this.events.push(...expanded);
       this.persistEvents();
       if (this.onStateUpdate) this.onStateUpdate();
-      return expanded;
+      return { parent: updated, expanded };
     }
 
     if (this.mode === 'offline') {

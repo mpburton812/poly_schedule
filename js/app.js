@@ -24,6 +24,14 @@ import {
   getBedroomOptionsForHome,
   buildBatchNightsPayload
 } from './helpers.js';
+import {
+  WORKFLOW,
+  getWorkflowState,
+  normalizeParticipantRoles,
+  allowsAbstain,
+  setAutoArchiveDays,
+  getAutoArchiveDays
+} from './proposal-workflow.js';
 
 function loadPersistedLogs() {
   try {
@@ -49,13 +57,16 @@ const state = {
 };
 
 // Sub-navigation tab states
-let activeProposalsTab = 'pending';
+let activeProposalsTab = 'proposed';
 let currentCreateType = 'event';
 let activePartnerType = 'active';
+let currentDraftId = null;
+let draftSaveTimer = null;
 
 // Proposal Creation Form Temp Data
 const newProposalState = {
   participants: [],
+  participantRoles: [],
   homeId: 'h1',
   roomId: 'r1',
   batchNightCount: 3,
@@ -678,7 +689,8 @@ function router() {
     return;
   }
 
-  CalendarSync.processExpiredRejectedProposals();
+  CalendarSync.syncProposalStatuses();
+  CalendarSync.processAutoArchive();
   state.events = CalendarSync.events;
 
   const view = getRouteBase();
@@ -749,6 +761,7 @@ function renderView() {
     if (currentCreateType === 'batch_sleeping') {
       ensureBatchAssignments(newProposalState.batchNightCount);
     }
+    ensureCreateDraftSync();
     container.innerHTML = Views.createProposal(state, currentCreateType, newProposalState);
     bindCreateEvents();
   } else if (state.currentView === 'logistics') {
@@ -808,7 +821,7 @@ function bindScheduleEvents() {
   // Clicking proposal mini summaries
   document.querySelectorAll('.proposal-summary-card').forEach(card => {
     card.addEventListener('click', () => {
-      activeProposalsTab = 'pending';
+      activeProposalsTab = 'proposed';
       window.location.hash = '#proposals';
     });
   });
@@ -842,7 +855,6 @@ function bindScheduleEvents() {
 }
 
 function bindProposalsEvents() {
-  // Tab Switchers
   const bindTab = (id, tabName) => {
     const btn = document.getElementById(id);
     if (btn) {
@@ -852,55 +864,134 @@ function bindProposalsEvents() {
       });
     }
   };
-  bindTab('btn-tab-pending', 'pending');
-  bindTab('btn-tab-reviewed', 'reviewed');
-  bindTab('btn-tab-completed', 'completed');
+  bindTab('btn-tab-drafts', 'drafts');
+  bindTab('btn-tab-proposed', 'proposed');
+  bindTab('btn-tab-approved', 'approved');
+  bindTab('btn-tab-archived', 'archived');
+  bindTab('btn-tab-declined', 'declined');
 
-  // Voting buttons (Accept / Abstain / Reject)
   document.querySelectorAll('.vote-btn').forEach(btn => {
     btn.addEventListener('click', async () => {
       const id = btn.dataset.id;
       const vote = btn.dataset.vote;
       const voteLabel = vote === 'accept' ? 'Accept' : vote === 'abstain' ? 'Abstain' : 'Reject';
-      
+
       const commentInput = prompt(`Optional comment for your ${voteLabel} vote (leave blank to skip):`);
       if (commentInput === null) return;
 
       const proposal = state.events.find(ev => ev.id === id);
       if (!proposal) return;
 
+      const voterName = state.currentUser?.name || 'Alex Rivera';
       const responses = { ...proposal.responses };
-      responses[state.currentUser?.name || 'Alex Rivera'] = {
+      responses[voterName] = {
         status: vote,
         comment: commentInput.trim()
       };
 
       try {
         await CalendarSync.updateEvent(id, { responses });
-        showToast(`Vote submitted successfully!`, 'success');
+        showToast('Vote submitted successfully!', 'success');
         addLog(`User voted ${vote} on proposal "${proposal.title}"`);
       } catch (err) {
-        showToast(`Failed to submit vote.`, 'error');
+        showToast('Failed to submit vote.', 'error');
       }
     });
   });
 
-  // Cancel/Delete buttons
-  document.querySelectorAll('.cancel-proposal-btn, .retract-proposal-btn').forEach(btn => {
+  document.querySelectorAll('.cancel-proposal-btn').forEach(btn => {
     btn.addEventListener('click', async () => {
       const id = btn.dataset.id;
       const proposal = state.events.find(ev => ev.id === id);
       if (!proposal) return;
 
-      if (confirm(`Are you sure you want to cancel proposal "${proposal.title}"?`)) {
-        const reason = prompt('Optional: Enter a reason for cancelling this booking:');
-        if (reason === null) return; // User cancelled prompt
+      if (confirm(`Cancel proposal "${proposal.title}"? This permanently removes it.`)) {
+        const reason = prompt('Optional reason for cancelling:') ?? '';
         try {
-          await CalendarSync.deleteEvent(id);
-          handleBookingDeletion(proposal, reason);
+          await CalendarSync.cancelProposal(id, reason);
+          addLog(`Proposal cancelled: "${proposal.title}"${reason ? ` — ${reason}` : ''}`, 'warning');
+          showToast('Proposal cancelled.', 'success');
         } catch (err) {
-          showToast(`Failed to cancel proposal.`, 'error');
+          showToast('Failed to cancel proposal.', 'error');
         }
+      }
+    });
+  });
+
+  document.querySelectorAll('.retract-proposal-btn').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      const id = btn.dataset.id;
+      const proposal = state.events.find(ev => ev.id === id);
+      if (!proposal) return;
+
+      if (confirm(`Retract "${proposal.title}" back to draft? All votes will be cleared.`)) {
+        try {
+          await CalendarSync.retractProposal(id);
+          addLog(`Proposal retracted to draft: "${proposal.title}"`, 'info');
+          showToast('Proposal retracted to draft.', 'success');
+          activeProposalsTab = 'drafts';
+          renderView();
+        } catch (err) {
+          showToast('Failed to retract proposal.', 'error');
+        }
+      }
+    });
+  });
+
+  document.querySelectorAll('.edit-draft-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      loadDraftIntoForm(btn.dataset.id);
+      window.location.hash = `#create?draft=${btn.dataset.id}`;
+    });
+  });
+
+  document.querySelectorAll('.delete-draft-btn, .delete-declined-btn').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      const id = btn.dataset.id;
+      const proposal = state.events.find(ev => ev.id === id);
+      if (!proposal) return;
+      if (!confirm(`Delete "${proposal.title}" permanently?`)) return;
+      try {
+        await CalendarSync.deleteProposal(id, 'Deleted by proposer');
+        addLog(`Proposal deleted: "${proposal.title}"`, 'warning');
+        showToast('Proposal deleted.', 'success');
+      } catch (err) {
+        showToast('Failed to delete proposal.', 'error');
+      }
+    });
+  });
+
+  document.querySelectorAll('.reopen-proposal-btn').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      const id = btn.dataset.id;
+      const proposal = state.events.find(ev => ev.id === id);
+      if (!proposal) return;
+      try {
+        const draft = await CalendarSync.reopenDeclinedProposal(id);
+        addLog(`Declined proposal reopened as new draft: "${proposal.title}"`, 'info');
+        showToast('Reopened as a new draft.', 'success');
+        loadDraftIntoForm(draft.id);
+        activeProposalsTab = 'drafts';
+        window.location.hash = `#create?draft=${draft.id}`;
+      } catch (err) {
+        showToast('Failed to reopen proposal.', 'error');
+      }
+    });
+  });
+
+  document.querySelectorAll('.archive-proposal-btn').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      const id = btn.dataset.id;
+      const proposal = state.events.find(ev => ev.id === id);
+      if (!proposal) return;
+      try {
+        await CalendarSync.archiveProposal(id);
+        addLog(`Proposal archived: "${proposal.title}"`, 'info');
+        showToast('Proposal archived.', 'success');
+        activeProposalsTab = 'archived';
+        renderView();
+      } catch (err) {
+        showToast('Failed to archive proposal.', 'error');
       }
     });
   });
@@ -1004,6 +1095,12 @@ function readBatchAssignmentsFromDom() {
   return newProposalState.batchAssignments;
 }
 
+function formatWarningList(warnings) {
+  if (!warnings.length) return '';
+  if (warnings.length === 1) return warnings[0].message;
+  return `<ul class="banner-alert-list">${warnings.map(w => `<li>${w.message}</li>`).join('')}</ul>`;
+}
+
 function showProposalRulesBanner(warnings) {
   const banner = document.getElementById('proposal-rules-banner');
   const titleEl = document.getElementById('banner-warning-title');
@@ -1013,29 +1110,93 @@ function showProposalRulesBanner(warnings) {
 
   if (warnings.length > 0) {
     banner.classList.remove('hidden');
-    const capacityErr = warnings.find(w => w.type === 'CAPACITY_CONFLICT');
-    const partnerErr = warnings.find(w => w.type === 'PARTNER_MAX_LIMIT');
-    if (capacityErr) {
-      titleEl.textContent = 'Room Capacity Conflict';
-      descEl.textContent = capacityErr.message;
+    const capacityWarnings = warnings.filter(w => w.type === 'CAPACITY_CONFLICT');
+    const partnerMaxWarnings = warnings.filter(w => w.type === 'PARTNER_MAX_LIMIT');
+    const preferenceWarnings = warnings.filter(w =>
+      w.type !== 'CAPACITY_CONFLICT' && w.type !== 'PARTNER_MAX_LIMIT'
+    );
+
+    if (capacityWarnings.length > 0) {
+      titleEl.textContent = capacityWarnings.length > 1 ? 'Room Capacity Conflicts' : 'Room Capacity Conflict';
+      descEl.innerHTML = formatWarningList(capacityWarnings);
       banner.style.backgroundColor = 'var(--error-container)';
       banner.style.color = 'var(--on-error-container)';
       banner.style.borderColor = 'var(--error)';
-    } else if (partnerErr) {
-      titleEl.textContent = 'Extended Stay Alert';
-      descEl.textContent = partnerErr.message;
+    } else if (partnerMaxWarnings.length > 0) {
+      titleEl.textContent = partnerMaxWarnings.length > 1 ? 'Extended Stay Alerts' : 'Extended Stay Alert';
+      descEl.innerHTML = formatWarningList(partnerMaxWarnings);
       banner.style.backgroundColor = 'var(--tertiary-fixed)';
       banner.style.color = 'var(--on-tertiary-fixed)';
       banner.style.borderColor = 'var(--tertiary)';
     } else {
-      titleEl.textContent = 'Preference Limit Alert';
-      descEl.textContent = warnings.map(w => w.message).join(' ');
+      titleEl.textContent = preferenceWarnings.length > 1 ? 'Preference Limit Alerts' : 'Preference Limit Alert';
+      descEl.innerHTML = `<ul class="banner-alert-list">${preferenceWarnings.map(w => `<li>${w.message}</li>`).join('')}</ul>`;
+      banner.style.backgroundColor = 'var(--tertiary-fixed)';
+      banner.style.color = 'var(--on-tertiary-fixed)';
+      banner.style.borderColor = 'var(--tertiary)';
     }
-    if (conflictNotice) conflictNotice.style.display = 'block';
+
+    if (conflictNotice) {
+      if (capacityWarnings.length > 0) {
+        conflictNotice.style.display = 'block';
+        conflictNotice.innerHTML = formatWarningList(capacityWarnings);
+      } else {
+        conflictNotice.style.display = 'none';
+        conflictNotice.innerHTML = '';
+      }
+    }
   } else {
     banner.classList.add('hidden');
-    if (conflictNotice) conflictNotice.style.display = 'none';
+    titleEl.textContent = '';
+    descEl.innerHTML = '';
+    if (conflictNotice) {
+      conflictNotice.style.display = 'none';
+      conflictNotice.innerHTML = '';
+    }
   }
+}
+
+function updateBatchPartnerLocks() {
+  document.querySelectorAll('.batch-night-row').forEach(row => {
+    const assignedInPriorBlocks = new Set();
+    row.querySelectorAll('.batch-assignment-block').forEach(block => {
+      block.querySelectorAll('.batch-partner-cb').forEach(cb => {
+        const label = cb.closest('.batch-partner-label');
+        const partner = cb.dataset.partner;
+        if (assignedInPriorBlocks.has(partner)) {
+          cb.disabled = true;
+          cb.checked = false;
+          label?.classList.add('batch-partner-disabled');
+        } else {
+          cb.disabled = false;
+          label?.classList.remove('batch-partner-disabled');
+        }
+      });
+      block.querySelectorAll('.batch-partner-cb:checked').forEach(cb => {
+        assignedInPriorBlocks.add(cb.dataset.partner);
+      });
+    });
+  });
+}
+
+function updateMicroCalendarConflicts(warnings) {
+  const grid = document.getElementById('micro-cal-grid');
+  if (!grid) return;
+  grid.querySelectorAll('.micro-calendar-cell').forEach(cell => {
+    cell.classList.remove('micro-calendar-cell-conflict');
+  });
+
+  const startInput = document.getElementById('prop-start-date');
+  if (!startInput) return;
+
+  const start = new Date(startInput.value + 'T12:00:00');
+  warnings.filter(w => w.type === 'CAPACITY_CONFLICT' && w.nightIndex !== undefined).forEach(w => {
+    const d = new Date(start);
+    d.setDate(start.getDate() + w.nightIndex);
+    const dateStr = d.toISOString().split('T')[0];
+    const cell = grid.querySelector(`.micro-calendar-cell[data-date="${dateStr}"]`);
+    cell?.classList.add('micro-calendar-cell-conflict');
+  });
 }
 
 function preserveCreateFormDraft() {
@@ -1043,56 +1204,261 @@ function preserveCreateFormDraft() {
   if (titleEl) newProposalState.draftTitle = titleEl.value;
 }
 
-function bindCreateEvents() {
-  // Reset create proposal state
+function resetNewProposalFormState() {
   newProposalState.participants = [];
-  if (currentCreateType !== 'batch_sleeping') {
-    newProposalState.draftTitle = '';
+  newProposalState.participantRoles = [];
+  newProposalState.draftTitle = '';
+  newProposalState.homeId = 'h1';
+  newProposalState.roomId = 'r1';
+  newProposalState.batchNightCount = 3;
+  newProposalState.batchAssignments = [];
+  newProposalState.batchStartDate = new Date().toISOString().split('T')[0];
+}
+
+function loadDraftIntoForm(draftId) {
+  const draft = state.events.find(e => e.id === draftId);
+  if (!draft || getWorkflowState(draft) !== WORKFLOW.DRAFT) return false;
+
+  currentDraftId = draftId;
+  currentCreateType = draft.type || 'event';
+  newProposalState.participants = [...(draft.participants || [])];
+  newProposalState.participantRoles = (draft.participantRoles || []).map(p => ({ ...p }));
+  if (!newProposalState.participantRoles.length && newProposalState.participants.length) {
+    newProposalState.participantRoles = normalizeParticipantRoles(newProposalState.participants, state.config, currentCreateType);
+  }
+  newProposalState.draftTitle = draft.title || '';
+  newProposalState.homeId = draft.homeId || 'h1';
+  newProposalState.roomId = draft.roomId || 'r1';
+  newProposalState.homeName = draft.homeName;
+  newProposalState.roomName = draft.roomName;
+  newProposalState.batchNightCount = draft.batchNights?.length || draft.batchNightCount || 3;
+  newProposalState.batchAssignments = draft.batchNights
+    ? draft.batchNights.map(n => ({ assignments: (n.assignments || []).map(a => ({ ...a, participants: [...(a.participants || [])] })) }))
+    : [];
+  newProposalState.batchStartDate = draft.start
+    ? new Date(draft.start).toISOString().split('T')[0]
+    : new Date().toISOString().split('T')[0];
+  return true;
+}
+
+function syncParticipantRolesFromParticipants() {
+  const existing = Object.fromEntries((newProposalState.participantRoles || []).map(p => [p.name, p.role]));
+  newProposalState.participantRoles = newProposalState.participants.map(name => {
+    const partner = state.config?.partners?.find(p => p.name === name);
+    if (partner && isPartnerPassive(partner)) {
+      return { name, role: 'optional' };
+    }
+    return { name, role: existing[name] === 'optional' ? 'optional' : 'required' };
+  });
+}
+
+function collectProposalFormData() {
+  const titleInput = document.getElementById('prop-title');
+  const startInput = document.getElementById('prop-start-date');
+  const currentUserName = state.currentUser?.name || 'Alex Rivera';
+  syncParticipantRolesFromParticipants();
+
+  if (currentCreateType === 'batch_sleeping') {
+    const durationVal = document.getElementById('prop-duration')?.value || '1';
+    const nightCount = Math.min(14, Math.max(1, parseInt(durationVal, 10) || 1));
+    const assignments = readBatchAssignmentsFromDom();
+    const { batchNights, start, end } = buildBatchNightsPayload(startInput?.value || newProposalState.batchStartDate, nightCount, assignments, state.config);
+    const participantSet = new Set();
+    batchNights.forEach(night => {
+      (night.assignments || []).forEach(a => (a.participants || []).forEach(p => participantSet.add(p)));
+    });
+    if (!participantSet.has(currentUserName)) participantSet.add(currentUserName);
+    const participants = Array.from(participantSet);
+    return {
+      title: titleInput?.value.trim() || 'Untitled Batch',
+      type: 'batch_sleeping',
+      start,
+      end,
+      batchNights,
+      participants,
+      participantRoles: normalizeParticipantRoles(participants, state.config, 'batch_sleeping'),
+      proposer: currentUserName
+    };
   }
 
-  // Event/Sleeping/Batch toggle
+  const startD = new Date(startInput?.value || newProposalState.batchStartDate);
+  let endD = new Date(startD);
+  if (currentCreateType === 'sleeping') {
+    const durationVal = document.getElementById('prop-duration')?.value || '1';
+    const nights = parseInt(durationVal, 10) || 1;
+    endD.setDate(startD.getDate() + nights);
+  } else {
+    const startTime = read12HourTime('prop-start');
+    const endTime = read12HourTime('prop-end');
+    startD.setHours(startTime.hours, startTime.minutes, 0, 0);
+    endD.setHours(endTime.hours, endTime.minutes, 0, 0);
+    if (endD <= startD) endD = new Date(startD.getTime() + 3600000);
+  }
+
+  if (!newProposalState.participants.includes(currentUserName)) {
+    newProposalState.participants.push(currentUserName);
+  }
+  syncParticipantRolesFromParticipants();
+
+  const data = {
+    title: titleInput?.value.trim() || 'Untitled Proposal',
+    type: currentCreateType,
+    start: startD.toISOString(),
+    end: endD.toISOString(),
+    participants: [...newProposalState.participants],
+    participantRoles: [...newProposalState.participantRoles],
+    proposer: currentUserName
+  };
+
+  if (currentCreateType === 'sleeping') {
+    data.homeId = newProposalState.homeId;
+    data.roomId = newProposalState.roomId;
+    data.homeName = newProposalState.homeName || 'The Sanctuary';
+    data.roomName = newProposalState.roomName || 'North Bedroom';
+  } else if (currentCreateType === 'event') {
+    data.location = document.getElementById('event-location')?.value || 'The Loft at Main St';
+  }
+  return data;
+}
+
+function scheduleDraftSave() {
+  if (!currentDraftId) return;
+  clearTimeout(draftSaveTimer);
+  draftSaveTimer = setTimeout(async () => {
+    try {
+      const data = collectProposalFormData();
+      await CalendarSync.saveDraft(currentDraftId, data);
+      const statusEl = document.getElementById('draft-autosave-status');
+      if (statusEl) {
+        statusEl.textContent = `Draft saved ${new Date().toLocaleTimeString()}`;
+      }
+    } catch (err) {
+      console.error('Draft auto-save failed', err);
+    }
+  }, 600);
+}
+
+function ensureCreateDraftSync() {
+  const params = parseHashParams();
+  if (params.draft) {
+    if (currentDraftId !== params.draft) {
+      loadDraftIntoForm(params.draft);
+    }
+    return;
+  }
+  if (currentDraftId) return;
+
+  const currentUserName = state.currentUser?.name || 'Alex Rivera';
+  const now = new Date();
+  const draft = {
+    id: `prop_${Date.now()}`,
+    title: 'Untitled Proposal',
+    type: 'event',
+    start: now.toISOString(),
+    end: new Date(now.getTime() + 3600000).toISOString(),
+    participants: [],
+    participantRoles: [],
+    proposer: currentUserName,
+    location: '',
+    workflowState: WORKFLOW.DRAFT,
+    status: 'draft',
+    revision: 1,
+    responses: {},
+    approvedAt: null,
+    archivedAt: null,
+    autoArchiveAt: null,
+    expandedEventIds: []
+  };
+  CalendarSync.events.push(draft);
+  CalendarSync.persistEvents();
+  state.events = CalendarSync.events;
+  currentDraftId = draft.id;
+  resetNewProposalFormState();
+  window.history.replaceState({}, '', `#create?draft=${draft.id}`);
+}
+
+function bindCreateEvents() {
+  document.querySelectorAll('.circle-partner-option').forEach(opt => {
+    const name = opt.dataset.name;
+    if (newProposalState.participants.includes(name)) {
+      opt.style.opacity = '1';
+      const avatar = opt.querySelector('.profile-avatar');
+      if (avatar) avatar.style.borderColor = 'var(--primary)';
+    }
+  });
+
   const btnEvent = document.getElementById('btn-toggle-event');
   const btnSleep = document.getElementById('btn-toggle-sleeping');
   const btnBatch = document.getElementById('btn-toggle-batch-sleeping');
   if (btnEvent && btnSleep) {
     btnEvent.addEventListener('click', () => {
+      preserveCreateFormDraft();
       currentCreateType = 'event';
+      scheduleDraftSave();
       renderView();
     });
     btnSleep.addEventListener('click', () => {
+      preserveCreateFormDraft();
       currentCreateType = 'sleeping';
+      scheduleDraftSave();
       renderView();
     });
   }
   if (btnBatch) {
     btnBatch.addEventListener('click', () => {
+      preserveCreateFormDraft();
       currentCreateType = 'batch_sleeping';
       ensureBatchAssignments(newProposalState.batchNightCount || 3);
+      scheduleDraftSave();
       renderView();
     });
   }
 
-  // Invitees selection
   document.querySelectorAll('.circle-partner-option').forEach(opt => {
-    opt.addEventListener('click', () => {
+    opt.addEventListener('click', (e) => {
+      if (e.target.closest('.role-toggle-btn')) return;
       const name = opt.dataset.name;
       const idx = newProposalState.participants.indexOf(name);
-      
+
       if (idx === -1) {
         newProposalState.participants.push(name);
         opt.style.opacity = '1';
         opt.querySelector('.profile-avatar').style.borderColor = 'var(--primary)';
       } else {
         newProposalState.participants.splice(idx, 1);
+        newProposalState.participantRoles = newProposalState.participantRoles.filter(p => p.name !== name);
         opt.style.opacity = '0.6';
         opt.querySelector('.profile-avatar').style.borderColor = 'var(--outline-variant)';
       }
 
-      // Check rules on changing participants
+      syncParticipantRolesFromParticipants();
       runRulesChecks();
       updateSleepingArrangementTitle();
+      scheduleDraftSave();
+      renderView();
     });
   });
+
+  document.querySelectorAll('.role-toggle-btn').forEach(btn => {
+    btn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const name = btn.dataset.name;
+      const entry = newProposalState.participantRoles.find(p => p.name === name);
+      if (entry) {
+        entry.role = entry.role === 'required' ? 'optional' : 'required';
+      }
+      scheduleDraftSave();
+      renderView();
+    });
+  });
+
+  const titleInputEl = document.getElementById('prop-title');
+  if (titleInputEl) {
+    titleInputEl.addEventListener('input', () => {
+      newProposalState.draftTitle = titleInputEl.value;
+      scheduleDraftSave();
+    });
+  }
 
   const startDateInput = document.getElementById('prop-start-date');
   const durationInput = document.getElementById('prop-duration');
@@ -1105,6 +1471,7 @@ function bindCreateEvents() {
         renderView();
       } else {
         runRulesChecks();
+        scheduleDraftSave();
       }
     });
   }
@@ -1114,9 +1481,11 @@ function bindCreateEvents() {
         preserveCreateFormDraft();
         syncBatchAssignmentsFromDom();
         ensureBatchAssignments(parseInt(durationInput.value, 10) || 1);
+        scheduleDraftSave();
         renderView();
       } else {
         runRulesChecks();
+        scheduleDraftSave();
       }
     });
   }
@@ -1135,7 +1504,10 @@ function bindCreateEvents() {
         roomSelect.addEventListener('change', runRulesChecks);
       }
       block.querySelectorAll('.batch-partner-cb').forEach(cb => {
-        cb.addEventListener('change', runRulesChecks);
+        cb.addEventListener('change', () => {
+          updateBatchPartnerLocks();
+          runRulesChecks();
+        });
       });
     });
   });
@@ -1185,6 +1557,7 @@ function bindCreateEvents() {
   });
 
   if (currentCreateType === 'batch_sleeping') {
+    updateBatchPartnerLocks();
     runRulesChecks();
   }
 
@@ -1232,104 +1605,47 @@ function bindCreateEvents() {
   if (btnSubmit) {
     btnSubmit.addEventListener('click', async () => {
       const titleInput = document.getElementById('prop-title');
-      const startInput = document.getElementById('prop-start-date');
-      
-      if (!titleInput.value.trim()) {
+      if (!titleInput?.value.trim()) {
         showToast('Please enter a title for the proposal.', 'warning');
         return;
       }
-
-      const currentUserName = state.currentUser?.name || 'Alex Rivera';
-      let proposalData;
 
       if (currentCreateType === 'batch_sleeping') {
         const durationVal = document.getElementById('prop-duration')?.value || '1';
         const nightCount = Math.min(14, Math.max(1, parseInt(durationVal, 10) || 1));
         const assignments = readBatchAssignmentsFromDom();
-        const { batchNights, start, end } = buildBatchNightsPayload(startInput.value, nightCount, assignments, state.config);
+        const startInput = document.getElementById('prop-start-date');
+        const { batchNights } = buildBatchNightsPayload(startInput.value, nightCount, assignments, state.config);
         const emptyNight = batchNights.findIndex(n => !(n.assignments || []).length);
         if (emptyNight !== -1) {
           showToast(`Night ${emptyNight + 1} needs at least one room with people assigned.`, 'warning');
           return;
         }
-        const participantSet = new Set();
-        batchNights.forEach(night => {
-          (night.assignments || []).forEach(a => (a.participants || []).forEach(p => participantSet.add(p)));
-        });
-        if (!participantSet.has(currentUserName)) participantSet.add(currentUserName);
-        const participants = Array.from(participantSet);
-        const responses = {};
-        participants.forEach(p => {
-          responses[p] = {
-            status: p === currentUserName ? 'accept' : 'pending',
-            comment: p === currentUserName ? 'Organizer' : ''
-          };
-        });
-        proposalData = {
-          title: titleInput.value.trim(),
-          type: 'batch_sleeping',
-          start,
-          end,
-          batchNights,
-          participants,
-          proposer: currentUserName,
-          status: 'pending',
-          responses
-        };
-      } else {
-        const startD = new Date(startInput.value);
-        let endD = new Date(startD);
-
-        if (currentCreateType === 'sleeping') {
-          const durationVal = document.getElementById('prop-duration')?.value || '1';
-          const nights = parseInt(durationVal, 10) || 1;
-          endD.setDate(startD.getDate() + nights);
-        } else {
-          const startTime = read12HourTime('prop-start');
-          const endTime = read12HourTime('prop-end');
-          startD.setHours(startTime.hours, startTime.minutes, 0, 0);
-          endD.setHours(endTime.hours, endTime.minutes, 0, 0);
-          if (endD <= startD) {
-            showToast('End time must be after start time.', 'warning');
-            return;
-          }
-        }
-
-        if (!newProposalState.participants.includes(currentUserName)) {
-          newProposalState.participants.push(currentUserName);
-        }
-        const responses = {};
-        newProposalState.participants.forEach(p => {
-          responses[p] = {
-            status: p === currentUserName ? 'accept' : 'pending',
-            comment: p === currentUserName ? 'Organizer' : ''
-          };
-        });
-        proposalData = {
-          title: titleInput.value.trim(),
-          type: currentCreateType,
-          start: startD.toISOString(),
-          end: endD.toISOString(),
-          participants: newProposalState.participants,
-          proposer: currentUserName,
-          status: 'pending',
-          responses
-        };
-
-        if (currentCreateType === 'sleeping') {
-          proposalData.homeId = newProposalState.homeId;
-          proposalData.roomId = newProposalState.roomId;
-          proposalData.homeName = newProposalState.homeName || 'The Sanctuary';
-          proposalData.roomName = newProposalState.roomName || 'North Bedroom';
-        } else {
-          proposalData.location = document.getElementById('event-location')?.value || 'The Loft at Main St';
+      } else if (currentCreateType === 'event') {
+        const startD = new Date(document.getElementById('prop-start-date').value);
+        const endD = new Date(startD);
+        const startTime = read12HourTime('prop-start');
+        const endTime = read12HourTime('prop-end');
+        startD.setHours(startTime.hours, startTime.minutes, 0, 0);
+        endD.setHours(endTime.hours, endTime.minutes, 0, 0);
+        if (endD <= startD) {
+          showToast('End time must be after start time.', 'warning');
+          return;
         }
       }
 
+      if (!currentDraftId) {
+        ensureCreateDraftSync();
+      }
+
       try {
-        await CalendarSync.createEvent(proposalData);
+        const data = collectProposalFormData();
+        await CalendarSync.saveDraft(currentDraftId, data);
+        await CalendarSync.submitProposal(currentDraftId);
         showToast('Proposal submitted successfully!', 'success');
-        addLog(`Created proposal: "${proposalData.title}"`);
+        addLog(`Submitted proposal: "${data.title}"`);
+        currentDraftId = null;
+        activeProposalsTab = 'proposed';
         window.location.hash = '#proposals';
       } catch (err) {
         showToast('Failed to submit proposal.', 'error');
@@ -1400,7 +1716,9 @@ function runRulesChecks() {
   showProposalRulesBanner(warnings);
   if (currentCreateType === 'batch_sleeping') {
     highlightBatchRowErrors(warnings);
+    updateBatchPartnerLocks();
   }
+  updateMicroCalendarConflicts(warnings);
 }
 
 function bindLogisticsEvents(container = document) {
@@ -1552,6 +1870,18 @@ function bindAdminEvents() {
       showToast('Group name saved.', 'success');
     });
   }
+
+  const btnArchiveSave = document.getElementById('btn-save-auto-archive');
+  const archiveInput = document.getElementById('admin-auto-archive-days');
+  if (btnArchiveSave && archiveInput) {
+    btnArchiveSave.addEventListener('click', () => {
+      const days = parseInt(archiveInput.value, 10);
+      setAutoArchiveDays(Number.isFinite(days) ? days : 7);
+      addLog(`Admin: Auto-archive set to ${getAutoArchiveDays()} day(s).`, 'info');
+      showToast('Archive setting saved.', 'success');
+    });
+  }
+
   bindLogisticsEvents(document);
 }
 
@@ -2134,7 +2464,14 @@ document.addEventListener('DOMContentLoaded', async () => {
   }
 
   const fab = document.getElementById('fab-quick-add');
-  if (fab) fab.addEventListener('click', () => { window.location.hash = '#create'; });
+  if (fab) {
+    fab.addEventListener('click', async () => {
+      currentCreateType = 'event';
+      currentDraftId = null;
+      resetNewProposalFormState();
+      window.location.hash = '#create';
+    });
+  }
 
   const notifBtn = document.getElementById('btn-notifications');
   if (notifBtn) notifBtn.addEventListener('click', () => openNotificationsModal());

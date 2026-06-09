@@ -81,6 +81,7 @@ test.describe('PolySchedule UI E2E Flow Tests', () => {
   test('should support creating a new event proposal', async ({ page }) => {
     await page.click('#fab-quick-add');
     await expect(page.url()).toContain('#create');
+    await page.waitForSelector('#prop-title');
     await expect(page.locator('#btn-create-back')).toHaveCount(0);
     await page.fill('#prop-title', 'Weekly Family Dinner');
     await page.locator('.circle-partner-option[data-name="Sam Davis"]').click();
@@ -102,6 +103,7 @@ test.describe('PolySchedule UI E2E Flow Tests', () => {
 
   test('should create a batch sleeping proposal', async ({ page }) => {
     await page.click('#fab-quick-add');
+    await page.waitForSelector('#prop-title');
     await page.click('#btn-toggle-batch-sleeping');
     await page.fill('#prop-duration', '3');
     await page.fill('#prop-title', 'June Rotation Plan');
@@ -145,6 +147,9 @@ test.describe('PolySchedule UI E2E Flow Tests', () => {
   });
 
   test('should handle voting on a proposal', async ({ page }) => {
+    await page.evaluate(() => localStorage.clear());
+    await page.goto('/');
+    await loginAs(page, 'jordan', 'password123');
     await clickNav(page, '#proposals');
     const firstProposalCard = page.locator('.proposal-card').first();
     await expect(firstProposalCard).toBeVisible();
@@ -267,6 +272,7 @@ test.describe('PolySchedule UI E2E Flow Tests', () => {
     await page.goto('/');
     await loginAs(page, 'jordan', 'password123');
     await page.click('#fab-quick-add');
+    await page.waitForSelector('#prop-title');
     await expect(page.locator('#btn-toggle-batch-sleeping')).toHaveCount(0);
   });
 
@@ -275,6 +281,7 @@ test.describe('PolySchedule UI E2E Flow Tests', () => {
     await page.goto('/');
     await loginAs(page, 'jordan', 'password123');
     await page.click('#fab-quick-add');
+    await page.waitForSelector('#prop-title');
     const sleepingBtn = page.locator('button:has-text("Sleeping (Disabled)")');
     await expect(sleepingBtn).toBeVisible();
     await expect(sleepingBtn).toBeDisabled();

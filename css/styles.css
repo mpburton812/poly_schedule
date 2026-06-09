@@ -771,6 +771,20 @@ body {
   background-color: rgba(194, 135, 0, 0.03);
   border: 2px dashed rgba(126, 87, 0, 0.4);
 }
+.passive-dot {
+  position: absolute;
+  bottom: 2px;
+  right: 2px;
+  width: 10px;
+  height: 10px;
+  border-radius: var(--radius-full);
+  background-color: #1a1a1a;
+  border: 2px solid var(--surface);
+}
+.passive-label {
+  color: var(--on-surface-variant);
+  font-size: 0.6rem;
+}
 .proposal-header {
   display: flex;
   justify-content: space-between;
@@ -860,6 +874,45 @@ body {
   display: flex;
   flex-wrap: wrap;
   gap: var(--space-xs);
+}
+.batch-partner-label.batch-partner-disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+  filter: grayscale(0.35);
+}
+.banner-alert-list {
+  margin: 0;
+  padding-left: 1.25rem;
+}
+.banner-alert-list li {
+  margin-bottom: 0.25rem;
+}
+.banner-alert-list li:last-child {
+  margin-bottom: 0;
+}
+.micro-cal-proposed {
+  position: absolute;
+  bottom: 8px;
+  left: 8px;
+  right: 8px;
+  background-color: var(--primary);
+  color: white;
+  border-radius: var(--radius-sm);
+  text-align: center;
+  font-size: 8px;
+  padding: 2px 0;
+}
+.micro-cal-conflict-notice {
+  text-align: center;
+  color: var(--error);
+  margin-top: var(--space-md);
+}
+.micro-calendar-cell-conflict {
+  background-color: rgba(186, 26, 26, 0.05);
+  border-color: rgba(186, 26, 26, 0.2);
+}
+.micro-calendar-cell-conflict .day-num {
+  color: var(--error);
 }
 .proposal-meta-row {
   display: flex;
