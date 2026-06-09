@@ -3,7 +3,7 @@
  * Handles offline resource caching and native device notification event mapping.
  */
 
-const CACHE_NAME = 'polyschedule-v1';
+const CACHE_NAME = 'polyschedule-v2';
 const ASSETS_TO_CACHE = [
   './',
   './index.html',
@@ -47,38 +47,55 @@ self.addEventListener('activate', event => {
   );
 });
 
-// Fetch Event - Cache First, Network Fallback
+// Fetch Event - Network First for local static files, Cache First for external fonts/assets
 self.addEventListener('fetch', event => {
   // Only cache GET requests (ignore API post calls or OAuth tokens)
   if (event.request.method !== 'GET') return;
 
-  event.respondWith(
-    caches.match(event.request)
-      .then(cachedResponse => {
-        if (cachedResponse) {
-          // Fetch from network in background to update cache (stale-while-revalidate)
-          fetch(event.request).then(networkResponse => {
-            if (networkResponse.status === 200) {
-              caches.open(CACHE_NAME).then(cache => cache.put(event.request, networkResponse));
-            }
-          }).catch(() => {/* Ignore network offline errors */});
-          
-          return cachedResponse;
-        }
+  const url = event.request.url;
+  const isLocalStatic = url.includes(self.location.origin) && 
+    (url.endsWith('.html') || url.includes('/js/') || url.includes('/css/') || url === self.location.origin + '/');
 
-        return fetch(event.request).then(response => {
-          // Cache successful external static assets (like google fonts) dynamically
-          if (response.status === 200 && (
-            event.request.url.includes('fonts.googleapis.com') ||
-            event.request.url.includes('fonts.gstatic.com')
-          )) {
-            const responseCopy = response.clone();
+  if (isLocalStatic) {
+    // Network First
+    event.respondWith(
+      fetch(event.request)
+        .then(networkResponse => {
+          if (networkResponse.status === 200) {
+            const responseCopy = networkResponse.clone();
             caches.open(CACHE_NAME).then(cache => cache.put(event.request, responseCopy));
           }
-          return response;
-        });
-      })
-  );
+          return networkResponse;
+        })
+        .catch(() => caches.match(event.request))
+    );
+  } else {
+    // Cache First with background validation (stale-while-revalidate)
+    event.respondWith(
+      caches.match(event.request)
+        .then(cachedResponse => {
+          if (cachedResponse) {
+            fetch(event.request).then(networkResponse => {
+              if (networkResponse.status === 200) {
+                caches.open(CACHE_NAME).then(cache => cache.put(event.request, networkResponse));
+              }
+            }).catch(() => {});
+            return cachedResponse;
+          }
+
+          return fetch(event.request).then(response => {
+            if (response.status === 200 && (
+              event.request.url.includes('fonts.googleapis.com') ||
+              event.request.url.includes('fonts.gstatic.com')
+            )) {
+              const responseCopy = response.clone();
+              caches.open(CACHE_NAME).then(cache => cache.put(event.request, responseCopy));
+            }
+            return response;
+          });
+        })
+    );
+  }
 });
 
 // Push Notification Event Listener
