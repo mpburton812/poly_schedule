@@ -72,6 +72,55 @@ export function getMinSoloNights(rules = {}) {
   return rules.maxSoloNights;
 }
 
+/**
+ * Propagate a partner display-name change across config and events.
+ */
+export function renamePartnerReferences(config, events, oldName, newName) {
+  if (!oldName || !newName || oldName === newName) return;
+
+  (config?.partners || []).forEach(partner => {
+    if (partner.rules?.partnerLimits?.[oldName]) {
+      partner.rules.partnerLimits[newName] = partner.rules.partnerLimits[oldName];
+      delete partner.rules.partnerLimits[oldName];
+    }
+  });
+
+  (config?.residences || []).forEach(home => {
+    if (Array.isArray(home.associatedPeople)) {
+      home.associatedPeople = home.associatedPeople.map(n => n === oldName ? newName : n);
+    }
+  });
+
+  (events || []).forEach(event => {
+    if (event.proposer === oldName) event.proposer = newName;
+
+    if (Array.isArray(event.participants)) {
+      event.participants = event.participants.map(p => p === oldName ? newName : p);
+    }
+
+    if (event.responses?.[oldName]) {
+      event.responses[newName] = event.responses[oldName];
+      delete event.responses[oldName];
+    }
+  });
+}
+
+export function getProposalOutcome(responses = {}) {
+  const values = Object.values(responses);
+  if (values.length === 0) return 'pending';
+  if (values.some(r => r.status === 'pending')) return 'pending';
+  if (values.some(r => r.status === 'reject')) return 'rejected';
+  if (values.every(r => r.status === 'accept' || r.status === 'abstain')) return 'confirmed';
+  return 'pending';
+}
+
+export function responseStatusLabel(status) {
+  if (status === 'accept') return 'Approved';
+  if (status === 'reject') return 'Rejected';
+  if (status === 'abstain') return 'Abstained';
+  return 'Awaiting';
+}
+
 export function renderAvatarPickerHtml(selectedUrl, containerId) {
   const items = DEFAULT_AVATARS.map((av, idx) => {
     const isSelected = selectedUrl === av || (!selectedUrl && idx === 0);

@@ -110,7 +110,7 @@ test.describe('PolySchedule UI E2E Flow Tests', () => {
     await clickNav(page, '#proposals');
     const firstProposalCard = page.locator('.proposal-card').first();
     await expect(firstProposalCard).toBeVisible();
-    const acceptBtn = firstProposalCard.locator('text=Accept');
+    const acceptBtn = firstProposalCard.locator('.vote-btn[data-vote="accept"]');
     page.on('dialog', async dialog => {
       await dialog.accept('I am excited!');
     });
@@ -118,6 +118,38 @@ test.describe('PolySchedule UI E2E Flow Tests', () => {
       await acceptBtn.click();
       await expect(page.locator('#toast-container')).toContainText('Vote submitted');
     }
+  });
+
+  test('should show Abstain option on proposal responses', async ({ page }) => {
+    await page.evaluate(() => localStorage.clear());
+    await page.goto('/');
+    await loginAs(page, 'jordan', 'password123');
+    await clickNav(page, '#proposals');
+    await expect(page.locator('.vote-btn[data-vote="abstain"]').first()).toBeVisible();
+  });
+
+  test('should confirm proposal when all votes are accept or abstain', async ({ page }) => {
+    const confirmed = await page.evaluate(async () => {
+      const { CalendarSync } = await import('./js/calendar.js');
+      const { getProposalOutcome } = await import('./js/helpers.js');
+      const responses = {
+        'Alex Rivera': { status: 'accept', comment: '' },
+        'Sam Davis': { status: 'accept', comment: '' },
+        'Jordan Smith': { status: 'abstain', comment: 'Maybe next time' }
+      };
+      return getProposalOutcome(responses) === 'confirmed';
+    });
+    expect(confirmed).toBe(true);
+  });
+
+  test('should update proposer name when display name changes', async ({ page }) => {
+    await page.click('#avatar-container');
+    await page.fill('#setting-display-name', 'Alex R. Rivera');
+    await page.fill('#setting-username', 'alexrr');
+    await page.fill('#setting-password', 'newsecretpwd');
+    await page.click('#btn-save-profile');
+    await clickNav(page, '#proposals');
+    await expect(page.locator('.proposal-card').first()).toContainText('Alex R. Rivera');
   });
 
   test('should redirect non-admins away from #admin', async ({ page }) => {

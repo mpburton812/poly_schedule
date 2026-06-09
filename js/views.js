@@ -4,7 +4,8 @@ import {
   isPartnerPassive,
   renderHomeSelectOptions,
   renderAvatarPickerHtml,
-  render12HourTimePicker
+  render12HourTimePicker,
+  responseStatusLabel
 } from './helpers.js';
 
 export { DEFAULT_AVATARS };
@@ -222,10 +223,12 @@ export const Views = {
     // Filter proposals based on status
     let filtered = [];
     if (activeTab === 'pending') {
-      filtered = state.events.filter(e => e.status === 'pending');
+      filtered = state.events.filter(e => e.status === 'pending' || e.status === 'rejected');
     } else if (activeTab === 'reviewed') {
-      // User has voted, or proposal is waiting for others but user already accepted
-      filtered = state.events.filter(e => e.status === 'pending' && e.responses[state.currentUser?.name]?.status !== 'pending');
+      filtered = state.events.filter(e =>
+        (e.status === 'pending' || e.status === 'rejected') &&
+        e.responses[state.currentUser?.name]?.status !== 'pending'
+      );
     } else {
       // Completed / Confirmed
       filtered = state.events.filter(e => e.status === 'confirmed');
@@ -263,8 +266,9 @@ export const Views = {
           const r = p.responses[k];
           const isPending = r.status === 'pending';
           const isReject = r.status === 'reject';
-          const icon = isPending ? 'pending' : isReject ? 'cancel' : 'check_circle';
-          const colorClass = isPending ? 'text-outline' : isReject ? 'var(--error)' : 'var(--secondary)';
+          const isAbstain = r.status === 'abstain';
+          const icon = isPending ? 'pending' : isReject ? 'cancel' : isAbstain ? 'do_not_disturb_on' : 'check_circle';
+          const colorClass = isPending ? 'text-outline' : isReject ? 'var(--error)' : isAbstain ? 'var(--on-surface-variant)' : 'var(--secondary)';
           const nameLabel = k === state.currentUser?.name ? 'You' : k.split(' ')[0];
           
           responsesHtml += `
@@ -274,7 +278,7 @@ export const Views = {
                   <span class="material-symbols-outlined" style="color: ${colorClass}; font-size: 18px;">${icon}</span>
                   <span>${nameLabel}</span>
                 </div>
-                <span class="font-label-sm" style="color: var(--on-surface-variant);">${isPending ? 'Awaiting' : r.status === 'accept' ? 'Approved' : 'Rejected'}</span>
+                <span class="font-label-sm" style="color: var(--on-surface-variant);">${responseStatusLabel(r.status)}</span>
               </div>
               ${r.comment ? `<p class="review-comment">"${r.comment}"</p>` : ''}
             </div>
@@ -283,15 +287,13 @@ export const Views = {
 
         // Proposer vs. Receiver actions
         let actionsHtml = '';
-        if (p.status === 'pending') {
+        if (p.status === 'pending' || p.status === 'rejected') {
           if (isReceiver && userVote === 'pending') {
             actionsHtml = `
-              <div style="display: flex; gap: var(--space-base); margin-top: var(--space-md);">
-                <button class="btn btn-filled vote-btn" data-id="${p.id}" data-vote="accept" style="flex: 1;">Accept</button>
-                <button class="btn btn-outline vote-btn" data-id="${p.id}" data-vote="reject" style="flex: 1;">Reject</button>
-                <button class="btn-icon-only comment-trigger" data-id="${p.id}" style="border: 1px solid var(--outline); border-radius: var(--radius-full); width: 44px; height: 44px;">
-                  <span class="material-symbols-outlined">chat_bubble</span>
-                </button>
+              <div style="display: flex; gap: var(--space-base); margin-top: var(--space-md); flex-wrap: wrap;">
+                <button class="btn btn-filled vote-btn" data-id="${p.id}" data-vote="accept" style="flex: 1; min-width: 90px;">Accept</button>
+                <button class="btn btn-outline vote-btn" data-id="${p.id}" data-vote="abstain" style="flex: 1; min-width: 90px;">Abstain</button>
+                <button class="btn btn-outline vote-btn" data-id="${p.id}" data-vote="reject" style="flex: 1; min-width: 90px;">Reject</button>
               </div>
             `;
           } else if (!isReceiver) {
@@ -308,20 +310,25 @@ export const Views = {
               </div>
             `;
           } else {
+            const voteColor = userVote === 'accept' ? 'var(--secondary)' : userVote === 'abstain' ? 'var(--on-surface-variant)' : 'var(--error)';
             actionsHtml = `
               <div style="margin-top: var(--space-md); padding: var(--space-sm); background-color: var(--surface-container-high); border-radius: var(--radius-default); text-align: center; color: var(--on-surface-variant); font-size: 0.85rem;">
-                You voted: <strong style="color: ${userVote === 'accept' ? 'var(--secondary)' : 'var(--error)'};">${userVote.toUpperCase()}</strong>. Waiting on others.
+                You voted: <strong style="color: ${voteColor};">${responseStatusLabel(userVote).toUpperCase()}</strong>. Waiting on others.
               </div>
             `;
           }
         }
+
+        const statusBadge = p.status === 'rejected'
+          ? `<span class="font-label-sm" style="background-color: var(--error-container); color: var(--error); padding: 2px 8px; border-radius: var(--radius-sm); font-size: 9px; font-weight: bold; margin-left: 8px;">REJECTED</span>`
+          : '';
 
         listHtml += `
           <div class="proposal-card ${p.type === 'sleeping' ? 'sleeping' : ''}" id="prop-${p.id}">
             <div class="proposal-header">
               <div>
                 <span class="proposal-badge ${p.type}">${p.type.toUpperCase()} PROPOSAL</span>
-                <h3 class="font-title-lg" style="margin-top: 4px; font-weight: 700; color: var(--on-surface);">${p.title}</h3>
+                <h3 class="font-title-lg" style="margin-top: 4px; font-weight: 700; color: var(--on-surface);">${p.title}${statusBadge}</h3>
               </div>
               <div style="text-align: right;">
                 <span class="font-label-sm" style="color: var(--on-surface-variant); display: block;">PROPOSED BY</span>

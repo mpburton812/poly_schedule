@@ -453,7 +453,6 @@ function openUserProfileModal() {
         </div>
         <div>
           <h3 class="font-title-lg" style="font-weight: 700; line-height: 1.2;">${state.currentUser?.name || 'Alex Rivera'}</h3>
-          <span class="font-body-md" style="color: var(--on-surface-variant); font-size: 0.8rem;">${state.currentUser?.email || 'alex@example.com'}</span>
         </div>
       </div>
       <button class="btn-icon-only" id="modal-close-btn" style="margin-top: -6px;">
@@ -610,6 +609,13 @@ function openUserProfileModal() {
         return;
       }
 
+      const partner = state.config?.partners?.find(p => p.id === state.currentUser.id);
+      const oldName = partner?.name || state.currentUser.name;
+
+      if (oldName && oldName !== dispName) {
+        CalendarSync.renamePartnerInEvents(oldName, dispName);
+      }
+
       // Update state.currentUser
       state.currentUser.name = dispName;
       state.currentUser.username = userName;
@@ -630,7 +636,6 @@ function openUserProfileModal() {
       if (modalAvatarImg) modalAvatarImg.src = selectedAvatar;
 
       // Update name/avatar in config partners if match
-      const partner = state.config?.partners?.find(p => p.id === state.currentUser.id || p.name === state.currentUser.name || p.username === state.currentUser.username);
       if (partner) {
         partner.name = dispName;
         partner.avatar = selectedAvatar;
@@ -641,6 +646,8 @@ function openUserProfileModal() {
       }
 
       showToast('Profile updated successfully.', 'success');
+      modal.classList.remove('open');
+      state.events = CalendarSync.events;
       renderView();
     });
   }
@@ -660,6 +667,9 @@ function router() {
     showLoginView();
     return;
   }
+
+  CalendarSync.processExpiredRejectedProposals();
+  state.events = CalendarSync.events;
 
   const view = getRouteBase();
   const params = parseHashParams();
@@ -833,14 +843,15 @@ function bindProposalsEvents() {
   bindTab('btn-tab-reviewed', 'reviewed');
   bindTab('btn-tab-completed', 'completed');
 
-  // Voting buttons (Accept / Reject)
+  // Voting buttons (Accept / Abstain / Reject)
   document.querySelectorAll('.vote-btn').forEach(btn => {
-    btn.addEventListener('click', async (e) => {
+    btn.addEventListener('click', async () => {
       const id = btn.dataset.id;
       const vote = btn.dataset.vote;
+      const voteLabel = vote === 'accept' ? 'Accept' : vote === 'abstain' ? 'Abstain' : 'Reject';
       
-      const commentInput = prompt(`Add an optional comment for your ${vote}:`);
-      if (commentInput === null) return; // cancelled prompt
+      const commentInput = prompt(`Optional comment for your ${voteLabel} vote (leave blank to skip):`);
+      if (commentInput === null) return;
 
       const proposal = state.events.find(ev => ev.id === id);
       if (!proposal) return;
@@ -848,7 +859,7 @@ function bindProposalsEvents() {
       const responses = { ...proposal.responses };
       responses[state.currentUser?.name || 'Alex Rivera'] = {
         status: vote,
-        comment: commentInput || ''
+        comment: commentInput.trim()
       };
 
       try {
@@ -1543,6 +1554,11 @@ function bindEditPartnerEvents() {
     if (!name) {
       showToast('Display Name is required.', 'warning');
       return;
+    }
+
+    const oldName = partner.name;
+    if (oldName !== name) {
+      CalendarSync.renamePartnerInEvents(oldName, name);
     }
 
     partner.name = name;

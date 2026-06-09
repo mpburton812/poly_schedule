@@ -3,7 +3,7 @@
  * Synchronizes local state with Google Calendar events or provides offline localStorage mock sync.
  */
 
-import { DEFAULT_AVATARS } from './helpers.js';
+import { DEFAULT_AVATARS, getProposalOutcome, renamePartnerReferences } from './helpers.js';
 
 // Local Storage Keys
 const LOCAL_EVENTS_KEY = 'polyschedule_local_events';
@@ -264,10 +264,87 @@ export const CalendarSync = {
         this.events = JSON.parse(localStorage.getItem(LOCAL_EVENTS_KEY) || '[]');
       }
     }
+
+    this.syncProposalStatuses();
+    this.processExpiredRejectedProposals();
     
     if (this.onStateUpdate) {
       this.onStateUpdate();
     }
+  },
+
+  persistEvents() {
+    if (this.mode === 'offline') {
+      localStorage.setItem(LOCAL_EVENTS_KEY, JSON.stringify(this.events));
+    }
+  },
+
+  applyProposalOutcome(event) {
+    const outcome = getProposalOutcome(event.responses);
+
+    if (event.status !== 'pending' && event.status !== 'rejected') return event;
+
+    if (outcome === 'confirmed') {
+      event.status = 'confirmed';
+      if (event.type === 'sleeping') {
+        event.title = `SLEEP: ${event.roomName}: ${event.participants.join(' & ')}`;
+      }
+    } else if (outcome === 'rejected') {
+      event.status = 'rejected';
+    }
+
+    return event;
+  },
+
+  syncProposalStatuses() {
+    let changed = false;
+    this.events.forEach(event => {
+      if (event.status !== 'pending') return;
+      const before = event.status;
+      this.applyProposalOutcome(event);
+      if (event.status !== before) changed = true;
+    });
+    if (changed) this.persistEvents();
+  },
+
+  processExpiredRejectedProposals() {
+    const now = new Date();
+    let changed = false;
+
+    this.events.forEach(event => {
+      if (event.status !== 'rejected') return;
+      const start = new Date(event.start);
+      if (now < start) return;
+
+      const durationMs = new Date(event.end) - start;
+      const proposer = event.proposer;
+
+      event.status = 'pending';
+      Object.keys(event.responses || {}).forEach(name => {
+        if (name === proposer) {
+          event.responses[name] = { status: 'accept', comment: 'Organizer' };
+        } else {
+          event.responses[name] = { status: 'pending', comment: '' };
+        }
+      });
+
+      const newStart = new Date(now);
+      newStart.setDate(newStart.getDate() + 7);
+      newStart.setHours(start.getHours(), start.getMinutes(), 0, 0);
+      event.start = newStart.toISOString();
+      event.end = new Date(newStart.getTime() + durationMs).toISOString();
+      event.resentAt = now.toISOString();
+      changed = true;
+    });
+
+    if (changed) this.persistEvents();
+  },
+
+  renamePartnerInEvents(oldName, newName) {
+    if (!oldName || !newName || oldName === newName) return;
+    renamePartnerReferences(this.config, this.events, oldName, newName);
+    this.persistEvents();
+    localStorage.setItem(LOCAL_CONFIG_KEY, JSON.stringify(this.config));
   },
 
   // --- CRUD Operations ---
@@ -302,18 +379,8 @@ export const CalendarSync = {
 
     const updated = { ...this.events[idx], ...updatedData };
     
-    // Check if proposal status transitions to approved
-    if (updated.status === 'pending') {
-      const pendingResponses = Object.values(updated.responses || {}).some(r => r.status === 'pending');
-      const hasRejections = Object.values(updated.responses || {}).some(r => r.status === 'reject');
-      
-      if (!pendingResponses && !hasRejections) {
-        // Fully approved! Remove proposal prefixes
-        updated.status = 'confirmed';
-        if (updated.type === 'sleeping') {
-          updated.title = `SLEEP: ${updated.roomName}: ${updated.participants.join(' & ')}`;
-        }
-      }
+    if (updated.status === 'pending' || updated.status === 'rejected') {
+      this.applyProposalOutcome(updated);
     }
 
     if (this.mode === 'offline') {
