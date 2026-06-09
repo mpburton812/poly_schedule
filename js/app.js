@@ -15,6 +15,10 @@ const state = {
   isOffline: localStorage.getItem('polyschedule_mode') !== 'sync',
   events: [],
   config: null,
+  selectedDate: new Date(),
+  filterPartner: 'all',
+  filterResidence: 'all',
+  notifications: JSON.parse(localStorage.getItem('polyschedule_notifications') || '[]'),
   logs: [
     { time: new Date().toLocaleTimeString('en-GB', { hour12: false }), message: 'Application initialized.', type: 'info' }
   ]
@@ -111,6 +115,103 @@ function showToast(message, type = 'info') {
 }
 
 /**
+ * Update the notifications bell badge count
+ */
+function updateNotificationsBadge() {
+  const badge = document.getElementById('notifications-badge');
+  if (badge) {
+    const unreadCount = state.notifications.filter(n => !n.read).length;
+    if (unreadCount > 0) {
+      badge.style.display = 'block';
+    } else {
+      badge.style.display = 'none';
+    }
+  }
+}
+
+/**
+ * Handle notification creation when a booking is deleted
+ */
+function handleBookingDeletion(event, reason) {
+  const cancelledBy = state.currentUser?.name || 'Alex Rivera';
+  const cancelledTime = new Date().toLocaleString();
+  
+  // (a) create a notification in the app
+  const notification = {
+    id: 'notif_' + Date.now(),
+    title: 'Booking Cancelled',
+    description: `"${event.title}" was cancelled by ${cancelledBy} on ${cancelledTime}.${reason ? ` Reason: ${reason}` : ''}`,
+    timestamp: new Date().toLocaleTimeString('en-GB', { hour12: false }),
+    read: false
+  };
+  
+  state.notifications.push(notification);
+  localStorage.setItem('polyschedule_notifications', JSON.stringify(state.notifications));
+  
+  // (b) put a marker on the bell in the upper right
+  updateNotificationsBadge();
+  
+  showToast(`Booking cancelled successfully.`, 'success');
+  addLog(`Deleted event "${event.title}": ${reason || 'no reason'}`);
+}
+
+/**
+ * Open the notifications modal showing all cancellation details
+ */
+function openNotificationsModal() {
+  const modal = document.getElementById('app-modal');
+  const box = document.getElementById('app-modal-content');
+  if (!modal || !box) return;
+  
+  // Mark all notifications as read
+  state.notifications.forEach(n => n.read = true);
+  updateNotificationsBadge();
+  localStorage.setItem('polyschedule_notifications', JSON.stringify(state.notifications));
+  
+  let listHtml = '';
+  if (state.notifications.length === 0) {
+    listHtml = '<p style="text-align: center; color: var(--on-surface-variant); padding: var(--space-md);">No new notifications.</p>';
+  } else {
+    listHtml = state.notifications.map(n => `
+      <div style="padding: var(--space-sm) 0; border-bottom: 1px solid var(--outline-variant);">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;">
+          <strong class="font-title-lg" style="font-size: 0.95rem; color: var(--primary);">${n.title}</strong>
+          <span class="font-label-sm" style="color: var(--on-surface-variant);">${n.timestamp}</span>
+        </div>
+        <p class="font-body-md" style="color: var(--on-surface); font-size: 0.875rem; line-height: 1.4;">${n.description}</p>
+      </div>
+    `).reverse().join('');
+  }
+  
+  box.innerHTML = `
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: var(--space-md);">
+      <h3 class="font-headline-lg" style="font-size: 1.5rem; font-weight: 700;">Notifications</h3>
+      <button class="btn-icon-only" id="modal-close-btn">
+        <span class="material-symbols-outlined">close</span>
+      </button>
+    </div>
+    <div style="max-height: 350px; overflow-y: auto; margin-bottom: var(--space-md);">
+      ${listHtml}
+    </div>
+    <button class="btn btn-outline" id="btn-clear-notifications" style="width: 100%;">Clear All Notifications</button>
+  `;
+  
+  modal.classList.add('open');
+  
+  document.getElementById('modal-close-btn').addEventListener('click', () => {
+    modal.classList.remove('open');
+  });
+  
+  document.getElementById('btn-clear-notifications').addEventListener('click', () => {
+    state.notifications = [];
+    localStorage.setItem('polyschedule_notifications', JSON.stringify([]));
+    updateNotificationsBadge();
+    modal.classList.remove('open');
+    showToast('Notifications cleared.', 'success');
+  });
+}
+
+/**
  * Dynamic View Router
  */
 function router() {
@@ -197,6 +298,33 @@ function bindScheduleEvents() {
       window.location.hash = '#proposals';
     });
   });
+
+  // Week Selector change
+  const weekInput = document.getElementById('input-week-selector');
+  if (weekInput) {
+    weekInput.addEventListener('change', (e) => {
+      state.selectedDate = new Date(e.target.value);
+      renderView();
+    });
+  }
+
+  // Partner filter select change
+  const partnerSelect = document.getElementById('filter-partner-select');
+  if (partnerSelect) {
+    partnerSelect.addEventListener('change', (e) => {
+      state.filterPartner = e.target.value;
+      renderView();
+    });
+  }
+
+  // Residence filter select change
+  const residenceSelect = document.getElementById('filter-residence-select');
+  if (residenceSelect) {
+    residenceSelect.addEventListener('change', (e) => {
+      state.filterResidence = e.target.value;
+      renderView();
+    });
+  }
 }
 
 function bindProposalsEvents() {
@@ -250,10 +378,11 @@ function bindProposalsEvents() {
       if (!proposal) return;
 
       if (confirm(`Are you sure you want to cancel proposal "${proposal.title}"?`)) {
+        const reason = prompt('Optional: Enter a reason for cancelling this booking:');
+        if (reason === null) return; // User cancelled prompt
         try {
           await CalendarSync.deleteEvent(id);
-          showToast(`Proposal cancelled.`, 'success');
-          addLog(`Proposal "${proposal.title}" was cancelled.`);
+          handleBookingDeletion(proposal, reason);
         } catch (err) {
           showToast(`Failed to cancel proposal.`, 'error');
         }
@@ -658,11 +787,12 @@ function openEventDetailsModal(event) {
   // Bind delete
   document.getElementById('modal-delete-btn').addEventListener('click', async () => {
     if (confirm(`Are you sure you want to delete "${event.title}"?`)) {
+      const reason = prompt('Optional: Enter a reason for cancelling this booking:');
+      if (reason === null) return; // User cancelled prompt
       try {
         await CalendarSync.deleteEvent(event.id);
         modal.classList.remove('open');
-        showToast('Booking deleted.', 'success');
-        addLog(`Deleted event "${event.title}"`);
+        handleBookingDeletion(event, reason);
       } catch (err) {
         showToast('Failed to delete booking.', 'error');
       }
@@ -731,12 +861,13 @@ document.addEventListener('DOMContentLoaded', () => {
         // Show login button if they configured credentials, else hide
         loginBtn.style.display = AuthManager.clientId ? 'inline-flex' : 'none';
       }
-      if (avatarContainer) avatarContainer.style.display = 'none';
+      if (avatarContainer) avatarContainer.style.display = 'block';
       state.currentUser = {
         name: 'Alex Rivera',
         email: 'alex@example.com',
-        picture: 'https://lh3.googleusercontent.com/a/default-user'
+        picture: 'https://lh3.googleusercontent.com/aida-public/AB6AXuDjdXIAb6DttZ_Ivp6ocVuKGc_Cor-qtG3fqxi_3id35pEHmgyk008IoZOgCHsrXXysAKWNYlZFuovzj6OKFhoWqHjHVChafb9BWYQUKgMOWrT51kd1Tdr82IASulIokvB5JGV92NEWkmoFCt2MkVI_dzGJjUZabAGyiL8VI29nblqzqFUfEGWtrBPaXGI5Iz7QpmL4coomXYBEqrLuzJk18OWKIc0wuJe6pzRMziouxu7oZAVZjCFPxSRuTnPx874S9TseYaOXwWA'
       };
+      if (avatarImg) avatarImg.src = state.currentUser.picture;
       
       // Boot Offline mode
       state.isOffline = true;
@@ -764,6 +895,15 @@ document.addEventListener('DOMContentLoaded', () => {
       window.location.hash = '#create';
     });
   }
+
+  // 4b. Bind notifications button and initialize badge
+  const notifBtn = document.getElementById('btn-notifications');
+  if (notifBtn) {
+    notifBtn.addEventListener('click', () => {
+      openNotificationsModal();
+    });
+  }
+  updateNotificationsBadge();
 
   // 5. Setup live console scroll loop for visual bento aesthetics in Logistics screen
   setInterval(() => {

@@ -10,7 +10,7 @@ export const Views = {
    * Renders the Weekly Schedule View
    */
   schedule(state) {
-    const today = new Date();
+    const today = state.selectedDate ? new Date(state.selectedDate) : new Date();
     // Monday of current week
     const dayOfWeek = today.getDay();
     const diff = today.getDate() - dayOfWeek + (dayOfWeek === 0 ? -6 : 1);
@@ -34,7 +34,31 @@ export const Views = {
       const sun = new Date(startOfWeek);
       sun.setDate(startOfWeek.getDate() + 7);
       sun.setHours(23,59,59,999);
-      return eDate >= mon && eDate < sun && e.status === 'confirmed';
+      
+      const isCorrectWeek = eDate >= mon && eDate < sun && e.status === 'confirmed';
+      if (!isCorrectWeek) return false;
+
+      // Filter by selected partner
+      if (state.filterPartner && state.filterPartner !== 'all') {
+        const hasPartner = e.participants && e.participants.some(p => 
+          p.split(' ')[0].toLowerCase() === state.filterPartner.split(' ')[0].toLowerCase()
+        );
+        if (!hasPartner) return false;
+      }
+
+      // Filter by selected house/residence
+      if (state.filterResidence && state.filterResidence !== 'all') {
+        if (e.type === 'sleeping') {
+          if (e.homeId !== state.filterResidence) return false;
+        } else {
+          const resObj = state.config?.residences?.find(r => r.id === state.filterResidence);
+          if (!resObj || !e.location || !e.location.toLowerCase().includes(resObj.name.toLowerCase())) {
+            return false;
+          }
+        }
+      }
+
+      return true;
     });
 
     // Extract pending proposals for summary
@@ -184,15 +208,38 @@ export const Views = {
       });
     }
 
+    const partnerOptions = (state.config?.partners || []).map(p => 
+      `<option value="${p.name}" ${state.filterPartner === p.name ? 'selected' : ''}>${p.name}</option>`
+    ).join('');
+
+    const residenceOptions = (state.config?.residences || []).map(r => 
+      `<option value="${r.id}" ${state.filterResidence === r.id ? 'selected' : ''}>${r.name}</option>`
+    ).join('');
+
     return `
       <!-- Filter and Week Selector Header -->
       <section class="filter-bar">
-        <button class="chip active">
-          <span>${weekLabel}</span>
-          <span class="material-symbols-outlined" style="font-size: 16px;">expand_more</span>
-        </button>
-        <button class="chip">All Partners</button>
-        <button class="chip">Main House</button>
+        <div class="week-selector-container" style="position: relative; display: inline-block;">
+          <button class="chip active" id="btn-week-selector">
+            <span>${weekLabel}</span>
+            <span class="material-symbols-outlined" style="font-size: 16px;">expand_more</span>
+          </button>
+          <input type="date" id="input-week-selector" value="${startOfWeek.toISOString().split('T')[0]}" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; opacity: 0; cursor: pointer;"/>
+        </div>
+        
+        <div style="position: relative; display: inline-block;">
+          <select class="chip" id="filter-partner-select" style="border: 1px solid var(--outline-variant); border-radius: var(--radius-full); padding: 4px 12px; font-family: var(--font-body); font-size: 0.875rem; background-color: var(--surface); color: var(--on-surface); cursor: pointer; outline: none; transition: background-color 0.2s, border-color 0.2s;">
+            <option value="all" ${state.filterPartner === 'all' ? 'selected' : ''}>All Partners</option>
+            ${partnerOptions}
+          </select>
+        </div>
+
+        <div style="position: relative; display: inline-block;">
+          <select class="chip" id="filter-residence-select" style="border: 1px solid var(--outline-variant); border-radius: var(--radius-full); padding: 4px 12px; font-family: var(--font-body); font-size: 0.875rem; background-color: var(--surface); color: var(--on-surface); cursor: pointer; outline: none; transition: background-color 0.2s, border-color 0.2s;">
+            <option value="all" ${state.filterResidence === 'all' ? 'selected' : ''}>All Houses</option>
+            ${residenceOptions}
+          </select>
+        </div>
       </section>
 
       <!-- Weekly Schedule Grid -->

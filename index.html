@@ -20,6 +20,9 @@
   <link rel="stylesheet" href="css/styles.css"/>
 </head>
 <body>
+  <div class="build-banner" style="background-color: var(--inverse-surface); color: var(--inverse-on-surface); font-family: var(--font-mono); font-size: 0.65rem; text-align: center; padding: 4px 8px; letter-spacing: 0.5px; z-index: 1000; position: relative; font-weight: 500;">
+    BUILD #a507106 • BRANCH dev
+  </div>
   <div class="app-container">
     <!-- Top App Bar -->
     <header class="top-app-bar" id="top-bar">
@@ -28,8 +31,9 @@
         <span class="logo-text">PolySchedule</span>
       </div>
       <div class="action-group">
-        <button class="btn-icon-only" id="btn-notifications" aria-label="Notifications">
+        <button class="btn-icon-only" id="btn-notifications" aria-label="Notifications" style="position: relative;">
           <span class="material-symbols-outlined">notifications</span>
+          <span class="badge-dot" id="notifications-badge" style="display: none; position: absolute; top: 2px; right: 2px; width: 10px; height: 10px; background-color: var(--error); border-radius: 50%; border: 1.5px solid var(--surface); box-sizing: border-box;"></span>
         </button>
         <button class="btn btn-filled" id="btn-google-login" style="padding: 6px 16px; font-size: 0.85rem;">
           <span class="material-symbols-outlined" style="font-size: 16px;">login</span> Sync Google
