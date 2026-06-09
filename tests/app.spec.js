@@ -145,10 +145,13 @@ test.describe('PolySchedule UI E2E Flow Tests', () => {
     await expect(page.locator('h3:has-text("Alex R. Rivera")')).toBeVisible();
   });
 
-  test('should support modifying Poly Family Name in admin panel', async ({ page }) => {
+  test('should support modifying group name in admin panel', async ({ page }) => {
     await clickAdminNav(page);
     await expect(page.url()).toContain('#admin');
+    await expect(page.locator('text=Group Settings')).toBeVisible();
     await page.fill('#admin-poly-family-name', 'Rivera Poly Circle');
+    await page.click('#btn-save-group-name');
+    await expect(page.locator('#toast-container')).toContainText('Group name saved');
     await page.click('#fab-quick-add');
     await expect(page.locator('text=Rivera Poly Circle (Invitees)')).toBeVisible();
   });
@@ -196,7 +199,6 @@ test.describe('PolySchedule UI E2E Flow Tests', () => {
     await clickNav(page, '#logistics');
     await page.click('#btn-add-home');
     await page.fill('#new-home-name', 'Mountain Cabin');
-    await page.fill('#new-home-address', '123 Forest Rd, Mt Hood OR');
     await page.fill('#new-home-bedrooms-count', '2');
     await page.locator('.bedroom-name-input[data-index="0"]').fill('Red Room');
     await page.locator('.bedroom-name-input[data-index="1"]').fill('Blue Room');
@@ -205,6 +207,24 @@ test.describe('PolySchedule UI E2E Flow Tests', () => {
     await page.waitForURL(/#logistics/, { timeout: 10000 });
     await expect(page.getByRole('heading', { name: 'Mountain Cabin' })).toBeVisible();
     await expect(page.locator('text=Red Room, Blue Room').first()).toBeVisible();
+  });
+
+  test('should return to add partner after creating home from default home dropdown', async ({ page }) => {
+    await clickNav(page, '#logistics');
+    await page.click('#btn-add-partner');
+    await page.fill('#new-partner-name', 'Chris Newhome');
+    await page.selectOption('#new-partner-home', '__create_new__');
+    await expect(page.url()).toContain('#add-home');
+    await page.fill('#new-home-name', 'Chris Place');
+    await page.click('#btn-submit-home');
+    await expect(page.url()).toContain('#add-partner');
+    await expect(page.locator('#new-partner-name')).toHaveValue('Chris Newhome');
+    await expect(page.locator('#new-partner-home')).toHaveValue(/h/);
+  });
+
+  test('should not show Sleep Rules on logistics page', async ({ page }) => {
+    await clickNav(page, '#logistics');
+    await expect(page.locator('text=Sleep Rules')).toHaveCount(0);
   });
 
   test('should support editing an existing home as admin', async ({ page }) => {

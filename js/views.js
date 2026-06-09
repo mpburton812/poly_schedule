@@ -744,32 +744,6 @@ export const Views = {
           </div>
         </section>
 
-        <!-- Sleep Rules -->
-        <aside class="bento-span-4 bento-card rules-card">
-          <div>
-            <h3 class="font-title-lg" style="display: flex; align-items: center; gap: var(--space-base); font-weight: 700; color: var(--on-tertiary-fixed);">
-              <span class="material-symbols-outlined">bedtime</span> Sleep Rules
-            </h3>
-            <ul style="list-style: none; margin-top: var(--space-md); display: flex; flex-direction: column; gap: var(--space-md);">
-              <li style="display: flex; justify-content: space-between; align-items: center;">
-                <span class="font-body-md" style="color: var(--on-tertiary-fixed-variant);">Max Solo Nights</span>
-                <span class="font-label-md" style="background-color: rgba(255,255,255,0.4); padding: 4px 12px; border-radius: var(--radius-full); color: var(--on-tertiary-fixed);">2 / week</span>
-              </li>
-              <li style="display: flex; justify-content: space-between; align-items: center;">
-                <span class="font-body-md" style="color: var(--on-tertiary-fixed-variant);">Partner Switch Interval</span>
-                <span class="font-label-md" style="background-color: rgba(255,255,255,0.4); padding: 4px 12px; border-radius: var(--radius-full); color: var(--on-tertiary-fixed);">3 nights min</span>
-              </li>
-              <li style="display: flex; justify-content: space-between; align-items: center;">
-                <span class="font-body-md" style="color: var(--on-tertiary-fixed-variant);">Morning Buffer</span>
-                <span class="font-label-md" style="background-color: rgba(255,255,255,0.4); padding: 4px 12px; border-radius: var(--radius-full); color: var(--on-tertiary-fixed);">45 mins</span>
-              </li>
-            </ul>
-          </div>
-          <button class="btn btn-outline" id="btn-edit-rules" style="border-color: var(--tertiary-container); color: var(--tertiary); align-self: flex-start; margin-top: var(--space-md);">
-            Edit Global Rules
-          </button>
-        </aside>
-
         <!-- Homes & Locations -->
         <section class="bento-span-12" style="display: flex; flex-direction: column; gap: var(--space-md);">
           <div style="display: flex; justify-content: space-between; align-items: center;">
@@ -886,11 +860,12 @@ export const Views = {
 
       <section style="max-width: 800px; display: flex; flex-direction: column; gap: var(--space-xl);">
         <div class="bento-card" style="padding: var(--space-lg); border: 1px solid var(--outline-variant);">
-          <h3 class="font-title-lg" style="font-weight: 700; margin-bottom: var(--space-md);">Family Settings</h3>
-          <div class="form-group" style="margin-bottom: 0;">
-            <label class="form-label" for="admin-poly-family-name">Poly Family Name</label>
+          <h3 class="font-title-lg" style="font-weight: 700; margin-bottom: var(--space-md);">Group Settings</h3>
+          <div class="form-group" style="margin-bottom: var(--space-md);">
+            <label class="form-label" for="admin-poly-family-name">Name</label>
             <input class="form-input" id="admin-poly-family-name" placeholder="The Poly Circle" type="text" value="${polyFamilyName}"/>
           </div>
+          <button class="btn btn-filled" id="btn-save-group-name" style="align-self: flex-start;">Save Name</button>
         </div>
 
         <div class="bento-card" style="padding: var(--space-lg); border: 1px solid var(--outline-variant);">
@@ -1059,7 +1034,7 @@ export const Views = {
             </div>
 
             <div class="form-group">
-              <label class="form-label" for="new-home-address">Address</label>
+              <label class="form-label" for="new-home-address">Address <span class="font-label-sm" style="color: var(--on-surface-variant);">(Optional)</span></label>
               <input class="form-input" id="new-home-address" placeholder="e.g. 742 Evergreen Terrace" type="text"/>
             </div>
 

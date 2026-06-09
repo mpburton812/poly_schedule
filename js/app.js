@@ -10,6 +10,9 @@ import { Views, DEFAULT_AVATARS } from './views.js';
 import {
   LOGS_STORAGE_KEY,
   CREATE_NEW_HOME,
+  RETURN_ADD_PARTNER_KEY,
+  SELECT_HOME_KEY,
+  ADD_PARTNER_DRAFT_KEY,
   parseHashParams,
   getRouteBase,
   isPartnerPassive
@@ -321,9 +324,48 @@ function bindHomeSelectCreateNew(selectEl) {
   if (!selectEl) return;
   selectEl.addEventListener('change', (e) => {
     if (e.target.value === CREATE_NEW_HOME) {
+      saveAddPartnerDraft();
+      sessionStorage.setItem(RETURN_ADD_PARTNER_KEY, '1');
       window.location.hash = '#add-home';
     }
   });
+}
+
+function saveAddPartnerDraft() {
+  const draft = {
+    type: document.getElementById('new-partner-type')?.value || activePartnerType,
+    name: document.getElementById('new-partner-name')?.value || '',
+    username: document.getElementById('new-partner-username')?.value || '',
+    password: document.getElementById('new-partner-password')?.value || '',
+    role: document.getElementById('new-partner-role')?.value || 'User'
+  };
+  sessionStorage.setItem(ADD_PARTNER_DRAFT_KEY, JSON.stringify(draft));
+}
+
+function restoreAddPartnerDraft() {
+  const raw = sessionStorage.getItem(ADD_PARTNER_DRAFT_KEY);
+  if (!raw) return;
+  sessionStorage.removeItem(ADD_PARTNER_DRAFT_KEY);
+  try {
+    const draft = JSON.parse(raw);
+    if (draft.type) activePartnerType = draft.type;
+    const nameEl = document.getElementById('new-partner-name');
+    const userEl = document.getElementById('new-partner-username');
+    const pwdEl = document.getElementById('new-partner-password');
+    const roleEl = document.getElementById('new-partner-role');
+    if (nameEl && draft.name) nameEl.value = draft.name;
+    if (userEl && draft.username) userEl.value = draft.username;
+    if (pwdEl && draft.password) pwdEl.value = draft.password;
+    if (roleEl && draft.role) roleEl.value = draft.role;
+  } catch { /* ignore corrupt draft */ }
+}
+
+function selectNewHomeAfterReturn() {
+  const homeId = sessionStorage.getItem(SELECT_HOME_KEY);
+  if (!homeId) return;
+  sessionStorage.removeItem(SELECT_HOME_KEY);
+  const select = document.getElementById('new-partner-home');
+  if (select) select.value = homeId;
 }
 
 function bindAvatarPicker(containerSelector, onSelect) {
@@ -699,6 +741,13 @@ function renderView() {
     container.innerHTML = Views.admin(state);
     bindAdminEvents();
   } else if (state.currentView === 'add-partner') {
+    const draftRaw = sessionStorage.getItem(ADD_PARTNER_DRAFT_KEY);
+    if (draftRaw) {
+      try {
+        const draft = JSON.parse(draftRaw);
+        if (draft.type) activePartnerType = draft.type;
+      } catch { /* ignore */ }
+    }
     container.innerHTML = Views.addPartner(state, activePartnerType);
     bindAddPartnerEvents();
   } else if (state.currentView === 'add-home') {
@@ -1252,11 +1301,14 @@ function bindSettingsEvents(container = document) {
 }
 
 function bindAdminEvents() {
+  const btnSave = document.getElementById('btn-save-group-name');
   const familyInput = document.getElementById('admin-poly-family-name');
-  if (familyInput) {
-    familyInput.addEventListener('input', (e) => {
-      localStorage.setItem('polyschedule_poly_family_name', e.target.value.trim() || 'The Poly Circle');
-      addLog(`Admin: Poly family name updated to "${e.target.value.trim() || 'The Poly Circle'}".`, 'info');
+  if (btnSave && familyInput) {
+    btnSave.addEventListener('click', () => {
+      const name = familyInput.value.trim() || 'The Poly Circle';
+      localStorage.setItem('polyschedule_poly_family_name', name);
+      addLog(`Admin: Group name updated to "${name}".`, 'info');
+      showToast('Group name saved.', 'success');
     });
   }
   bindLogisticsEvents(document);
@@ -1284,6 +1336,9 @@ function bindLoginEvents() {
 }
 
 function bindAddPartnerEvents() {
+  restoreAddPartnerDraft();
+  selectNewHomeAfterReturn();
+
   const btnBack = document.getElementById('btn-add-partner-back');
   if (btnBack) {
     btnBack.addEventListener('click', () => {
@@ -1319,6 +1374,8 @@ function bindAddPartnerEvents() {
       const defaultHome = document.getElementById('new-partner-home').value;
 
       if (defaultHome === CREATE_NEW_HOME) {
+        saveAddPartnerDraft();
+        sessionStorage.setItem(RETURN_ADD_PARTNER_KEY, '1');
         window.location.hash = '#add-home';
         return;
       }
@@ -1387,10 +1444,16 @@ function bindAddPartnerEvents() {
 }
 
 function bindAddHomeEvents() {
+  const returningToPartner = sessionStorage.getItem(RETURN_ADD_PARTNER_KEY) === '1';
+
   const btnBack = document.getElementById('btn-add-home-back');
   if (btnBack) {
     btnBack.addEventListener('click', () => {
-      window.location.hash = '#logistics';
+      if (returningToPartner) {
+        window.location.hash = '#add-partner';
+      } else {
+        window.location.hash = '#logistics';
+      }
     });
   }
 
@@ -1417,12 +1480,13 @@ function bindAddHomeEvents() {
     btnSubmit.addEventListener('click', () => {
       const name = document.getElementById('new-home-name').value.trim();
       const address = document.getElementById('new-home-address').value.trim();
-      const bedroomsCount = Math.max(1, parseInt(bedroomsInput.value) || 1);
 
-      if (!name || !address) {
-        showToast('Please fill in Home Name and Address.', 'warning');
+      if (!name) {
+        showToast('Please fill in Home Name.', 'warning');
         return;
       }
+
+      const bedroomsCount = Math.max(1, parseInt(bedroomsInput.value) || 1);
 
       const bedroomInputs = document.querySelectorAll('.bedroom-name-input');
       const bedroomsList = [];
@@ -1444,7 +1508,7 @@ function bindAddHomeEvents() {
       const newHome = {
         id: newHomeId,
         name,
-        address,
+        address: address || '',
         bedrooms: bedroomsCount,
         bedroomDetails: bedroomsList,
         associatedPeople: associatedPeople
@@ -1454,7 +1518,14 @@ function bindAddHomeEvents() {
       saveConfig();
       addLog(`Logistics: Home "${name}" added.`, 'info');
       showToast(`Home "${name}" added successfully!`, 'success');
-      window.location.hash = '#logistics';
+
+      if (sessionStorage.getItem(RETURN_ADD_PARTNER_KEY) === '1') {
+        sessionStorage.removeItem(RETURN_ADD_PARTNER_KEY);
+        sessionStorage.setItem(SELECT_HOME_KEY, newHomeId);
+        window.location.hash = '#add-partner';
+      } else {
+        window.location.hash = '#logistics';
+      }
     });
   }
 }

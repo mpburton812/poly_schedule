@@ -13,6 +13,9 @@ export const DEFAULT_AVATARS = [
 
 export const LOGS_STORAGE_KEY = 'polyschedule_system_logs';
 export const CREATE_NEW_HOME = '__create_new__';
+export const RETURN_ADD_PARTNER_KEY = 'polyschedule_return_add_partner';
+export const SELECT_HOME_KEY = 'polyschedule_select_home_id';
+export const ADD_PARTNER_DRAFT_KEY = 'polyschedule_add_partner_draft';
 
 export function isPartnerPassive(partner) {
   return partner?.passive === true || !partner?.username;
