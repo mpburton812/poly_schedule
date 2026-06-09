@@ -69,8 +69,12 @@ function startServer() {
 }
 
 function openEmulator(device) {
-  const args = ['playwright', 'open', BASE_URL, `--device=${device}`];
-  return spawn('npx', args, { cwd: ROOT, stdio: 'inherit', shell: process.platform === 'win32' });
+  const npx = process.platform === 'win32' ? 'npx.cmd' : 'npx';
+  return spawn(npx, ['playwright', 'open', BASE_URL, `--device=${device}`], {
+    cwd: ROOT,
+    stdio: 'inherit',
+    shell: false
+  });
 }
 
 async function main() {
