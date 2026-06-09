@@ -4,7 +4,7 @@
   "description": "Progressive Web App for polyamory scheduling with Google Calendar back-end",
   "main": "index.html",
   "scripts": {
-    "start": "http-server -p 8080 -c-1",
+    "start": "node generate-version.js && http-server -p 8080 -c-1",
     "test": "playwright test"
   },
   "keywords": [

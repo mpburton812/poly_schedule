@@ -905,6 +905,9 @@ document.addEventListener('DOMContentLoaded', () => {
   }
   updateNotificationsBadge();
 
+  // 4c. Load build info for the header banner
+  initBuildBanner();
+
   // 5. Setup live console scroll loop for visual bento aesthetics in Logistics screen
   setInterval(() => {
     if (state.currentView !== 'logistics') return;
@@ -921,6 +924,20 @@ document.addEventListener('DOMContentLoaded', () => {
     addLog(mockMessage, 'info');
   }, 7000);
 });
+
+async function initBuildBanner() {
+  const banner = document.getElementById('build-banner');
+  if (!banner) return;
+  try {
+    const res = await fetch('version.json');
+    if (res.ok) {
+      const data = await res.json();
+      banner.textContent = `BUILD #${data.commit} • BRANCH ${data.branch}`;
+    }
+  } catch (err) {
+    console.error('Failed to load version info:', err);
+  }
+}
 
 // PWA Service Worker Registration
 if ('serviceWorker' in navigator) {
