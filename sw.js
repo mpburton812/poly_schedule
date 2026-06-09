@@ -1,0 +1,129 @@
+/**
+ * PolySchedule PWA Service Worker
+ * Handles offline resource caching and native device notification event mapping.
+ */
+
+const CACHE_NAME = 'polyschedule-v1';
+const ASSETS_TO_CACHE = [
+  './',
+  './index.html',
+  './css/styles.css',
+  './js/app.js',
+  './js/auth.js',
+  './js/calendar.js',
+  './js/rules.js',
+  './js/views.js',
+  './manifest.json',
+  './icons/icon-192.png',
+  './icons/icon-512.png',
+  'https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&family=Work+Sans:wght@400;500&family=JetBrains+Mono:wght@500&family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap'
+];
+
+// Install Event
+self.addEventListener('install', event => {
+  event.waitUntil(
+    caches.open(CACHE_NAME)
+      .then(cache => {
+        console.log('[SW] Pre-caching offline assets...');
+        return cache.addAll(ASSETS_TO_CACHE);
+      })
+      .then(() => self.skipWaiting())
+  );
+});
+
+// Activate Event
+self.addEventListener('activate', event => {
+  event.waitUntil(
+    caches.keys().then(keys => {
+      return Promise.all(
+        keys.map(key => {
+          if (key !== CACHE_NAME) {
+            console.log('[SW] Clearing old cache:', key);
+            return caches.delete(key);
+          }
+        })
+      );
+    }).then(() => self.clients.claim())
+  );
+});
+
+// Fetch Event - Cache First, Network Fallback
+self.addEventListener('fetch', event => {
+  // Only cache GET requests (ignore API post calls or OAuth tokens)
+  if (event.request.method !== 'GET') return;
+
+  event.respondWith(
+    caches.match(event.request)
+      .then(cachedResponse => {
+        if (cachedResponse) {
+          // Fetch from network in background to update cache (stale-while-revalidate)
+          fetch(event.request).then(networkResponse => {
+            if (networkResponse.status === 200) {
+              caches.open(CACHE_NAME).then(cache => cache.put(event.request, networkResponse));
+            }
+          }).catch(() => {/* Ignore network offline errors */});
+          
+          return cachedResponse;
+        }
+
+        return fetch(event.request).then(response => {
+          // Cache successful external static assets (like google fonts) dynamically
+          if (response.status === 200 && (
+            event.request.url.includes('fonts.googleapis.com') ||
+            event.request.url.includes('fonts.gstatic.com')
+          )) {
+            const responseCopy = response.clone();
+            caches.open(CACHE_NAME).then(cache => cache.put(event.request, responseCopy));
+          }
+          return response;
+        });
+      })
+  );
+});
+
+// Push Notification Event Listener
+self.addEventListener('push', event => {
+  let data = { title: 'PolySchedule Update', body: 'You have a new proposal review.' };
+  
+  if (event.data) {
+    try {
+      data = event.data.json();
+    } catch (e) {
+      data = { title: 'PolySchedule Update', body: event.data.text() };
+    }
+  }
+
+  const options = {
+    body: data.body,
+    icon: 'icons/icon-192.png',
+    badge: 'icons/icon-192.png',
+    vibrate: [100, 50, 100],
+    data: {
+      url: './index.html#proposals'
+    }
+  };
+
+  event.waitUntil(
+    self.registration.showNotification(data.title, options)
+  );
+});
+
+// Notification Click Event
+self.addEventListener('notificationclick', event => {
+  event.notification.close();
+  
+  event.waitUntil(
+    clients.matchAll({ type: 'window', includeUncontrolled: true }).then(clientList => {
+      // Focus existing tab if open
+      for (const client of clientList) {
+        if (client.url.includes(self.location.origin) && 'focus' in client) {
+          return client.focus().then(() => client.navigate(event.notification.data.url));
+        }
+      }
+      // Or open a new tab
+      if (clients.openWindow) {
+        return clients.openWindow(event.notification.data.url);
+      }
+    })
+  );
+});

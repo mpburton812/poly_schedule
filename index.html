@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <meta name="description" content="PolySchedule - High fidelity PWA for polyamorous event and sleep scheduling, integrated with Google Calendar."/>
+  <meta name="theme-color" content="#a6393a"/>
+  <title>PolySchedule</title>
+  
+  <!-- SEO & PWA Manifest -->
+  <link rel="manifest" href="manifest.json"/>
+  <link rel="apple-touch-icon" href="icons/icon-192.png"/>
+  
+  <!-- Google Fonts & Icons -->
+  <link rel="preconnect" href="https://fonts.googleapis.com"/>
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin=""/>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&family=Work+Sans:wght@400;500&family=JetBrains+Mono:wght@500&family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet"/>
+  
+  <!-- Core Design System Custom Stylesheet -->
+  <link rel="stylesheet" href="css/styles.css"/>
+</head>
+<body>
+  <div class="app-container">
+    <!-- Top App Bar -->
+    <header class="top-app-bar" id="top-bar">
+      <div class="logo-container">
+        <span class="material-symbols-outlined logo-icon">calendar_month</span>
+        <span class="logo-text">PolySchedule</span>
+      </div>
+      <div class="action-group">
+        <button class="btn-icon-only" id="btn-notifications" aria-label="Notifications">
+          <span class="material-symbols-outlined">notifications</span>
+        </button>
+        <button class="btn btn-filled" id="btn-google-login" style="padding: 6px 16px; font-size: 0.85rem;">
+          <span class="material-symbols-outlined" style="font-size: 16px;">login</span> Sync Google
+        </button>
+        <div class="profile-avatar" id="avatar-container" style="display: none;">
+          <img id="user-avatar-img" src="" alt="User Profile"/>
+        </div>
+      </div>
+    </header>
+
+    <!-- Desktop Sidebar Navigation -->
+    <nav class="sidebar-nav" style="display: none;">
+      <a href="#schedule" class="sidebar-nav-item active" id="side-nav-schedule" title="Schedule">
+        <span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 1;">event_repeat</span>
+      </a>
+      <a href="#proposals" class="sidebar-nav-item" id="side-nav-proposals" title="Proposals">
+        <span class="material-symbols-outlined">assignment_turned_in</span>
+      </a>
+      <a href="#logistics" class="sidebar-nav-item" id="side-nav-logistics" title="Logistics">
+        <span class="material-symbols-outlined">home_work</span>
+      </a>
+      <a href="#settings" class="sidebar-nav-item" id="side-nav-settings" title="Settings">
+        <span class="material-symbols-outlined">settings</span>
+      </a>
+      <a href="#" class="sidebar-nav-item logout-button" id="side-nav-logout" title="Log Out" style="display: none;">
+        <span class="material-symbols-outlined">logout</span>
+      </a>
+    </nav>
+
+    <!-- Main View Container -->
+    <main class="main-content" id="app-view-container">
+      <!-- Views are dynamically rendered here by js/views.js -->
+      <div style="display: flex; justify-content: center; align-items: center; min-height: 50vh;">
+        <div class="font-title-lg text-primary" style="animation: pulse-animation 1.5s infinite;">Loading PolySchedule...</div>
+      </div>
+    </main>
+
+    <!-- Mobile Bottom Navigation Bar -->
+    <nav class="bottom-nav">
+      <a href="#schedule" class="bottom-nav-item active" id="mobile-nav-schedule">
+        <span class="nav-icon-wrapper">
+          <span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 1;">event_repeat</span>
+        </span>
+        <span class="nav-text">Schedule</span>
+      </a>
+      <a href="#proposals" class="bottom-nav-item" id="mobile-nav-proposals">
+        <span class="nav-icon-wrapper">
+          <span class="material-symbols-outlined">assignment_turned_in</span>
+        </span>
+        <span class="nav-text">Proposals</span>
+      </a>
+      <a href="#logistics" class="bottom-nav-item" id="mobile-nav-logistics">
+        <span class="nav-icon-wrapper">
+          <span class="material-symbols-outlined">home_work</span>
+        </span>
+        <span class="nav-text">Logistics</span>
+      </a>
+      <a href="#settings" class="bottom-nav-item" id="mobile-nav-settings">
+        <span class="nav-icon-wrapper">
+          <span class="material-symbols-outlined">settings</span>
+        </span>
+        <span class="nav-text">Settings</span>
+      </a>
+    </nav>
+  </div>
+
+  <!-- Floating Action Button (FAB) for Quick Add Proposal -->
+  <button class="fab" id="fab-quick-add" aria-label="New Proposal">
+    <span class="material-symbols-outlined" style="font-size: 32px;">add</span>
+    <span class="fab-tooltip">New Proposal</span>
+  </button>
+
+  <!-- Notification Overlay Toast -->
+  <div id="toast-container" style="position: fixed; bottom: 96px; left: 16px; right: 16px; pointer-events: none; z-index: 200; display: flex; flex-direction: column; gap: 8px; align-items: center;"></div>
+
+  <!-- Modal Overlay (Shared for Popups) -->
+  <div class="modal-overlay" id="app-modal">
+    <div class="modal-box" id="app-modal-content">
+      <!-- Modal contents dynamically injected -->
+    </div>
+  </div>
+
+  <!-- Load ES Module Application Scripts -->
+  <script type="module" src="js/app.js"></script>
+</body>
+</html>

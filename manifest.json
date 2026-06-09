@@ -1,0 +1,22 @@
+{
+  "name": "PolySchedule Organizer",
+  "short_name": "PolySchedule",
+  "description": "An asynchronous event and sleeping schedule manager for polyamorous circles.",
+  "start_url": "./index.html",
+  "display": "standalone",
+  "background_color": "#fff8f7",
+  "theme_color": "#a6393a",
+  "orientation": "portrait",
+  "icons": [
+    {
+      "src": "icons/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "icons/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ]
+}

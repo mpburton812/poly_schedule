@@ -1,0 +1,7 @@
+node_modules/
+test-results/
+playwright-report/
+.system_generated/
+.gemini/
+.env
+*.log

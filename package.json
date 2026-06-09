@@ -1,0 +1,22 @@
+{
+  "name": "poly-schedule",
+  "version": "1.0.0",
+  "description": "Progressive Web App for polyamory scheduling with Google Calendar back-end",
+  "main": "index.html",
+  "scripts": {
+    "start": "http-server -p 8080 -c-1",
+    "test": "playwright test"
+  },
+  "keywords": [
+    "pwa",
+    "calendar",
+    "polyamory",
+    "schedule"
+  ],
+  "author": "",
+  "license": "ISC",
+  "devDependencies": {
+    "@playwright/test": "^1.42.1",
+    "http-server": "^14.1.1"
+  }
+}

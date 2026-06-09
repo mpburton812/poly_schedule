@@ -1,0 +1,267 @@
+<!DOCTYPE html>
+
+<html class="light" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>New Proposal - PolySchedule</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&amp;family=Work+Sans:wght@400;500&amp;family=JetBrains+Mono:wght@500&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<style>
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+        .filled-icon {
+            font-variation-settings: 'FILL' 1;
+        }
+        /* Custom scrollbar for better UI feel */
+        ::-webkit-scrollbar {
+            width: 6px;
+        }
+        ::-webkit-scrollbar-track {
+            background: transparent;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #dec0be;
+            border-radius: 10px;
+        }
+        /* Sleeping Arrangement Tonal Elevation */
+        .sleeping-block {
+            background-color: rgba(194, 135, 0, 0.1);
+            border: 2px dashed #7e5700;
+        }
+    </style>
+<style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+  </head>
+<body class="bg-background text-on-surface font-body-md min-h-screen pb-24">
+<!-- TopAppBar from Shared Components -->
+<header class="w-full top-0 sticky z-40 bg-surface-container-low dark:bg-surface-container-low flex items-center justify-between px-margin-mobile h-16 w-full">
+<div class="flex items-center gap-base">
+<span class="material-symbols-outlined text-primary dark:text-primary-fixed-dim">calendar_month</span>
+<h1 class="font-display-lg text-headline-lg-mobile text-primary dark:text-primary-fixed-dim">PolySchedule</h1>
+</div>
+<div class="flex items-center gap-md">
+<button class="p-2 hover:bg-surface-variant/50 transition-colors active:scale-95 duration-100 rounded-full">
+<span class="material-symbols-outlined text-on-surface-variant">notifications</span>
+</button>
+<div class="w-8 h-8 rounded-full overflow-hidden border border-outline-variant">
+<img alt="Profile" data-alt="A professional and friendly headshot of a person with a warm smile, set against a soft-focus urban park background. The lighting is warm golden hour sunlight, emphasizing a modern corporate humanism aesthetic. The image is bright and airy with high-key tones and a natural, inclusive feel." src="https://lh3.googleusercontent.com/aida-public/AB6AXuCVHAlVeAM6F1sGdT_Phm7rgdMghAYjGcr6TGsOPgFuOVUW0lzp1uQu6OmaAD9V84FeXrlQ4ILQlfTmV1lXWicFfxfFHdlbETC2M8IKvk6-Bn1CIx65aZpjPLr8wLMpau-QX25Af0Lkpoggh-d1-dQ7Y6srH23bNRYq3QEsOafGcmr7r4KE0sKdXP9ywNg5IhGJ5KK56O74PCypefwjWuUJdkdDTEAEjGJ0su76kuZj4tLmDuNsRUXZASB8jnG_6ouJZ7xavO9QOYk"/>
+</div>
+</div>
+</header>
+<main class="max-w-[840px] mx-auto px-margin-mobile py-lg">
+<!-- Close/Back Action (Triggering Nav Suppression Rule) -->
+<div class="flex items-center justify-between mb-lg">
+<div class="flex items-center gap-base">
+<button class="p-2 rounded-full hover:bg-surface-variant/50 transition-colors">
+<span class="material-symbols-outlined">close</span>
+</button>
+<h2 class="font-title-lg text-title-lg text-on-surface">New Proposal</h2>
+</div>
+<button class="bg-primary text-on-primary px-lg py-base rounded-full font-label-md text-label-md shadow-md active:scale-95 transition-transform">
+                Send Proposal
+            </button>
+</div>
+<!-- Toggle Switch: Event vs Sleeping Arrangement -->
+<div class="bg-surface-container-high rounded-full p-xs flex mb-xl max-w-sm mx-auto">
+<button class="flex-1 py-base px-lg rounded-full font-label-md text-label-md transition-all bg-primary-container text-on-primary-container" id="toggle-event">
+                Event
+            </button>
+<button class="flex-1 py-base px-lg rounded-full font-label-md text-label-md transition-all text-on-surface-variant hover:bg-surface-variant/50" id="toggle-sleep">
+                Sleeping Arrangement
+            </button>
+</div>
+<!-- Warning Banner (Conditional for Sleeping Arrangement) -->
+<div class="hidden mb-lg p-md bg-tertiary-fixed text-on-tertiary-fixed rounded-xl flex gap-md items-start border border-tertiary shadow-sm animate-in fade-in slide-in-from-top-4 duration-300" id="limit-warning">
+<span class="material-symbols-outlined text-tertiary">warning</span>
+<div class="flex-1">
+<p class="font-label-md text-label-md font-bold mb-xs">Extended Stay Alert</p>
+<p class="font-body-md text-body-md">This arrangement exceeds your preferred 3-night limit with Alex. Would you like to check in before finalizing?</p>
+</div>
+<button class="p-xs" onclick="this.parentElement.classList.add('hidden')">
+<span class="material-symbols-outlined text-body-lg">close</span>
+</button>
+</div>
+<!-- Form Canvas -->
+<div class="space-y-xl">
+<!-- Section: Participants -->
+<section>
+<h3 class="font-label-md text-label-md text-primary mb-md uppercase tracking-wider">The Poly Circle</h3>
+<div class="flex flex-wrap gap-md">
+<div class="flex flex-col items-center gap-xs cursor-pointer group">
+<div class="w-14 h-14 rounded-full ring-2 ring-primary ring-offset-2 overflow-hidden transition-transform group-hover:scale-105">
+<img alt="Alex" data-alt="A portrait of a smiling woman with glasses and colorful scarf, appearing friendly and approachable. The background is a clean, minimalist interior with warm, soft lighting. The visual style is inclusive, modern, and aligned with a corporate humanism aesthetic." src="https://lh3.googleusercontent.com/aida-public/AB6AXuArItnw16d-h3HSc5mcnOPXE3GqT4CupFWNLgpnWf3URdqoHLmpKdqMc88KbS-UV4DtKPoN3DnZnxPUc45pl_qN9IicXtKWkYoJhFNiuALSZyd8FZ0d9Jjn8VQF922ZAE7E0cPYe8FQi5Xo3S6hAwUJUHh0hNZcK0XQkJzpzIBhBWl31UH2P_u1l_PrKOPZqjcBI7e6LlWQux_4xPVivsp2dElsH2CF1ifJuUMd6ed2eclmJsbhkcJfmJE-BzjSM8DLUbJIvEsb7Fo"/>
+</div>
+<span class="font-label-md text-label-md text-on-surface">Alex</span>
+</div>
+<div class="flex flex-col items-center gap-xs cursor-pointer group opacity-60 grayscale hover:grayscale-0 hover:opacity-100 transition-all">
+<div class="w-14 h-14 rounded-full overflow-hidden border-2 border-outline-variant">
+<img alt="Jordan" data-alt="A portrait of a cheerful man with a beard in a bright, modern studio. The atmosphere is energetic and radically inclusive, with high-key lighting and a soft tonal palette. Modern professional photography style." src="https://lh3.googleusercontent.com/aida-public/AB6AXuAsuXXVIcZMSQ62tOZzFQEkE5ntyY1weFLJF0wQCcgxYTMjElV1EJXmqIIjOuprQgQKLmSo_-xB4Tci-zC2zg9MT-Jb7Fmeflk6Bw0wVll9QVmutqIBX9UDU76I08ZYRvmEdnN-pCSfW-Gd44ZvHPM5qCqIWw8PxEFsMGkCZ0hWMeI5XK_EiSI_BsQyHQ0MvsjM42D8nSTDAmL2T5OOTkG2SVSrBtzTsAiJxFnOjYR4yQ9NA17x9iQuir5F8dYT7-iCzK_PG1qyNTY"/>
+</div>
+<span class="font-label-md text-label-md text-on-surface">Jordan</span>
+</div>
+<div class="flex flex-col items-center gap-xs cursor-pointer group">
+<div class="w-14 h-14 rounded-full ring-2 ring-primary ring-offset-2 overflow-hidden transition-transform group-hover:scale-105">
+<img alt="Sam" data-alt="A professional woman of color in a creative workspace, smiling warmly at the camera. The setting is bright and spacious with plants in the background, creating a calm clarity and modern professional vibe." src="https://lh3.googleusercontent.com/aida-public/AB6AXuBkiDXcixh9wTyqQ3mmTu32lJeACKwp10ETuYGyHNNM9iiXkeQCKZaUKHex9Lpzd_fXcn73BGgQd5ucgB9njInlBc6hfkUlsx03rdKp04jBzSmhltD32IP9XqSq2KG3_3rQ4zg9y_V67OWA8qV35uzz3wE5q_eIXLqKv8e1YMIEdlzc3fy7VGbbrhx-59Z_t6VTkMgiwRiAerfEGDs5v0Q1tDcEzLm9Fa0y8r4aQOHcmoY4KfivutCmK2ZtPIZJC4AWKSC1VdbZtU8"/>
+</div>
+<span class="font-label-md text-label-md text-on-surface">Sam</span>
+</div>
+<button class="w-14 h-14 rounded-full border-2 border-dashed border-outline-variant flex items-center justify-center text-on-surface-variant hover:border-primary hover:text-primary transition-colors">
+<span class="material-symbols-outlined">add</span>
+</button>
+</div>
+</section>
+<!-- Section: Date & Time -->
+<section class="grid grid-cols-1 md:grid-cols-2 gap-lg">
+<div class="space-y-base">
+<label class="font-label-md text-label-md text-primary uppercase tracking-wider">Start Date</label>
+<div class="relative">
+<input class="w-full bg-surface-container border-b-2 border-outline focus:border-primary focus:ring-0 rounded-t-lg px-md py-base font-body-md text-body-md transition-all" type="date" value="2023-11-20"/>
+<span class="absolute right-md top-1/2 -translate-y-1/2 material-symbols-outlined pointer-events-none text-on-surface-variant">calendar_today</span>
+</div>
+</div>
+<div class="space-y-base">
+<label class="font-label-md text-label-md text-primary uppercase tracking-wider">Time / Duration</label>
+<div class="relative">
+<input class="w-full bg-surface-container border-b-2 border-outline focus:border-primary focus:ring-0 rounded-t-lg px-md py-base font-body-md text-body-md transition-all" placeholder="Select duration" type="text"/>
+<span class="absolute right-md top-1/2 -translate-y-1/2 material-symbols-outlined pointer-events-none text-on-surface-variant">schedule</span>
+</div>
+</div>
+</section>
+<!-- Section: Location -->
+<section class="space-y-base">
+<label class="font-label-md text-label-md text-primary uppercase tracking-wider">Location</label>
+<div class="bg-surface-container rounded-xl overflow-hidden border border-outline-variant transition-all hover:shadow-md">
+<div class="flex items-center px-md py-base gap-md border-b border-outline-variant bg-surface-container-lowest">
+<span class="material-symbols-outlined text-primary">location_on</span>
+<input class="flex-1 bg-transparent border-none focus:ring-0 font-body-md text-body-md" placeholder="Search for a location..." type="text"/>
+</div>
+<div class="h-48 relative overflow-hidden group">
+<div class="absolute inset-0 bg-surface-variant animate-pulse"></div>
+<img class="absolute inset-0 w-full h-full object-cover group-hover:scale-105 transition-transform duration-1000" data-alt="A stylized, clean map view of a Brooklyn neighborhood with soft pastel colors, emphasizing streets and green spaces. The visual style is minimalist and modern, matching a material design aesthetic with clear labels and a focus on radical clarity. High-key lighting, bright UI feel." data-location="Brooklyn, NY" src="https://lh3.googleusercontent.com/aida-public/AB6AXuBNYyFWbt4bipzEMxmhbDsYEY4hV9stPsQRHMtZalOqgTDKD2ntxtQktX6Nb-VLbj7dX99qnS40hkv6UFA3IHaPWBsLfP5lQUsodnFzpyCk1UuHUT4iBPkEYl_SG0HjzpKNrxFNqKHH-iiqYHSfXtjJSIrqX_YSbudmR_ITNEcKB2l-MGTbjFfQ-ZPS6le_l_XuIQFeov5kxfck7VLd9McmRwqkHnkEQGzVOJdPSVCcepeFS63j-NJt-Q-9xX1hnmm3Oz4k75AOUnk"/>
+<div class="absolute inset-0 flex items-center justify-center pointer-events-none">
+<span class="material-symbols-outlined text-primary text-[48px] filled-icon">location_on</span>
+</div>
+</div>
+</div>
+</section>
+<!-- Section: Schedule Context Mini-Calendar -->
+<section class="space-y-md">
+<div class="flex items-center justify-between">
+<h3 class="font-label-md text-label-md text-primary uppercase tracking-wider">Schedule Context</h3>
+<span class="font-label-sm text-label-sm text-on-surface-variant">Nov 19 – Nov 25</span>
+</div>
+<div class="bg-surface-container-lowest rounded-2xl p-md border border-outline-variant shadow-sm overflow-x-auto">
+<div class="min-w-[500px] grid grid-cols-7 gap-xs">
+<!-- Days of Week -->
+<div class="text-center font-label-sm text-label-sm text-on-surface-variant pb-xs">S</div>
+<div class="text-center font-label-sm text-label-sm text-on-surface-variant pb-xs">M</div>
+<div class="text-center font-label-sm text-label-sm text-on-surface-variant pb-xs">T</div>
+<div class="text-center font-label-sm text-label-sm text-on-surface-variant pb-xs">W</div>
+<div class="text-center font-label-sm text-label-sm text-on-surface-variant pb-xs">T</div>
+<div class="text-center font-label-sm text-label-sm text-on-surface-variant pb-xs">F</div>
+<div class="text-center font-label-sm text-label-sm text-on-surface-variant pb-xs">S</div>
+<!-- Calendar Visualization -->
+<div class="h-24 bg-surface rounded-lg relative overflow-hidden">
+<span class="absolute top-1 left-1 font-label-sm text-label-sm opacity-50">19</span>
+<div class="absolute inset-x-1 top-8 h-4 bg-secondary-container rounded-full opacity-50"></div>
+</div>
+<div class="h-24 bg-primary-container/20 rounded-lg border-2 border-primary relative overflow-hidden">
+<span class="absolute top-1 left-1 font-label-sm text-label-sm text-primary font-bold">20</span>
+<div class="absolute inset-x-1 top-8 h-10 bg-primary rounded-lg shadow-sm flex items-center justify-center">
+<span class="material-symbols-outlined text-white text-xs">edit_calendar</span>
+</div>
+</div>
+<div class="h-24 bg-surface rounded-lg relative overflow-hidden">
+<span class="absolute top-1 left-1 font-label-sm text-label-sm opacity-50">21</span>
+<div class="absolute inset-x-1 top-8 h-4 bg-tertiary-container rounded-full opacity-40"></div>
+</div>
+<div class="h-24 bg-surface rounded-lg relative">
+<span class="absolute top-1 left-1 font-label-sm text-label-sm opacity-50">22</span>
+</div>
+<div class="h-24 bg-surface rounded-lg relative">
+<span class="absolute top-1 left-1 font-label-sm text-label-sm opacity-50">23</span>
+</div>
+<div class="h-24 bg-error-container/20 rounded-lg border border-error/30 relative">
+<span class="absolute top-1 left-1 font-label-sm text-label-sm text-error">24</span>
+<div class="absolute inset-x-1 bottom-2 h-1 bg-error rounded-full"></div>
+</div>
+<div class="h-24 bg-surface rounded-lg relative">
+<span class="absolute top-1 left-1 font-label-sm text-label-sm opacity-50">25</span>
+</div>
+</div>
+<p class="mt-md text-center font-label-sm text-label-sm text-error">
+                        Potential conflict detected on Friday the 24th (Sam's Travel).
+                    </p>
+</div>
+</section>
+</div>
+</main>
+<!-- Floating Action Button - suppressed based on context but shown here for UI completeness -->
+<button class="fixed bottom-24 right-margin-mobile w-14 h-14 bg-primary-container text-on-primary-container rounded-[28px] shadow-lg flex items-center justify-center hover:scale-105 active:scale-95 transition-all">
+<span class="material-symbols-outlined text-headline-lg-mobile">save</span>
+</button>
+<!-- BottomNavBar (Hidden for transactional screens but available for navigation if needed) -->
+<nav class="fixed bottom-0 left-0 w-full flex justify-around items-center h-20 px-2 pb-2 bg-surface-container dark:bg-surface-container-highest shadow-md z-50 rounded-t-xl md:hidden">
+<div class="flex flex-col items-center justify-center text-on-surface-variant p-2">
+<span class="material-symbols-outlined">event_repeat</span>
+<span class="font-label-md text-label-md">Schedule</span>
+</div>
+<div class="flex flex-col items-center justify-center bg-secondary-container dark:bg-secondary text-on-secondary-container dark:text-on-secondary rounded-full px-5 py-1">
+<span class="material-symbols-outlined">assignment_turned_in</span>
+<span class="font-label-md text-label-md">Proposals</span>
+</div>
+<div class="flex flex-col items-center justify-center text-on-surface-variant p-2">
+<span class="material-symbols-outlined">home_work</span>
+<span class="font-label-md text-label-md">Logistics</span>
+</div>
+<div class="flex flex-col items-center justify-center text-on-surface-variant p-2">
+<span class="material-symbols-outlined">settings</span>
+<span class="font-label-md text-label-md">Settings</span>
+</div>
+</nav>
+<script>
+        const eventBtn = document.getElementById('toggle-event');
+        const sleepBtn = document.getElementById('toggle-sleep');
+        const warning = document.getElementById('limit-warning');
+
+        eventBtn.addEventListener('click', () => {
+            eventBtn.classList.replace('text-on-surface-variant', 'bg-primary-container');
+            eventBtn.classList.add('text-on-primary-container');
+            sleepBtn.classList.replace('bg-primary-container', 'text-on-surface-variant');
+            sleepBtn.classList.remove('text-on-primary-container', 'bg-primary-container');
+            warning.classList.add('hidden');
+        });
+
+        sleepBtn.addEventListener('click', () => {
+            sleepBtn.classList.replace('text-on-surface-variant', 'bg-primary-container');
+            sleepBtn.classList.add('text-on-primary-container');
+            eventBtn.classList.replace('bg-primary-container', 'text-on-surface-variant');
+            eventBtn.classList.remove('text-on-primary-container', 'bg-primary-container');
+            
+            // Logic check: Simulate exceeding night limit
+            setTimeout(() => {
+                warning.classList.remove('hidden');
+            }, 300);
+        });
+
+        // Micro-interaction for participant selection
+        const participants = document.querySelectorAll('.grayscale');
+        participants.forEach(p => {
+            p.addEventListener('click', () => {
+                p.classList.toggle('grayscale');
+                p.classList.toggle('opacity-60');
+                if(!p.classList.contains('grayscale')) {
+                    p.querySelector('div').classList.add('ring-2', 'ring-primary', 'ring-offset-2');
+                } else {
+                    p.querySelector('div').classList.remove('ring-2', 'ring-primary', 'ring-offset-2');
+                }
+            });
+        });
+    </script>
+</body></html>

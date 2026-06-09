@@ -1,0 +1,355 @@
+<!DOCTYPE html>
+
+<html class="light" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>PolySchedule Dashboard</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&amp;family=Work+Sans:wght@400;500&amp;family=JetBrains+Mono:wght@500&amp;family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@100..900&amp;family=Plus+Jakarta+Sans:wght@100..900&amp;family=Work+Sans:wght@100..900&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+          darkMode: "class",
+          theme: {
+            extend: {
+              "colors": {
+                      "on-tertiary-container": "#3c2700",
+                      "on-secondary-container": "#006f66",
+                      "on-surface": "#201a1a",
+                      "on-background": "#201a1a",
+                      "on-tertiary": "#ffffff",
+                      "tertiary": "#7e5700",
+                      "primary": "#a6393a",
+                      "on-secondary-fixed-variant": "#005049",
+                      "surface-container-high": "#f1e6e5",
+                      "primary-fixed-dim": "#ffb3af",
+                      "tertiary-container": "#c28700",
+                      "on-tertiary-fixed": "#281900",
+                      "surface-container": "#f7ebeb",
+                      "on-primary-container": "#5e010d",
+                      "on-primary-fixed": "#410006",
+                      "inverse-surface": "#352f2f",
+                      "background": "#fff8f7",
+                      "surface-dim": "#e3d7d7",
+                      "surface-container-low": "#fdf1f0",
+                      "secondary-fixed-dim": "#66d9cc",
+                      "on-primary": "#ffffff",
+                      "primary-container": "#e96b69",
+                      "tertiary-fixed": "#ffdeac",
+                      "secondary-fixed": "#84f5e8",
+                      "on-primary-fixed-variant": "#852125",
+                      "tertiary-fixed-dim": "#ffba38",
+                      "inverse-on-surface": "#faeeee",
+                      "outline": "#8a7170",
+                      "surface": "#fff8f7",
+                      "surface-container-lowest": "#ffffff",
+                      "surface-container-highest": "#ebe0df",
+                      "on-secondary-fixed": "#00201d",
+                      "on-tertiary-fixed-variant": "#604100",
+                      "outline-variant": "#dec0be",
+                      "surface-tint": "#a6393a",
+                      "inverse-primary": "#ffb3af",
+                      "secondary": "#006a62",
+                      "surface-bright": "#fff8f7",
+                      "primary-fixed": "#ffdad8",
+                      "on-secondary": "#ffffff",
+                      "on-surface-variant": "#574240",
+                      "error-container": "#ffdad6",
+                      "secondary-container": "#81f3e5",
+                      "error": "#ba1a1a",
+                      "on-error": "#ffffff",
+                      "surface-variant": "#ebe0df",
+                      "on-error-container": "#93000a"
+              },
+              "borderRadius": {
+                      "DEFAULT": "0.25rem",
+                      "lg": "0.5rem",
+                      "xl": "0.75rem",
+                      "full": "9999px"
+              },
+              "spacing": {
+                      "margin-desktop": "24px",
+                      "margin-mobile": "16px",
+                      "xs": "4px",
+                      "base": "8px",
+                      "md": "16px",
+                      "xl": "32px",
+                      "sm": "12px",
+                      "lg": "24px",
+                      "gutter": "16px"
+              },
+              "fontFamily": {
+                      "body-md": ["Work Sans"],
+                      "label-sm": ["JetBrains Mono"],
+                      "title-lg": ["Plus Jakarta Sans"],
+                      "headline-lg": ["Plus Jakarta Sans"],
+                      "body-lg": ["Work Sans"],
+                      "display-lg": ["Plus Jakarta Sans"],
+                      "headline-lg-mobile": ["Plus Jakarta Sans"],
+                      "label-md": ["JetBrains Mono"]
+              },
+              "fontSize": {
+                      "body-md": ["14px", {"lineHeight": "20px", "letterSpacing": "0.25px", "fontWeight": "400"}],
+                      "label-sm": ["11px", {"lineHeight": "16px", "fontWeight": "500"}],
+                      "title-lg": ["22px", {"lineHeight": "28px", "fontWeight": "500"}],
+                      "headline-lg": ["32px", {"lineHeight": "40px", "fontWeight": "600"}],
+                      "body-lg": ["16px", {"lineHeight": "24px", "letterSpacing": "0.5px", "fontWeight": "400"}],
+                      "display-lg": ["57px", {"lineHeight": "64px", "letterSpacing": "-0.25px", "fontWeight": "700"}],
+                      "headline-lg-mobile": ["28px", {"lineHeight": "36px", "fontWeight": "600"}],
+                      "label-md": ["12px", {"lineHeight": "16px", "letterSpacing": "0.5px", "fontWeight": "500"}]
+              }
+            },
+          },
+        }
+    </script>
+<style>
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+        body {
+            background-color: #fff8f7;
+            font-family: 'Work Sans', sans-serif;
+            -webkit-tap-highlight-color: transparent;
+        }
+        .hide-scrollbar::-webkit-scrollbar {
+            display: none;
+        }
+        .hide-scrollbar {
+            -ms-overflow-style: none;
+            scrollbar-width: none;
+        }
+    </style>
+<style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+  </head>
+<body class="bg-background text-on-background min-h-screen pb-24 md:pb-0">
+<!-- TopAppBar -->
+<header class="w-full top-0 sticky z-40 flex items-center justify-between px-margin-mobile h-16 w-full bg-surface-container-low dark:bg-surface-container-low transition-all duration-300">
+<div class="flex items-center gap-base">
+<span class="material-symbols-outlined text-primary dark:text-primary-fixed-dim" style="font-size: 28px;">calendar_month</span>
+<h1 class="font-display-lg text-headline-lg-mobile text-primary dark:text-primary-fixed-dim">PolySchedule</h1>
+</div>
+<div class="flex items-center gap-md">
+<button class="material-symbols-outlined text-on-surface-variant dark:text-on-surface-variant p-2 hover:bg-surface-variant/50 transition-colors rounded-full">notifications</button>
+<div class="w-10 h-10 rounded-full overflow-hidden border-2 border-primary-fixed cursor-pointer active:scale-95 duration-100">
+<img alt="Profile" class="w-full h-full object-cover" data-alt="A warm, professional portrait of a woman in a modern minimalist office space. The lighting is soft and natural, emphasizing a friendly and emotionally intelligent atmosphere. The background has soft blurs of primary-red accents and warm timber textures, matching the PolySchedule branding." src="https://lh3.googleusercontent.com/aida-public/AB6AXuA14RR67VqtQ9z3nrKm2I5eRT0o9x6lF1A9Kkx_rtYveAWqQpOjQFTapGdHgPsIbVHD4RK3INGyMtWafCfnkBBBCt0Z_whGPEcOkq4N-MabE5PP-_rFhZ_UnwMWDhFoAZcx4i_FMV3QuMEBxFKgrjd_raWqbSLRdzD8Umb0RlNCcMskEBonhhFB8eWkVGXhbMMw4OvZK_B8AS64cFX9jwRLsWoFJSaqbbgoAO29XJ-h2iEKEg6l1lvn5LtGh4T9-HvAJ2jp8vcEV3M"/>
+</div>
+</div>
+</header>
+<main class="max-w-[1200px] mx-auto px-margin-mobile md:px-margin-desktop mt-lg">
+<!-- Date Selector/Filter Chips -->
+<section class="flex gap-sm overflow-x-auto hide-scrollbar pb-md">
+<button class="bg-secondary-container text-on-secondary-container px-lg py-sm rounded-full font-label-md text-label-md flex items-center gap-xs">
+<span>Week of Oct 23</span>
+<span class="material-symbols-outlined text-[18px]">expand_more</span>
+</button>
+<button class="outline outline-1 outline-outline text-on-surface px-lg py-sm rounded-full font-label-md text-label-md">All Partners</button>
+<button class="outline outline-1 outline-outline text-on-surface px-lg py-sm rounded-full font-label-md text-label-md">Main House</button>
+</section>
+<!-- Weekly Grid Layout -->
+<div class="grid grid-cols-1 md:grid-cols-7 gap-base md:gap-md mt-md">
+<!-- Monday -->
+<div class="flex flex-col gap-base">
+<div class="flex justify-between items-center px-xs py-xs">
+<span class="font-label-md text-label-md text-on-surface-variant">MON 23</span>
+<span class="w-2 h-2 rounded-full bg-primary/20"></span>
+</div>
+<!-- Standard Event Card -->
+<div class="bg-surface-container-lowest rounded-xl p-md shadow-sm border-l-4 border-primary hover:shadow-md transition-shadow cursor-pointer">
+<h3 class="font-title-lg text-body-md font-bold text-on-surface">Dinner at Sol's</h3>
+<p class="text-label-sm font-label-sm text-on-surface-variant mt-xs">19:00 • 3 Attendees</p>
+<div class="flex -space-x-2 mt-sm">
+<div class="w-6 h-6 rounded-full bg-secondary-fixed border-2 border-surface-container-lowest"></div>
+<div class="w-6 h-6 rounded-full bg-tertiary-fixed border-2 border-surface-container-lowest"></div>
+<div class="w-6 h-6 rounded-full bg-primary-fixed border-2 border-surface-container-lowest"></div>
+</div>
+</div>
+<!-- Sleeping Arrangement Block (Nested feel) -->
+<div class="bg-tertiary-container/10 border-2 border-dashed border-tertiary/30 rounded-xl p-md flex flex-col gap-xs">
+<div class="flex items-center gap-xs text-tertiary">
+<span class="material-symbols-outlined text-[18px]">bed</span>
+<span class="font-label-md text-label-md font-bold">SLEEPING</span>
+</div>
+<p class="font-body-md text-body-md text-on-tertiary-container">North Bedroom: Maya &amp; Sam</p>
+</div>
+</div>
+<!-- Tuesday -->
+<div class="flex flex-col gap-base">
+<div class="flex justify-between items-center px-xs py-xs">
+<span class="font-label-md text-label-md text-on-surface-variant">TUE 24</span>
+</div>
+<div class="bg-tertiary-container/10 border-2 border-dashed border-tertiary/30 rounded-xl p-md flex flex-col gap-xs">
+<div class="flex items-center gap-xs text-tertiary">
+<span class="material-symbols-outlined text-[18px]">bed</span>
+<span class="font-label-md text-label-md font-bold">SLEEPING</span>
+</div>
+<p class="font-body-md text-body-md text-on-tertiary-container">Main House: Alex</p>
+</div>
+</div>
+<!-- Wednesday -->
+<div class="flex flex-col gap-base">
+<div class="flex justify-between items-center px-xs py-xs">
+<span class="font-label-md text-label-md text-on-surface-variant">WED 25</span>
+<span class="w-2 h-2 rounded-full bg-primary"></span>
+</div>
+<div class="bg-surface-container-lowest rounded-xl p-md shadow-sm border-l-4 border-primary hover:shadow-md transition-shadow cursor-pointer">
+<h3 class="font-title-lg text-body-md font-bold text-on-surface">Game Night</h3>
+<p class="text-label-sm font-label-sm text-on-surface-variant mt-xs">20:00 • 5 Attendees</p>
+</div>
+<div class="bg-tertiary-container/10 border-2 border-dashed border-tertiary/30 rounded-xl p-md flex flex-col gap-xs">
+<div class="flex items-center gap-xs text-tertiary">
+<span class="material-symbols-outlined text-[18px]">bed</span>
+<span class="font-label-md text-label-md font-bold">SLEEPING</span>
+</div>
+<p class="font-body-md text-body-md text-on-tertiary-container">Loft: Sam, Alex, Jo</p>
+</div>
+</div>
+<!-- Thursday -->
+<div class="flex flex-col gap-base">
+<div class="flex justify-between items-center px-xs py-xs">
+<span class="font-label-md text-label-md text-on-surface-variant">THU 26</span>
+</div>
+<div class="h-24 flex items-center justify-center border border-dashed border-outline-variant rounded-xl text-outline text-label-sm">
+                    No Events
+                </div>
+<div class="bg-tertiary-container/10 border-2 border-dashed border-tertiary/30 rounded-xl p-md flex flex-col gap-xs">
+<div class="flex items-center gap-xs text-tertiary">
+<span class="material-symbols-outlined text-[18px]">bed</span>
+<span class="font-label-md text-label-md font-bold">SLEEPING</span>
+</div>
+<p class="font-body-md text-body-md text-on-tertiary-container">Main House: Maya</p>
+</div>
+</div>
+<!-- Friday -->
+<div class="flex flex-col gap-base">
+<div class="flex justify-between items-center px-xs py-xs">
+<span class="font-label-md text-label-md text-on-surface-variant">FRI 27</span>
+</div>
+<div class="bg-surface-container-lowest rounded-xl p-md shadow-sm border-l-4 border-primary hover:shadow-md transition-shadow cursor-pointer">
+<h3 class="font-title-lg text-body-md font-bold text-on-surface">Weekend Trip Starts</h3>
+<p class="text-label-sm font-label-sm text-on-surface-variant mt-xs">16:00 • Cabin</p>
+</div>
+<div class="bg-tertiary-container/10 border-2 border-dashed border-tertiary/30 rounded-xl p-md flex flex-col gap-xs">
+<div class="flex items-center gap-xs text-tertiary">
+<span class="material-symbols-outlined text-[18px]">bed</span>
+<span class="font-label-md text-label-md font-bold">SLEEPING</span>
+</div>
+<p class="font-body-md text-body-md text-on-tertiary-container">Cabin Room A: Maya &amp; Jo</p>
+</div>
+</div>
+<!-- Sat/Sun - Weekend Bento Style -->
+<div class="md:col-span-2 grid grid-rows-2 gap-base">
+<div class="bg-primary-container text-on-primary-container rounded-2xl p-lg relative overflow-hidden group transition-all duration-300">
+<div class="relative z-10">
+<span class="font-label-md text-label-md opacity-80 uppercase tracking-widest">Full Group</span>
+<h2 class="font-headline-lg text-headline-lg-mobile mt-xs leading-tight">Weekend Retreat</h2>
+<div class="mt-md flex items-center gap-base">
+<span class="material-symbols-outlined">location_on</span>
+<span class="font-body-md text-body-md">Clearwater Lake Cabin</span>
+</div>
+</div>
+<!-- Aesthetic abstract background hint -->
+<div class="absolute -bottom-4 -right-4 w-32 h-32 bg-on-primary-container/10 rounded-full blur-2xl group-hover:scale-150 transition-transform"></div>
+</div>
+<div class="grid grid-cols-2 gap-base">
+<div class="bg-surface-container-highest rounded-2xl p-md flex flex-col justify-between border border-outline-variant">
+<span class="text-on-surface-variant font-label-sm text-label-sm">SAT 28</span>
+<div class="bg-secondary-container text-on-secondary-container text-xs px-2 py-1 rounded-full w-fit">Activity</div>
+<p class="font-bold text-on-surface mt-base">Hiking Loop</p>
+</div>
+<div class="bg-surface-container-highest rounded-2xl p-md flex flex-col justify-between border border-outline-variant">
+<span class="text-on-surface-variant font-label-sm text-label-sm">SUN 29</span>
+<div class="bg-tertiary-container text-on-tertiary-container text-xs px-2 py-1 rounded-full w-fit">Travel</div>
+<p class="font-bold text-on-surface mt-base">Homebound</p>
+</div>
+</div>
+</div>
+</div>
+<!-- Proposals / Pending Actions -->
+<section class="mt-xl mb-xl">
+<h2 class="font-headline-lg text-headline-lg-mobile text-on-surface mb-lg">Active Proposals</h2>
+<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-md">
+<div class="bg-surface rounded-2xl p-xl outline outline-1 outline-outline-variant flex items-start gap-md hover:bg-surface-container-low transition-colors cursor-pointer group">
+<div class="bg-primary/10 text-primary p-3 rounded-xl group-hover:bg-primary group-hover:text-white transition-colors">
+<span class="material-symbols-outlined">forum</span>
+</div>
+<div>
+<h4 class="font-title-lg text-on-surface font-semibold">Thanksgiving Split</h4>
+<p class="font-body-md text-body-md text-on-surface-variant mt-xs">2 partners have responded. Waiting on Jo.</p>
+<div class="mt-md flex gap-xs">
+<div class="w-8 h-8 rounded-full bg-surface-container-highest border border-outline-variant flex items-center justify-center text-[10px] font-bold">M</div>
+<div class="w-8 h-8 rounded-full bg-secondary-container border border-secondary text-[10px] font-bold flex items-center justify-center">S</div>
+<div class="w-8 h-8 rounded-full border-2 border-dotted border-outline flex items-center justify-center text-[10px] text-outline">?</div>
+</div>
+</div>
+</div>
+</div>
+</section>
+</main>
+<!-- FAB -->
+<button class="fixed bottom-24 md:bottom-8 right-margin-mobile md:right-margin-desktop w-14 h-14 bg-primary text-on-primary rounded-[28px] shadow-lg flex items-center justify-center z-50 active:scale-90 transition-transform duration-200 group">
+<span class="material-symbols-outlined text-[32px] group-hover:rotate-90 transition-transform duration-300">add</span>
+<span class="absolute right-16 bg-on-surface text-surface px-md py-xs rounded-lg text-label-md opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none">New Proposal</span>
+</button>
+<!-- Bottom Navigation Bar (Mobile) -->
+<nav class="md:hidden fixed bottom-0 left-0 w-full flex justify-around items-center h-20 px-2 pb-2 bg-surface-container dark:bg-surface-container-highest z-50 rounded-t-xl shadow-md">
+<a class="flex flex-col items-center justify-center bg-secondary-container dark:bg-secondary text-on-secondary-container dark:text-on-secondary rounded-full px-5 py-1 active:scale-90 transition-transform duration-200" href="#">
+<span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 1;">event_repeat</span>
+<span class="font-label-md text-label-md">Schedule</span>
+</a>
+<a class="flex flex-col items-center justify-center text-on-surface-variant dark:text-on-surface-variant p-2 active:scale-90 transition-transform duration-200" href="#">
+<span class="material-symbols-outlined">assignment_turned_in</span>
+<span class="font-label-md text-label-md">Proposals</span>
+</a>
+<a class="flex flex-col items-center justify-center text-on-surface-variant dark:text-on-surface-variant p-2 active:scale-90 transition-transform duration-200" href="#">
+<span class="material-symbols-outlined">home_work</span>
+<span class="font-label-md text-label-md">Logistics</span>
+</a>
+<a class="flex flex-col items-center justify-center text-on-surface-variant dark:text-on-surface-variant p-2 active:scale-90 transition-transform duration-200" href="#">
+<span class="material-symbols-outlined">settings</span>
+<span class="font-label-md text-label-md">Settings</span>
+</a>
+</nav>
+<!-- Desktop Sidebar/Nav Placeholder -->
+<div class="hidden md:flex fixed left-0 top-16 bottom-0 w-20 flex-col items-center py-lg gap-xl bg-surface-container-low border-r border-outline-variant/30">
+<a class="w-12 h-12 rounded-2xl bg-secondary-container text-on-secondary-container flex items-center justify-center hover:bg-secondary-container/80 transition-colors" href="#">
+<span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 1;">event_repeat</span>
+</a>
+<a class="w-12 h-12 rounded-2xl text-on-surface-variant flex items-center justify-center hover:bg-surface-variant/50 transition-colors" href="#">
+<span class="material-symbols-outlined">assignment_turned_in</span>
+</a>
+<a class="w-12 h-12 rounded-2xl text-on-surface-variant flex items-center justify-center hover:bg-surface-variant/50 transition-colors" href="#">
+<span class="material-symbols-outlined">home_work</span>
+</a>
+<div class="mt-auto">
+<a class="w-12 h-12 rounded-2xl text-on-surface-variant flex items-center justify-center hover:bg-surface-variant/50 transition-colors" href="#">
+<span class="material-symbols-outlined">settings</span>
+</a>
+</div>
+</div>
+<script>
+        // Simple interaction for cards
+        document.querySelectorAll('.bg-surface-container-lowest, .bg-surface').forEach(card => {
+            card.addEventListener('click', () => {
+                card.classList.add('scale-[0.98]');
+                setTimeout(() => card.classList.remove('scale-[0.98]'), 100);
+            });
+        });
+
+        // Sticky header background shift on scroll
+        window.addEventListener('scroll', () => {
+            const header = document.querySelector('header');
+            if (window.scrollY > 10) {
+                header.classList.add('bg-surface-container-high', 'shadow-sm');
+                header.classList.remove('bg-surface-container-low');
+            } else {
+                header.classList.remove('bg-surface-container-high', 'shadow-sm');
+                header.classList.add('bg-surface-container-low');
+            }
+        });
+    </script>
+</body></html>
