@@ -210,6 +210,15 @@ function openNotificationsModal() {
 }
 
 /**
+ * Helper to check if the current user is an admin
+ */
+function isAdmin() {
+  if (!state.currentUser || !state.config || !state.config.partners) return false;
+  const partner = state.config.partners.find(p => p.name === state.currentUser.name);
+  return partner ? partner.role === 'Admin' : false;
+}
+
+/**
  * Open the user profile modal with settings, system administration logs, log out, and delete account options
  */
 function openUserProfileModal() {
@@ -227,6 +236,34 @@ function openUserProfileModal() {
     let color = log.type === 'error' ? 'var(--error)' : log.type === 'warning' ? 'var(--tertiary)' : 'inherit';
     return `<p class="console-line"><span class="console-time">[${log.time}]</span> <span style="color: ${color};">${log.message}</span></p>`;
   }).join('');
+
+  const adminPanelHtml = isAdmin() ? `
+      <!-- System Administration Log -->
+      <div style="display: flex; flex-direction: column; gap: var(--space-md);">
+        <h4 class="font-title-lg" style="font-weight: 700; font-size: 1.1rem; border-bottom: 1px solid rgba(138,113,112,0.1); padding-bottom: var(--space-xs);">System Administration Log</h4>
+        
+        <div class="console-container">
+          <div class="console-header">
+            <span class="font-label-sm">Live System Logs</span>
+            <div style="display: flex; align-items: center; gap: 6px;">
+              <span style="width: 8px; height: 8px; border-radius: var(--radius-full); background-color: #4ade80; display: inline-block; animation: pulse-animation 1s infinite;"></span>
+              <span class="font-label-sm" style="color: #4ade80;">Stable</span>
+            </div>
+          </div>
+          <div class="console-body" id="console-logs-body" style="max-height: 120px; overflow-y: auto;">
+            ${logsHtml}
+          </div>
+          <div class="console-action-row">
+            <button class="btn-outline" id="btn-run-tests" style="background: transparent; border: none; font-family: var(--font-mono); font-size: 0.75rem; color: var(--primary-fixed-dim); cursor: pointer; display: flex; align-items: center; gap: 4px;">
+              <span class="material-symbols-outlined" style="font-size: 16px;">sync</span> Run System Test
+            </button>
+            <button class="btn-outline" id="btn-export-logs" style="background: transparent; border: none; font-family: var(--font-mono); font-size: 0.75rem; color: rgba(255,255,255,0.6); cursor: pointer; display: flex; align-items: center; gap: 4px;">
+              <span class="material-symbols-outlined" style="font-size: 16px;">download</span> Export Logs
+            </button>
+          </div>
+        </div>
+      </div>
+  ` : '';
 
   box.innerHTML = `
     <div style="display: flex; justify-content: space-between; align-items: start; margin-bottom: var(--space-md); border-bottom: 1px solid var(--outline-variant); padding-bottom: var(--space-sm);">
@@ -253,6 +290,15 @@ function openUserProfileModal() {
         <button class="btn btn-error" id="modal-btn-delete-account" style="flex: 1; padding: 8px 16px; font-size: 0.85rem; border-color: var(--error); color: var(--error);">
           <span class="material-symbols-outlined" style="font-size: 18px;">delete_forever</span> Delete Account
         </button>
+      </div>
+
+      <!-- Family Settings -->
+      <div style="display: flex; flex-direction: column; gap: var(--space-md);">
+        <h4 class="font-title-lg" style="font-weight: 700; font-size: 1.1rem; border-bottom: 1px solid rgba(138,113,112,0.1); padding-bottom: var(--space-xs);">Family Settings</h4>
+        <div class="form-group" style="margin-bottom: 0;">
+          <label class="form-label" for="setting-poly-family-name" style="font-size: 0.8rem;">Poly Family Name</label>
+          <input class="form-input" id="setting-poly-family-name" placeholder="The Poly Circle" type="text" value="${localStorage.getItem('polyschedule_poly_family_name') || 'The Poly Circle'}" style="padding: 6px 12px; font-size: 0.85rem;"/>
+        </div>
       </div>
 
       <!-- Settings & Integrations -->
@@ -292,34 +338,15 @@ function openUserProfileModal() {
           <button class="btn btn-filled" id="btn-save-credentials" style="align-self: flex-start; padding: 6px 16px; font-size: 0.8rem; margin-top: var(--space-xs);">Save Credentials</button>
         </div>
 
-        <button class="btn btn-outline" id="btn-reset-app" style="border-color: var(--error-container); color: var(--error); align-self: flex-start; padding: 6px 16px; font-size: 0.8rem;">Clear Local Data</button>
-      </div>
-
-      <!-- System Administration Log -->
-      <div style="display: flex; flex-direction: column; gap: var(--space-md);">
-        <h4 class="font-title-lg" style="font-weight: 700; font-size: 1.1rem; border-bottom: 1px solid rgba(138,113,112,0.1); padding-bottom: var(--space-xs);">System Administration Log</h4>
-        
-        <div class="console-container">
-          <div class="console-header">
-            <span class="font-label-sm">Live System Logs</span>
-            <div style="display: flex; align-items: center; gap: 6px;">
-              <span style="width: 8px; height: 8px; border-radius: var(--radius-full); background-color: #4ade80; display: inline-block; animation: pulse-animation 1s infinite;"></span>
-              <span class="font-label-sm" style="color: #4ade80;">Stable</span>
-            </div>
-          </div>
-          <div class="console-body" id="console-logs-body" style="max-height: 120px; overflow-y: auto;">
-            ${logsHtml}
-          </div>
-          <div class="console-action-row">
-            <button class="btn-outline" id="btn-run-tests" style="background: transparent; border: none; font-family: var(--font-mono); font-size: 0.75rem; color: var(--primary-fixed-dim); cursor: pointer; display: flex; align-items: center; gap: 4px;">
-              <span class="material-symbols-outlined" style="font-size: 16px;">sync</span> Run System Test
-            </button>
-            <button class="btn-outline" id="btn-export-logs" style="background: transparent; border: none; font-family: var(--font-mono); font-size: 0.75rem; color: rgba(255,255,255,0.6); cursor: pointer; display: flex; align-items: center; gap: 4px;">
-              <span class="material-symbols-outlined" style="font-size: 16px;">download</span> Export Logs
-            </button>
-          </div>
+        <div style="display: flex; gap: var(--space-sm); margin-top: var(--space-xs);">
+          <button class="btn btn-outline" id="btn-force-update" style="border-color: var(--primary); color: var(--primary); padding: 6px 16px; font-size: 0.8rem; flex: 1;">
+            <span class="material-symbols-outlined" style="font-size: 16px; vertical-align: middle; margin-right: 4px;">system_update_alt</span> Force Update Software
+          </button>
+          <button class="btn btn-outline" id="btn-reset-app" style="border-color: var(--error-container); color: var(--error); padding: 6px 16px; font-size: 0.8rem; flex: 1;">Clear Local Data</button>
         </div>
       </div>
+
+      ${adminPanelHtml}
     </div>
   `;
 
@@ -535,6 +562,38 @@ function bindProposalsEvents() {
   });
 }
 
+/**
+ * Formats the sleeping arrangement title dynamically: Sleeping : [NAME(S) of people] : [RESIDENCE] [BEDROOM]
+ */
+function updateSleepingArrangementTitle() {
+  if (currentCreateType !== 'sleeping') return;
+  const titleInput = document.getElementById('prop-title');
+  if (!titleInput) return;
+
+  const names = newProposalState.participants.length > 0 
+    ? newProposalState.participants.map(p => p.split(' ')[0]).join(', ') 
+    : 'Nobody';
+
+  const homeSelect = document.getElementById('sleep-home-select');
+  let homeName = '';
+  if (homeSelect && homeSelect.selectedIndex >= 0) {
+    homeName = homeSelect.options[homeSelect.selectedIndex].text;
+  } else {
+    const defaultHome = state.config?.residences?.find(h => h.id === newProposalState.homeId);
+    homeName = defaultHome ? defaultHome.name : '';
+  }
+
+  const roomSelect = document.getElementById('sleep-room-select');
+  let roomName = '';
+  if (roomSelect && roomSelect.selectedIndex >= 0) {
+    roomName = roomSelect.options[roomSelect.selectedIndex].text;
+  } else {
+    roomName = 'North Bedroom';
+  }
+
+  titleInput.value = `Sleeping : ${names} : ${homeName} ${roomName}`;
+}
+
 function bindCreateEvents() {
   // Reset create proposal state
   newProposalState.participants = [];
@@ -571,6 +630,7 @@ function bindCreateEvents() {
 
       // Check rules on changing participants
       runRulesChecks();
+      updateSleepingArrangementTitle();
     });
   });
 
@@ -601,14 +661,19 @@ function bindCreateEvents() {
       newProposalState.roomId = roomSelect.value;
       newProposalState.roomName = roomSelect.options[roomSelect.selectedIndex].text;
       runRulesChecks();
+      updateSleepingArrangementTitle();
     });
     
     roomSelect.addEventListener('change', (e) => {
       newProposalState.roomId = e.target.value;
       newProposalState.roomName = roomSelect.options[roomSelect.selectedIndex].text;
       runRulesChecks();
+      updateSleepingArrangementTitle();
     });
   }
+
+  // Set initial sleeping arrangement title format
+  updateSleepingArrangementTitle();
 
   // Cancel/Back button
   const btnBack = document.getElementById('btn-create-back');
@@ -859,6 +924,39 @@ function bindSettingsEvents(container = document) {
         showToast('All local storage data cleared. Reloading...', 'warning');
         setTimeout(() => window.location.reload(), 1500);
       }
+    });
+  }
+
+  // Poly Family Name Input
+  const familyInput = container.querySelector('#setting-poly-family-name');
+  if (familyInput) {
+    familyInput.addEventListener('input', (e) => {
+      localStorage.setItem('polyschedule_poly_family_name', e.target.value.trim() || 'The Poly Circle');
+    });
+  }
+
+  // Force Update Software
+  const btnForceUpdate = container.querySelector('#btn-force-update');
+  if (btnForceUpdate) {
+    btnForceUpdate.addEventListener('click', () => {
+      showToast('Clearing cache and updating software...', 'info');
+      if ('caches' in window) {
+        caches.keys().then(names => {
+          for (let name of names) {
+            caches.delete(name);
+          }
+        });
+      }
+      if (navigator.serviceWorker) {
+        navigator.serviceWorker.getRegistrations().then(registrations => {
+          for (let registration of registrations) {
+            registration.update();
+          }
+        });
+      }
+      setTimeout(() => {
+        window.location.reload(true);
+      }, 1000);
     });
   }
 }
