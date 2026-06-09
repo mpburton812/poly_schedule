@@ -1,13 +1,12 @@
 import { RulesEngine } from './rules.js';
+import {
+  DEFAULT_AVATARS,
+  isPartnerPassive,
+  renderHomeSelectOptions,
+  renderAvatarPickerHtml
+} from './helpers.js';
 
-export const DEFAULT_AVATARS = [
-  'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80',
-  'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=150&auto=format&fit=crop&q=80',
-  'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=150&auto=format&fit=crop&q=80',
-  'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=150&auto=format&fit=crop&q=80',
-  'https://images.unsplash.com/photo-1438761681033-6461ffad8d80?w=150&auto=format&fit=crop&q=80',
-  'https://images.unsplash.com/photo-1522075469751-3a6694fb2f61?w=150&auto=format&fit=crop&q=80'
-];
+export { DEFAULT_AVATARS };
 
 export const Views = {
   /**
@@ -624,24 +623,39 @@ export const Views = {
    * Renders the Logistics & Configuration View
    */
   logistics(state) {
+    const showAdmin = state.currentUser ? (state.config?.partners?.find(p => p.id === state.currentUser.id)?.role === 'Admin') : false;
+
     let profilesHtml = '';
     state.config.partners.forEach(partner => {
-      let badge = partner.role === 'Admin' ? `<span class="font-label-sm" style="background-color: var(--secondary-container); color: var(--on-secondary-container); padding: 2px 8px; border-radius: var(--radius-sm); font-size: 9px; font-weight: bold;">ADMIN</span>` : '';
-      let defaultHomeObj = state.config.residences.find(r => r.id === partner.defaultHome);
-      let homeName = defaultHomeObj ? defaultHomeObj.name : 'None';
-      
+      const passive = isPartnerPassive(partner);
+      let badge = '';
+      if (passive) {
+        badge = `<span class="font-label-sm" style="background-color: var(--surface-container-highest); color: var(--on-surface-variant); padding: 2px 8px; border-radius: var(--radius-sm); font-size: 9px; font-weight: bold;">PASSIVE</span>`;
+      } else if (partner.role === 'Admin') {
+        badge = `<span class="font-label-sm" style="background-color: var(--secondary-container); color: var(--on-secondary-container); padding: 2px 8px; border-radius: var(--radius-sm); font-size: 9px; font-weight: bold;">ADMIN</span>`;
+      }
+      const defaultHomeObj = state.config.residences.find(r => r.id === partner.defaultHome);
+      const homeName = defaultHomeObj ? defaultHomeObj.name : 'None';
+      const editBtn = showAdmin ? `
+        <button class="btn btn-outline btn-edit-partner" data-partner-id="${partner.id}" style="padding: 4px 12px; font-size: 0.75rem; flex-shrink: 0;">
+          <span class="material-symbols-outlined" style="font-size: 16px;">edit</span>
+        </button>
+      ` : '';
+
       profilesHtml += `
-        <div class="bento-card" style="flex-direction: row; gap: var(--space-md); align-items: center; border: 1px solid var(--outline-variant); padding: var(--space-md);">
+        <div class="bento-card partner-card" data-partner-id="${partner.id}" style="flex-direction: row; gap: var(--space-md); align-items: center; border: 1px solid var(--outline-variant); padding: var(--space-md);">
           <div class="profile-avatar" style="width: 56px; height: 56px; border-radius: var(--radius-full); overflow: hidden; flex-shrink: 0;">
-            <img src="${partner.avatar}" alt="${partner.name}"/>
+            <img src="${partner.avatar || DEFAULT_AVATARS[0]}" alt="${partner.name}"/>
           </div>
           <div style="flex-grow: 1;">
-            <div style="display: flex; justify-content: space-between; align-items: center;">
+            <div style="display: flex; justify-content: space-between; align-items: center; gap: var(--space-sm);">
               <h4 class="font-title-lg" style="font-size: 1.05rem; font-weight: 700;">${partner.name}</h4>
               ${badge}
             </div>
             <p class="font-body-md" style="color: var(--on-surface-variant); margin-top: 2px;">Default Home: <strong style="color: var(--secondary);">${homeName}</strong></p>
+            ${passive ? '<p class="font-label-sm" style="color: var(--on-surface-variant); margin-top: 2px;">Not using the app — scheduling only</p>' : ''}
           </div>
+          ${editBtn}
         </div>
       `;
     });
@@ -674,10 +688,10 @@ export const Views = {
       }
 
       homesHtml += `
-        <div class="bento-card" style="padding: var(--space-md); background-color: var(--surface-container-high); border: none; cursor: pointer; transition: border 0.2s;">
+        <div class="bento-card home-card ${showAdmin ? 'home-card-editable' : ''}" data-home-id="${home.id}" style="padding: var(--space-md); background-color: var(--surface-container-high); border: none; ${showAdmin ? 'cursor: pointer;' : ''} transition: border 0.2s;">
           <div style="display: flex; justify-content: space-between; align-items: start;">
-            <div style="display: flex; gap: var(--space-md);">
-              <div style="width: 44px; height: 44px; background-color: var(--primary-fixed); color: var(--on-primary-fixed); border-radius: var(--radius-default); display: flex; align-items: center; justify-content: center;">
+            <div style="display: flex; gap: var(--space-md); flex-grow: 1;">
+              <div style="width: 44px; height: 44px; background-color: var(--primary-fixed); color: var(--on-primary-fixed); border-radius: var(--radius-default); display: flex; align-items: center; justify-content: center; flex-shrink: 0;">
                 <span class="material-symbols-outlined">${home.name.toLowerCase().includes('loft') || home.name.toLowerCase().includes('apartment') ? 'apartment' : 'bungalow'}</span>
               </div>
               <div>
@@ -689,75 +703,41 @@ export const Views = {
                 ${peopleStr}
               </div>
             </div>
-            <span class="font-label-sm" style="color: var(--secondary); font-weight: bold; display: flex; align-items: center; gap: 4px;">
-              <span style="width: 6px; height: 6px; border-radius: var(--radius-full); background-color: var(--secondary); display: inline-block;"></span>
-              ${home.bedrooms} Bedrooms
-            </span>
+            <div style="display: flex; flex-direction: column; align-items: flex-end; gap: var(--space-xs);">
+              <span class="font-label-sm" style="color: var(--secondary); font-weight: bold; display: flex; align-items: center; gap: 4px;">
+                <span style="width: 6px; height: 6px; border-radius: var(--radius-full); background-color: var(--secondary); display: inline-block;"></span>
+                ${home.bedrooms} Bedrooms
+              </span>
+              ${showAdmin ? `<button class="btn btn-outline btn-edit-home" data-home-id="${home.id}" style="padding: 4px 10px; font-size: 0.75rem;"><span class="material-symbols-outlined" style="font-size: 14px;">edit</span> Edit</button>` : ''}
+            </div>
           </div>
         </div>
       `;
     });
 
-    // Generate simulated live logs
-    let logsHtml = '';
-    state.logs.forEach(log => {
-      let colorClass = log.type === 'error' ? 'var(--error)' : log.type === 'warning' ? 'var(--tertiary)' : 'inherit';
-      logsHtml += `
-        <p class="console-line">
-          <span class="console-time">[${log.time}]</span>
-          <span style="color: ${colorClass};">${log.message}</span>
-        </p>
-      `;
-    });
-
-    const showAdmin = state.currentUser ? (state.config?.partners?.find(p => p.name === state.currentUser.name)?.role === 'Admin') : false;
-    const adminPanelHtml = showAdmin ? `
-        <!-- System Administration Panel -->
-        <section class="bento-span-6" style="display: flex; flex-direction: column; gap: var(--space-md);">
-          <h3 class="font-title-lg" style="display: flex; align-items: center; gap: var(--space-base); font-weight: 700;">
-            <span class="material-symbols-outlined text-primary">admin_panel_settings</span> System Administration
-          </h3>
-          <div class="console-container">
-            <div class="console-header">
-              <span class="font-label-sm">Live System Logs</span>
-              <div style="display: flex; align-items: center; gap: 6px;">
-                <span style="width: 8px; height: 8px; border-radius: var(--radius-full); background-color: #4ade80; display: inline-block; animation: pulse-animation 1s infinite;"></span>
-                <span class="font-label-sm" style="color: #4ade80;">Stable</span>
-              </div>
-            </div>
-            <div class="console-body" id="console-logs-body">
-              ${logsHtml}
-            </div>
-            <div class="console-action-row">
-              <button class="btn-outline" id="btn-run-tests" style="background: transparent; border: none; font-family: var(--font-mono); font-size: 0.75rem; color: var(--primary-fixed-dim); cursor: pointer; display: flex; align-items: center; gap: 4px;">
-                <span class="material-symbols-outlined" style="font-size: 16px;">sync</span> Run System Test
-              </button>
-              <button class="btn-outline" id="btn-export-logs" style="background: transparent; border: none; font-family: var(--font-mono); font-size: 0.75rem; color: rgba(255,255,255,0.6); cursor: pointer; display: flex; align-items: center; gap: 4px;">
-                <span class="material-symbols-outlined" style="font-size: 16px;">download</span> Export Logs
-              </button>
-            </div>
-          </div>
-        </section>
-    ` : '';
-
     return `
       <div class="mb-xl" style="margin-bottom: var(--space-xl);">
         <h2 class="font-headline-lg">Logistics & Configuration</h2>
         <p class="font-body-lg" style="color: var(--on-surface-variant); margin-top: 4px; max-width: 650px;">
-          Manage collective residences, sleeping quotas, partner preferences, and view operational developer logs.
+          Manage collective residences, sleeping quotas, partner preferences, and convert passive partners to active users.
         </p>
       </div>
 
       <div class="bento-grid">
         <!-- Collective Profiles -->
-        <section class="bento-span-8" style="display: flex; flex-direction: column; gap: var(--space-md);">
-          <div style="display: flex; justify-content: space-between; align-items: center;">
+        <section class="bento-span-12" style="display: flex; flex-direction: column; gap: var(--space-md);">
+          <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: var(--space-sm);">
             <h3 class="font-title-lg" style="display: flex; align-items: center; gap: var(--space-base); font-weight: 700;">
               <span class="material-symbols-outlined text-primary">group</span> Collective Profiles
             </h3>
-            <button class="btn btn-filled" id="btn-add-partner" style="padding: var(--space-xs) var(--space-md); font-size: 0.85rem;">
-              <span class="material-symbols-outlined" style="font-size: 16px;">person_add</span> Add Partner
-            </button>
+            <div style="display: flex; gap: var(--space-sm); flex-wrap: wrap;">
+              <button class="btn btn-outline" id="btn-activate-partner" style="padding: var(--space-xs) var(--space-md); font-size: 0.85rem;">
+                <span class="material-symbols-outlined" style="font-size: 16px;">person_check</span> Activate Passive Partner
+              </button>
+              <button class="btn btn-filled" id="btn-add-partner" style="padding: var(--space-xs) var(--space-md); font-size: 0.85rem;">
+                <span class="material-symbols-outlined" style="font-size: 16px;">person_add</span> Add Partner
+              </button>
+            </div>
           </div>
           <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: var(--space-md);">
             ${profilesHtml}
@@ -791,7 +771,7 @@ export const Views = {
         </aside>
 
         <!-- Homes & Locations -->
-        <section class="${showAdmin ? 'bento-span-6' : 'bento-span-12'}" style="display: flex; flex-direction: column; gap: var(--space-md);">
+        <section class="bento-span-12" style="display: flex; flex-direction: column; gap: var(--space-md);">
           <div style="display: flex; justify-content: space-between; align-items: center;">
             <h3 class="font-title-lg" style="display: flex; align-items: center; gap: var(--space-base); font-weight: 700;">
               <span class="material-symbols-outlined text-primary">home_work</span> Homes & Spaces
@@ -804,8 +784,6 @@ export const Views = {
             ${homesHtml}
           </div>
         </section>
-
-        ${adminPanelHtml}
       </div>
     `;
   },
@@ -893,15 +871,20 @@ export const Views = {
 
   admin(state) {
     const polyFamilyName = localStorage.getItem('polyschedule_poly_family_name') || 'The Poly Circle';
+    const logsHtml = (state.logs || []).map(log => {
+      const color = log.type === 'error' ? 'var(--error)' : log.type === 'warning' ? 'var(--tertiary)' : 'inherit';
+      return `<p class="console-line"><span class="console-time">[${log.time}]</span> <span style="color: ${color};">${log.message}</span></p>`;
+    }).join('') || '<p class="console-line" style="color: var(--on-surface-variant);">No system events logged yet.</p>';
+
     return `
       <div class="mb-xl" style="margin-bottom: var(--space-xl);">
         <h2 class="font-headline-lg">System Administration</h2>
         <p class="font-body-lg" style="color: var(--on-surface-variant); margin-top: 4px;">
-          Configure global system settings, modify collective family naming structures, and manage database operations.
+          Configure global settings and review real operational system logs.
         </p>
       </div>
 
-      <section style="max-width: 600px; display: flex; flex-direction: column; gap: var(--space-xl);">
+      <section style="max-width: 800px; display: flex; flex-direction: column; gap: var(--space-xl);">
         <div class="bento-card" style="padding: var(--space-lg); border: 1px solid var(--outline-variant);">
           <h3 class="font-title-lg" style="font-weight: 700; margin-bottom: var(--space-md);">Family Settings</h3>
           <div class="form-group" style="margin-bottom: 0;">
@@ -909,12 +892,32 @@ export const Views = {
             <input class="form-input" id="admin-poly-family-name" placeholder="The Poly Circle" type="text" value="${polyFamilyName}"/>
           </div>
         </div>
+
+        <div class="bento-card" style="padding: var(--space-lg); border: 1px solid var(--outline-variant);">
+          <h3 class="font-title-lg" style="font-weight: 700; margin-bottom: var(--space-md); display: flex; align-items: center; gap: var(--space-sm);">
+            <span class="material-symbols-outlined text-primary">terminal</span> System Administration Log
+          </h3>
+          <div class="console-container">
+            <div class="console-header">
+              <span class="font-label-sm">Operational Log (${(state.logs || []).length} entries)</span>
+            </div>
+            <div class="console-body" id="console-logs-body" style="max-height: 280px; overflow-y: auto;">
+              ${logsHtml}
+            </div>
+            <div class="console-action-row">
+              <button class="btn-outline" id="btn-export-logs" style="background: transparent; border: none; font-family: var(--font-mono); font-size: 0.75rem; color: rgba(255,255,255,0.6); cursor: pointer; display: flex; align-items: center; gap: 4px;">
+                <span class="material-symbols-outlined" style="font-size: 16px;">download</span> Export Logs
+              </button>
+            </div>
+          </div>
+        </div>
       </section>
     `;
   },
 
-  addPartner(state) {
-    // Generate existing partners checkboxes
+  addPartner(state, partnerType = 'active') {
+    const isPassive = partnerType === 'passive';
+
     let partnersHtml = '';
     state.config.partners.forEach(partner => {
       partnersHtml += `
@@ -939,34 +942,7 @@ export const Views = {
       `;
     });
 
-    const avatarsHtml = DEFAULT_AVATARS.map((av, idx) => `
-      <div class="avatar-option ${idx === 0 ? 'selected' : ''}" data-url="${av}" style="width: 56px; height: 56px; border-radius: var(--radius-full); overflow: hidden; border: 3px solid ${idx === 0 ? 'var(--primary)' : 'transparent'}; cursor: pointer; transition: all 0.2s;">
-        <img src="${av}" alt="Avatar ${idx + 1}" style="width: 100%; height: 100%; object-fit: cover;"/>
-      </div>
-    `).join('');
-
-    return `
-      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: var(--space-lg);">
-        <div style="display: flex; align-items: center; gap: var(--space-base);">
-          <button class="btn-icon-only" id="btn-add-partner-back" aria-label="Cancel">
-            <span class="material-symbols-outlined">arrow_back</span>
-          </button>
-          <h2 class="font-title-lg">Add New Partner</h2>
-        </div>
-        <button class="btn btn-filled" id="btn-submit-partner">Save Partner</button>
-      </div>
-
-      <div style="display: grid; grid-template-columns: 1fr; md:grid-template-columns: 2fr 1fr; gap: var(--space-xl); max-width: 900px;">
-        <div style="display: flex; flex-direction: column; gap: var(--space-lg);">
-          <!-- Core profile fields -->
-          <div class="bento-card" style="padding: var(--space-lg); display: flex; flex-direction: column; gap: var(--space-md);">
-            <h3 class="font-title-lg" style="font-weight: 700; border-bottom: 1px solid rgba(138,113,112,0.1); padding-bottom: var(--space-xs);">Profile Information</h3>
-            
-            <div class="form-group">
-              <label class="form-label" for="new-partner-name">Display Name</label>
-              <input class="form-input" id="new-partner-name" placeholder="e.g. Robin Williams" type="text"/>
-            </div>
-
+    const activeFieldsHtml = isPassive ? '' : `
             <div class="grid grid-cols-2 gap-md" style="display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-md);">
               <div class="form-group" style="margin-bottom: 0;">
                 <label class="form-label" for="new-partner-username">Username</label>
@@ -986,39 +962,64 @@ export const Views = {
                 <option value="Admin">Admin</option>
               </select>
             </div>
+    `;
 
-            <div class="form-group" style="margin-top: var(--space-sm);">
-              <label class="form-label" for="new-partner-home">Default Home</label>
-              <select class="form-input" id="new-partner-home">
-                ${state.config.residences.map(h => `<option value="${h.id}">${h.name}</option>`).join('')}
-              </select>
-            </div>
-          </div>
-
-          <!-- Avatar Grid -->
-          <div class="bento-card" style="padding: var(--space-lg);">
-            <h3 class="font-title-lg" style="font-weight: 700; border-bottom: 1px solid rgba(138,113,112,0.1); padding-bottom: var(--space-xs); margin-bottom: var(--space-md);">Select Avatar</h3>
-            <div style="display: flex; gap: var(--space-md); flex-wrap: wrap;" id="new-partner-avatar-options">
-              ${avatarsHtml}
-            </div>
-          </div>
-        </div>
-
+    const sleepingSectionHtml = isPassive ? '' : `
         <div style="display: flex; flex-direction: column; gap: var(--space-lg);">
-          <!-- Sleeping connections and limits -->
           <div class="bento-card" style="padding: var(--space-lg); display: flex; flex-direction: column; gap: var(--space-md);">
             <h3 class="font-title-lg" style="font-weight: 700; border-bottom: 1px solid rgba(138,113,112,0.1); padding-bottom: var(--space-xs);">Sleeping Partner Connections</h3>
-            
             <div class="form-group" id="solo-nights-group" style="display: none;">
               <label class="form-label" for="new-partner-solo-nights">Number of nights alone (Max Solo Nights)</label>
               <input class="form-input" id="new-partner-solo-nights" type="number" min="0" max="7" value="2"/>
             </div>
-
             <div style="display: flex; flex-direction: column; gap: var(--space-md); margin-top: var(--space-xs);">
               ${partnersHtml}
             </div>
           </div>
         </div>
+    `;
+
+    return `
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: var(--space-lg);">
+        <div style="display: flex; align-items: center; gap: var(--space-base);">
+          <button class="btn-icon-only" id="btn-add-partner-back" aria-label="Cancel">
+            <span class="material-symbols-outlined">arrow_back</span>
+          </button>
+          <h2 class="font-title-lg">${isPassive ? 'Add Passive Partner' : 'Add Active Partner'}</h2>
+        </div>
+        <button class="btn btn-filled" id="btn-submit-partner">Save Partner</button>
+      </div>
+
+      <div class="switch-selector" style="margin-bottom: var(--space-lg); max-width: 400px;">
+        <button class="switch-btn ${!isPassive ? 'active' : ''}" id="btn-partner-type-active">Active User</button>
+        <button class="switch-btn ${isPassive ? 'active' : ''}" id="btn-partner-type-passive">Passive Partner</button>
+      </div>
+
+      <input type="hidden" id="new-partner-type" value="${partnerType}"/>
+
+      <div style="display: grid; grid-template-columns: 1fr; md:grid-template-columns: 2fr 1fr; gap: var(--space-xl); max-width: 900px;">
+        <div style="display: flex; flex-direction: column; gap: var(--space-lg);">
+          <div class="bento-card" style="padding: var(--space-lg); display: flex; flex-direction: column; gap: var(--space-md);">
+            <h3 class="font-title-lg" style="font-weight: 700; border-bottom: 1px solid rgba(138,113,112,0.1); padding-bottom: var(--space-xs);">Profile Information</h3>
+            <div class="form-group">
+              <label class="form-label" for="new-partner-name">Display Name</label>
+              <input class="form-input" id="new-partner-name" placeholder="e.g. Robin Williams" type="text"/>
+            </div>
+            ${activeFieldsHtml}
+            <div class="form-group" style="margin-top: var(--space-sm);">
+              <label class="form-label" for="new-partner-home">Default Home</label>
+              <select class="form-input" id="new-partner-home">
+                ${renderHomeSelectOptions(state.config.residences, state.config.residences[0]?.id)}
+              </select>
+            </div>
+            ${isPassive ? '<p class="font-body-md" style="color: var(--on-surface-variant); font-size: 0.85rem;">Passive partners appear in scheduling but cannot log in.</p>' : ''}
+          </div>
+          <div class="bento-card" style="padding: var(--space-lg);">
+            <h3 class="font-title-lg" style="font-weight: 700; border-bottom: 1px solid rgba(138,113,112,0.1); padding-bottom: var(--space-xs); margin-bottom: var(--space-md);">Select Avatar</h3>
+            ${renderAvatarPickerHtml('', 'new-partner-avatar-options')}
+          </div>
+        </div>
+        ${sleepingSectionHtml}
       </div>
     `;
   },
@@ -1088,6 +1089,232 @@ export const Views = {
               ${partnersHtml}
             </div>
           </div>
+        </div>
+      </div>
+    `;
+  },
+
+  login(state) {
+    return `
+      <div style="display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 60vh; padding: var(--space-lg);">
+        <div class="bento-card" id="login-form" style="width: 100%; max-width: 400px; padding: var(--space-xl); border: 1px solid var(--outline-variant);">
+          <div style="text-align: center; margin-bottom: var(--space-lg);">
+            <span class="material-symbols-outlined" style="font-size: 48px; color: var(--primary);">calendar_month</span>
+            <h2 class="font-headline-lg" style="margin-top: var(--space-sm); font-weight: 700;">PolySchedule</h2>
+            <p class="font-body-md" style="color: var(--on-surface-variant); margin-top: 4px;">Sign in to manage your schedule</p>
+          </div>
+          <div class="form-group">
+            <label class="form-label" for="login-username">Username</label>
+            <input class="form-input" id="login-username" type="text" autocomplete="username" placeholder="Enter username"/>
+          </div>
+          <div class="form-group">
+            <label class="form-label" for="login-password">Password</label>
+            <input class="form-input" id="login-password" type="password" autocomplete="current-password" placeholder="Enter password"/>
+          </div>
+          <button class="btn btn-filled" id="btn-login" style="width: 100%; margin-top: var(--space-sm);">Log In</button>
+          <p class="font-label-sm" style="color: var(--on-surface-variant); text-align: center; margin-top: var(--space-md);">Demo: alex / password123</p>
+        </div>
+      </div>
+    `;
+  },
+
+  editPartner(state, partnerId) {
+    const partner = state.config.partners.find(p => p.id === partnerId);
+    if (!partner) return '<p>Partner not found.</p>';
+    const passive = isPartnerPassive(partner);
+
+    let sleepingHtml = '';
+    if (!passive) {
+      let partnersCheckHtml = '';
+      state.config.partners.filter(p => p.id !== partnerId).forEach(p => {
+        const limit = partner.rules?.partnerLimits?.[p.name] || partner.rules?.partnerLimits?.[p.name.split(' ')[0]];
+        const checked = limit ? 'checked' : '';
+        partnersCheckHtml += `
+          <div style="border: 1px solid var(--outline-variant); padding: var(--space-md); border-radius: var(--radius-md);">
+            <label style="display: flex; align-items: center; gap: var(--space-md); font-weight: bold; cursor: pointer;">
+              <input type="checkbox" class="sleeping-partner-checkbox" data-partner-name="${p.name}" ${checked} style="accent-color: var(--primary); width: 18px; height: 18px;"/>
+              <span>${p.name}</span>
+            </label>
+            <div class="sleeping-partner-details" style="display: ${checked ? 'flex' : 'none'}; flex-direction: column; gap: var(--space-xs); margin-left: 28px; margin-top: var(--space-xs);">
+              <div style="display: flex; gap: var(--space-md);">
+                <div class="form-group" style="flex: 1; margin-bottom: 0;">
+                  <label class="form-label" style="font-size: 0.75rem;">Min Nights</label>
+                  <input class="form-input partner-min-nights" type="number" min="0" max="7" value="${limit?.min || 1}" style="padding: 4px 8px; font-size: 0.8rem;"/>
+                </div>
+                <div class="form-group" style="flex: 1; margin-bottom: 0;">
+                  <label class="form-label" style="font-size: 0.75rem;">Max Nights</label>
+                  <input class="form-input partner-max-nights" type="number" min="0" max="7" value="${limit?.max || 3}" style="padding: 4px 8px; font-size: 0.8rem;"/>
+                </div>
+              </div>
+            </div>
+          </div>
+        `;
+      });
+      sleepingHtml = `
+        <div class="bento-card" style="padding: var(--space-lg);">
+          <h3 class="font-title-lg" style="font-weight: 700; margin-bottom: var(--space-md);">Sleeping Rules</h3>
+          <div class="form-group">
+            <label class="form-label" for="edit-partner-solo-nights">Max Solo Nights</label>
+            <input class="form-input" id="edit-partner-solo-nights" type="number" min="0" max="7" value="${partner.rules?.maxSoloNights || 2}"/>
+          </div>
+          <div style="display: flex; flex-direction: column; gap: var(--space-sm); margin-top: var(--space-md);">${partnersCheckHtml}</div>
+        </div>
+      `;
+    }
+
+    const activeFields = passive ? '' : `
+      <div class="grid grid-cols-2 gap-md" style="display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-md);">
+        <div class="form-group" style="margin-bottom: 0;">
+          <label class="form-label" for="edit-partner-username">Username</label>
+          <input class="form-input" id="edit-partner-username" type="text" value="${partner.username || ''}"/>
+        </div>
+        <div class="form-group" style="margin-bottom: 0;">
+          <label class="form-label" for="edit-partner-password">Password</label>
+          <input class="form-input" id="edit-partner-password" type="password" value="${partner.password || ''}"/>
+        </div>
+      </div>
+      <div class="form-group">
+        <label class="form-label" for="edit-partner-role">Role</label>
+        <select class="form-input" id="edit-partner-role">
+          <option value="User" ${partner.role === 'User' ? 'selected' : ''}>User</option>
+          <option value="Guest" ${partner.role === 'Guest' ? 'selected' : ''}>Guest</option>
+          <option value="Admin" ${partner.role === 'Admin' ? 'selected' : ''}>Admin</option>
+        </select>
+      </div>
+    `;
+
+    return `
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: var(--space-lg);">
+        <div style="display: flex; align-items: center; gap: var(--space-base);">
+          <button class="btn-icon-only" id="btn-edit-partner-back"><span class="material-symbols-outlined">arrow_back</span></button>
+          <h2 class="font-title-lg">Edit Partner: ${partner.name}</h2>
+        </div>
+        <button class="btn btn-filled" id="btn-save-edit-partner">Save Changes</button>
+      </div>
+      <input type="hidden" id="edit-partner-id" value="${partner.id}"/>
+      <div style="display: grid; gap: var(--space-xl); max-width: 900px;">
+        <div class="bento-card" style="padding: var(--space-lg); display: flex; flex-direction: column; gap: var(--space-md);">
+          <div class="form-group"><label class="form-label" for="edit-partner-name">Display Name</label>
+            <input class="form-input" id="edit-partner-name" type="text" value="${partner.name}"/></div>
+          ${activeFields}
+          <div class="form-group">
+            <label class="form-label" for="edit-partner-home">Default Home</label>
+            <select class="form-input" id="edit-partner-home">${renderHomeSelectOptions(state.config.residences, partner.defaultHome)}</select>
+          </div>
+          ${renderAvatarPickerHtml(partner.avatar, 'edit-partner-avatar-options')}
+        </div>
+        ${sleepingHtml}
+      </div>
+    `;
+  },
+
+  editHome(state, homeId) {
+    const home = state.config.residences.find(h => h.id === homeId);
+    if (!home) return '<p>Home not found.</p>';
+
+    let bedroomInputs = '';
+    const count = home.bedrooms || home.bedroomDetails?.length || 1;
+    for (let i = 0; i < count; i++) {
+      const bedName = home.bedroomDetails?.[i]?.name || `Bedroom ${i + 1}`;
+      bedroomInputs += `<div class="form-group" style="margin-bottom: var(--space-xs);"><input class="form-input bedroom-name-input" type="text" data-index="${i}" value="${bedName}"/></div>`;
+    }
+
+    let partnersHtml = '';
+    state.config.partners.forEach(partner => {
+      const associated = home.associatedPeople?.includes(partner.name) || partner.defaultHome === home.id;
+      partnersHtml += `
+        <label style="display: flex; align-items: center; gap: var(--space-md); cursor: pointer; padding: var(--space-xs);">
+          <input type="checkbox" class="home-associated-partner" data-partner-name="${partner.name}" ${associated ? 'checked' : ''} style="accent-color: var(--primary); width: 18px; height: 18px;"/>
+          <span>${partner.name}</span>
+        </label>
+      `;
+    });
+
+    return `
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: var(--space-lg);">
+        <div style="display: flex; align-items: center; gap: var(--space-base);">
+          <button class="btn-icon-only" id="btn-edit-home-back"><span class="material-symbols-outlined">arrow_back</span></button>
+          <h2 class="font-title-lg">Edit Home: ${home.name}</h2>
+        </div>
+        <button class="btn btn-filled" id="btn-save-edit-home">Save Changes</button>
+      </div>
+      <input type="hidden" id="edit-home-id" value="${home.id}"/>
+      <div style="display: grid; gap: var(--space-xl); max-width: 900px; grid-template-columns: 2fr 1fr;">
+        <div class="bento-card" style="padding: var(--space-lg); display: flex; flex-direction: column; gap: var(--space-md);">
+          <div class="form-group"><label class="form-label" for="edit-home-name">Home Name</label>
+            <input class="form-input" id="edit-home-name" type="text" value="${home.name}"/></div>
+          <div class="form-group"><label class="form-label" for="edit-home-address">Address</label>
+            <input class="form-input" id="edit-home-address" type="text" value="${home.address}"/></div>
+          <div class="form-group"><label class="form-label" for="edit-home-bedrooms-count">Number of Bedrooms</label>
+            <input class="form-input" id="edit-home-bedrooms-count" type="number" min="1" max="10" value="${count}"/></div>
+          <div id="bedroom-names-container"><h4 class="font-label-md" style="font-weight: bold;">Bedroom Names</h4>${bedroomInputs}</div>
+        </div>
+        <div class="bento-card" style="padding: var(--space-lg);">
+          <h3 class="font-title-lg" style="font-weight: 700; margin-bottom: var(--space-md);">Associated People</h3>
+          <div style="display: flex; flex-direction: column; gap: var(--space-xs);">${partnersHtml}</div>
+        </div>
+      </div>
+    `;
+  },
+
+  activatePartner(state) {
+    const passivePartners = state.config.partners.filter(isPartnerPassive);
+    const options = passivePartners.map(p => `<option value="${p.id}">${p.name}</option>`).join('');
+
+    let sleepingHtml = '';
+    state.config.partners.filter(p => !isPartnerPassive(p)).forEach(partner => {
+      sleepingHtml += `
+        <div style="border: 1px solid var(--outline-variant); padding: var(--space-md); border-radius: var(--radius-md);">
+          <label style="display: flex; align-items: center; gap: var(--space-md); font-weight: bold; cursor: pointer;">
+            <input type="checkbox" class="sleeping-partner-checkbox" data-partner-name="${partner.name}" style="accent-color: var(--primary); width: 18px; height: 18px;"/>
+            <span>${partner.name}</span>
+          </label>
+          <div class="sleeping-partner-details" style="display: none; flex-direction: column; gap: var(--space-xs); margin-left: 28px; margin-top: var(--space-xs);">
+            <div style="display: flex; gap: var(--space-md);">
+              <div class="form-group" style="flex: 1; margin-bottom: 0;"><label class="form-label" style="font-size: 0.75rem;">Min Nights</label>
+                <input class="form-input partner-min-nights" type="number" min="0" max="7" value="1"/></div>
+              <div class="form-group" style="flex: 1; margin-bottom: 0;"><label class="form-label" style="font-size: 0.75rem;">Max Nights</label>
+                <input class="form-input partner-max-nights" type="number" min="0" max="7" value="3"/></div>
+            </div>
+          </div>
+        </div>
+      `;
+    });
+
+    return `
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: var(--space-lg);">
+        <div style="display: flex; align-items: center; gap: var(--space-base);">
+          <button class="btn-icon-only" id="btn-activate-partner-back"><span class="material-symbols-outlined">arrow_back</span></button>
+          <h2 class="font-title-lg">Activate Passive Partner</h2>
+        </div>
+        <button class="btn btn-filled" id="btn-submit-activate">Activate Partner</button>
+      </div>
+      <div style="max-width: 700px; display: flex; flex-direction: column; gap: var(--space-lg);">
+        <div class="bento-card" style="padding: var(--space-lg);">
+          <div class="form-group">
+            <label class="form-label" for="activate-partner-select">Select Passive Partner</label>
+            <select class="form-input" id="activate-partner-select">
+              ${passivePartners.length ? options : '<option value="">No passive partners available</option>'}
+            </select>
+          </div>
+          <div class="grid grid-cols-2 gap-md" style="display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-md); margin-top: var(--space-md);">
+            <div class="form-group" style="margin-bottom: 0;"><label class="form-label" for="activate-username">Username</label>
+              <input class="form-input" id="activate-username" type="text"/></div>
+            <div class="form-group" style="margin-bottom: 0;"><label class="form-label" for="activate-password">Password</label>
+              <input class="form-input" id="activate-password" type="password"/></div>
+          </div>
+          <div class="form-group" style="margin-top: var(--space-md);">
+            <label class="form-label" for="activate-role">Role</label>
+            <select class="form-input" id="activate-role"><option value="User">User</option><option value="Guest">Guest</option><option value="Admin">Admin</option></select>
+          </div>
+        </div>
+        <div class="bento-card" style="padding: var(--space-lg);">
+          <h3 class="font-title-lg" style="font-weight: 700; margin-bottom: var(--space-md);">Sleeping Partner Connections</h3>
+          <div class="form-group" id="solo-nights-group" style="display: none;">
+            <label class="form-label" for="activate-solo-nights">Max Solo Nights</label>
+            <input class="form-input" id="activate-solo-nights" type="number" min="0" max="7" value="2"/>
+          </div>
+          <div style="display: flex; flex-direction: column; gap: var(--space-sm);">${sleepingHtml}</div>
         </div>
       </div>
     `;

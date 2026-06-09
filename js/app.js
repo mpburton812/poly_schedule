@@ -7,11 +7,27 @@ import { AuthManager } from './auth.js';
 import { CalendarSync } from './calendar.js';
 import { RulesEngine } from './rules.js';
 import { Views, DEFAULT_AVATARS } from './views.js';
+import {
+  LOGS_STORAGE_KEY,
+  CREATE_NEW_HOME,
+  parseHashParams,
+  getRouteBase,
+  isPartnerPassive
+} from './helpers.js';
+
+function loadPersistedLogs() {
+  try {
+    const saved = JSON.parse(localStorage.getItem(LOGS_STORAGE_KEY) || '[]');
+    return Array.isArray(saved) ? saved : [];
+  } catch {
+    return [];
+  }
+}
 
 // Global Application State
 const state = {
   currentView: 'schedule',
-  currentUser: JSON.parse(localStorage.getItem('polyschedule_user_profile') || 'null'),
+  currentUser: null,
   isOffline: localStorage.getItem('polyschedule_mode') !== 'sync',
   events: [],
   config: null,
@@ -19,14 +35,13 @@ const state = {
   filterPartner: 'all',
   filterResidence: 'all',
   notifications: JSON.parse(localStorage.getItem('polyschedule_notifications') || '[]'),
-  logs: [
-    { time: new Date().toLocaleTimeString('en-GB', { hour12: false }), message: 'Application initialized.', type: 'info' }
-  ]
+  logs: loadPersistedLogs()
 };
 
 // Sub-navigation tab states
 let activeProposalsTab = 'pending';
 let currentCreateType = 'event';
+let activePartnerType = 'active';
 
 // Proposal Creation Form Temp Data
 const newProposalState = {
@@ -40,8 +55,9 @@ const newProposalState = {
  */
 function addLog(message, type = 'info') {
   const time = new Date().toLocaleTimeString('en-GB', { hour12: false });
-  state.logs.push({ time, message, type });
-  if (state.logs.length > 20) state.logs.shift();
+  state.logs.push({ time, message, type, timestamp: Date.now() });
+  if (state.logs.length > 100) state.logs.shift();
+  localStorage.setItem(LOGS_STORAGE_KEY, JSON.stringify(state.logs));
   
   // Dynamic update if currently viewing logistics or if modal log console is open
   const consoleBodies = document.querySelectorAll('#console-logs-body');
@@ -213,9 +229,133 @@ function openNotificationsModal() {
  * Helper to check if the current user is an admin
  */
 function isAdmin() {
-  if (!state.currentUser || !state.config || !state.config.partners) return false;
-  const partner = state.config.partners.find(p => p.name === state.currentUser.name);
-  return partner ? partner.role === 'Admin' : false;
+  if (!state.currentUser || !state.config?.partners) return false;
+  const partner = state.config.partners.find(p => p.id === state.currentUser.id);
+  return partner?.role === 'Admin';
+}
+
+function isLoggedIn() {
+  return !!(state.currentUser && state.currentUser.sessionActive);
+}
+
+function saveConfig() {
+  localStorage.setItem('polyschedule_local_config', JSON.stringify(state.config));
+  CalendarSync.config = state.config;
+}
+
+function updateUIForAuthState(loggedIn) {
+  const bottomNav = document.querySelector('.bottom-nav');
+  const sidebarNav = document.querySelector('.sidebar-nav');
+  const fab = document.getElementById('fab-quick-add');
+  const notifBtn = document.getElementById('btn-notifications');
+  const avatarContainer = document.getElementById('avatar-container');
+  const sideLogout = document.getElementById('side-nav-logout');
+
+  if (bottomNav) bottomNav.style.display = loggedIn ? '' : 'none';
+  if (sidebarNav) {
+    if (loggedIn) {
+      sidebarNav.style.removeProperty('display');
+    } else {
+      sidebarNav.style.setProperty('display', 'none', 'important');
+    }
+  }
+  if (fab) fab.style.display = loggedIn ? 'flex' : 'none';
+  if (notifBtn) notifBtn.style.display = loggedIn ? '' : 'none';
+  if (avatarContainer) avatarContainer.style.display = loggedIn ? 'block' : 'none';
+  if (sideLogout) sideLogout.style.display = loggedIn ? 'flex' : 'none';
+}
+
+function showLoginView() {
+  updateUIForAuthState(false);
+  state.currentView = 'login';
+  const container = document.getElementById('app-view-container');
+  if (container) {
+    container.innerHTML = Views.login(state);
+    bindLoginEvents();
+  }
+}
+
+function establishSession(partner) {
+  state.currentUser = {
+    id: partner.id,
+    name: partner.name,
+    username: partner.username,
+    password: partner.password,
+    picture: partner.avatar || DEFAULT_AVATARS[0],
+    role: partner.role,
+    sessionActive: true
+  };
+  localStorage.setItem('polyschedule_user_profile', JSON.stringify(state.currentUser));
+  const avatarImg = document.getElementById('user-avatar-img');
+  if (avatarImg) avatarImg.src = state.currentUser.picture;
+  updateUIForAuthState(true);
+  updateAdminNavVisibility();
+}
+
+function attemptLogin(username, password) {
+  const partner = state.config?.partners?.find(p =>
+    !isPartnerPassive(p) && p.username === username.trim() && p.password === password
+  );
+  if (!partner) {
+    showToast('Invalid username or password.', 'error');
+    addLog(`Auth: Failed login attempt for "${username.trim()}".`, 'warning');
+    return false;
+  }
+  establishSession(partner);
+  addLog(`Auth: User "${partner.name}" logged in successfully.`, 'info');
+  showToast(`Welcome back, ${partner.name.split(' ')[0]}!`, 'success');
+  window.location.hash = '#schedule';
+  router();
+  return true;
+}
+
+function logoutUser() {
+  AuthManager.logout();
+  state.currentUser = null;
+  localStorage.removeItem('polyschedule_user_profile');
+  addLog('Auth: User logged out.', 'info');
+  showLoginView();
+}
+
+function bindHomeSelectCreateNew(selectEl) {
+  if (!selectEl) return;
+  selectEl.addEventListener('change', (e) => {
+    if (e.target.value === CREATE_NEW_HOME) {
+      window.location.hash = '#add-home';
+    }
+  });
+}
+
+function bindAvatarPicker(containerSelector, onSelect) {
+  let selected = DEFAULT_AVATARS[0];
+  const container = document.querySelector(containerSelector);
+  if (!container) return () => selected;
+  const opts = container.querySelectorAll('.avatar-option');
+  opts.forEach(opt => {
+    if (opt.classList.contains('selected')) selected = opt.dataset.url;
+    opt.addEventListener('click', () => {
+      opts.forEach(o => { o.style.borderColor = 'transparent'; o.classList.remove('selected'); });
+      opt.style.borderColor = 'var(--primary)';
+      opt.classList.add('selected');
+      selected = opt.dataset.url;
+      if (onSelect) onSelect(selected);
+    });
+  });
+  return () => selected;
+}
+
+function bindSleepingPartnerCheckboxes(container = document) {
+  const checkboxes = container.querySelectorAll('.sleeping-partner-checkbox');
+  const soloNightsGroup = container.querySelector('#solo-nights-group');
+  checkboxes.forEach(cb => {
+    cb.addEventListener('change', () => {
+      const details = cb.closest('div').querySelector('.sleeping-partner-details');
+      if (details) details.style.display = cb.checked ? 'flex' : 'none';
+      if (soloNightsGroup) {
+        soloNightsGroup.style.display = Array.from(checkboxes).some(c => c.checked) ? 'block' : 'none';
+      }
+    });
+  });
 }
 
 /**
@@ -254,9 +394,6 @@ function openUserProfileModal() {
             ${logsHtml}
           </div>
           <div class="console-action-row">
-            <button class="btn-outline" id="btn-run-tests" style="background: transparent; border: none; font-family: var(--font-mono); font-size: 0.75rem; color: var(--primary-fixed-dim); cursor: pointer; display: flex; align-items: center; gap: 4px;">
-              <span class="material-symbols-outlined" style="font-size: 16px;">sync</span> Run System Test
-            </button>
             <button class="btn-outline" id="btn-export-logs" style="background: transparent; border: none; font-family: var(--font-mono); font-size: 0.75rem; color: rgba(255,255,255,0.6); cursor: pointer; display: flex; align-items: center; gap: 4px;">
               <span class="material-symbols-outlined" style="font-size: 16px;">download</span> Export Logs
             </button>
@@ -387,9 +524,9 @@ function openUserProfileModal() {
 
   // Bind Logout
   document.getElementById('modal-btn-logout').addEventListener('click', () => {
-    AuthManager.logout();
     modal.classList.remove('open');
     showToast('Logged out successfully.', 'success');
+    logoutUser();
   });
 
   // Bind Delete Account
@@ -435,8 +572,8 @@ function openUserProfileModal() {
       state.currentUser.username = userName;
       state.currentUser.password = pwd;
       state.currentUser.picture = selectedAvatar;
+      state.currentUser.sessionActive = true;
 
-      // Persist in localStorage
       localStorage.setItem('polyschedule_user_profile', JSON.stringify(state.currentUser));
 
       // Update avatar image in top app bar
@@ -457,7 +594,6 @@ function openUserProfileModal() {
         partner.username = userName;
         partner.password = pwd;
         
-        // Save config
         localStorage.setItem('polyschedule_local_config', JSON.stringify(state.config));
       }
 
@@ -477,17 +613,23 @@ function openUserProfileModal() {
  * Dynamic View Router
  */
 function router() {
-  const hash = window.location.hash || '#schedule';
-  let view = hash.substring(1);
-  
-  // Map sub-routes if any
-  if (view.startsWith('create')) {
-    view = 'create';
+  if (!isLoggedIn()) {
+    showLoginView();
+    return;
   }
 
+  const view = getRouteBase();
+  const params = parseHashParams();
+  
   // Auth check for admin route
   if (view === 'admin' && !isAdmin()) {
     window.location.hash = '#schedule';
+    return;
+  }
+
+  // Admin-only edit routes
+  if ((view === 'edit-partner' || view === 'edit-home') && !isAdmin()) {
+    window.location.hash = '#logistics';
     return;
   }
   
@@ -520,7 +662,7 @@ function renderView() {
 
   // Manage visibility of transactional elements
   const fab = document.getElementById('fab-quick-add');
-  if (state.currentView === 'create' || state.currentView === 'settings' || state.currentView === 'add-partner' || state.currentView === 'add-home') {
+  if (state.currentView === 'create' || state.currentView === 'settings' || state.currentView === 'add-partner' || state.currentView === 'add-home' || state.currentView === 'edit-partner' || state.currentView === 'edit-home' || state.currentView === 'activate-partner') {
     if (fab) fab.style.display = 'none';
   } else {
     if (fab) fab.style.display = 'flex';
@@ -557,11 +699,22 @@ function renderView() {
     container.innerHTML = Views.admin(state);
     bindAdminEvents();
   } else if (state.currentView === 'add-partner') {
-    container.innerHTML = Views.addPartner(state);
+    container.innerHTML = Views.addPartner(state, activePartnerType);
     bindAddPartnerEvents();
   } else if (state.currentView === 'add-home') {
     container.innerHTML = Views.addHome(state);
     bindAddHomeEvents();
+  } else if (state.currentView === 'edit-partner') {
+    const params = parseHashParams();
+    container.innerHTML = Views.editPartner(state, params.p);
+    bindEditPartnerEvents();
+  } else if (state.currentView === 'edit-home') {
+    const params = parseHashParams();
+    container.innerHTML = Views.editHome(state, params.h);
+    bindEditHomeEvents();
+  } else if (state.currentView === 'activate-partner') {
+    container.innerHTML = Views.activatePartner(state);
+    bindActivatePartnerEvents();
   }
 }
 
@@ -961,19 +1114,6 @@ function runRulesChecks() {
 }
 
 function bindLogisticsEvents(container = document) {
-  // Live simulated log updates
-  const logBtn = container.querySelector('#btn-run-tests');
-  if (logBtn) {
-    logBtn.addEventListener('click', () => {
-      addLog('Auth: Running system integration audit...', 'info');
-      setTimeout(() => {
-        addLog('Sync: Google Calendar endpoints validated.', 'info');
-        addLog('Rules: Quota check verification completed. 0 fatal conflicts.', 'info');
-        showToast('All system modules verified!', 'success');
-      }, 1000);
-    });
-  }
-  
   const exportBtn = container.querySelector('#btn-export-logs');
   if (exportBtn) {
     exportBtn.addEventListener('click', () => {
@@ -984,13 +1124,22 @@ function bindLogisticsEvents(container = document) {
       a.download = 'polyschedule_logs.json';
       a.click();
       showToast('Logs exported successfully!', 'success');
+      addLog('Admin: System logs exported.', 'info');
     });
   }
 
   const addPartnerBtn = container.querySelector('#btn-add-partner');
   if (addPartnerBtn) {
     addPartnerBtn.addEventListener('click', () => {
+      activePartnerType = 'active';
       window.location.hash = '#add-partner';
+    });
+  }
+
+  const activateBtn = container.querySelector('#btn-activate-partner');
+  if (activateBtn) {
+    activateBtn.addEventListener('click', () => {
+      window.location.hash = '#activate-partner';
     });
   }
 
@@ -1000,6 +1149,20 @@ function bindLogisticsEvents(container = document) {
       window.location.hash = '#add-home';
     });
   }
+
+  container.querySelectorAll('.btn-edit-partner').forEach(btn => {
+    btn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      window.location.hash = `#edit-partner?p=${btn.dataset.partnerId}`;
+    });
+  });
+
+  container.querySelectorAll('.btn-edit-home').forEach(btn => {
+    btn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      window.location.hash = `#edit-home?h=${btn.dataset.homeId}`;
+    });
+  });
 }
 
 function bindSettingsEvents(container = document) {
@@ -1093,6 +1256,29 @@ function bindAdminEvents() {
   if (familyInput) {
     familyInput.addEventListener('input', (e) => {
       localStorage.setItem('polyschedule_poly_family_name', e.target.value.trim() || 'The Poly Circle');
+      addLog(`Admin: Poly family name updated to "${e.target.value.trim() || 'The Poly Circle'}".`, 'info');
+    });
+  }
+  bindLogisticsEvents(document);
+}
+
+function bindLoginEvents() {
+  const btnLogin = document.getElementById('btn-login');
+  const usernameInput = document.getElementById('login-username');
+  const passwordInput = document.getElementById('login-password');
+
+  const submit = () => {
+    if (!usernameInput?.value || !passwordInput?.value) {
+      showToast('Please enter username and password.', 'warning');
+      return;
+    }
+    attemptLogin(usernameInput.value, passwordInput.value);
+  };
+
+  if (btnLogin) btnLogin.addEventListener('click', submit);
+  if (passwordInput) {
+    passwordInput.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') submit();
     });
   }
 }
@@ -1105,99 +1291,95 @@ function bindAddPartnerEvents() {
     });
   }
 
-  let selectedAvatar = DEFAULT_AVATARS[0];
-  const avatarOpts = document.querySelectorAll('#new-partner-avatar-options .avatar-option');
-  avatarOpts.forEach(opt => {
-    opt.addEventListener('click', () => {
-      avatarOpts.forEach(o => {
-        o.style.borderColor = 'transparent';
-        o.classList.remove('selected');
-      });
-      opt.style.borderColor = 'var(--primary)';
-      opt.classList.add('selected');
-      selectedAvatar = opt.dataset.url;
+  const btnActive = document.getElementById('btn-partner-type-active');
+  const btnPassive = document.getElementById('btn-partner-type-passive');
+  if (btnActive) {
+    btnActive.addEventListener('click', () => {
+      activePartnerType = 'active';
+      renderView();
     });
-  });
+  }
+  if (btnPassive) {
+    btnPassive.addEventListener('click', () => {
+      activePartnerType = 'passive';
+      renderView();
+    });
+  }
 
-  const checkboxes = document.querySelectorAll('.sleeping-partner-checkbox');
-  const soloNightsGroup = document.getElementById('solo-nights-group');
-  
-  checkboxes.forEach(cb => {
-    cb.addEventListener('change', () => {
-      const details = cb.closest('div').querySelector('.sleeping-partner-details');
-      if (cb.checked) {
-        details.style.display = 'flex';
-      } else {
-        details.style.display = 'none';
-      }
-      
-      const anyChecked = Array.from(checkboxes).some(c => c.checked);
-      if (anyChecked) {
-        soloNightsGroup.style.display = 'block';
-      } else {
-        soloNightsGroup.style.display = 'none';
-      }
-    });
-  });
+  bindHomeSelectCreateNew(document.getElementById('new-partner-home'));
+  const getSelectedAvatar = bindAvatarPicker('#new-partner-avatar-options');
+  bindSleepingPartnerCheckboxes();
 
   const btnSubmit = document.getElementById('btn-submit-partner');
   if (btnSubmit) {
     btnSubmit.addEventListener('click', () => {
       const name = document.getElementById('new-partner-name').value.trim();
-      const username = document.getElementById('new-partner-username').value.trim();
-      const password = document.getElementById('new-partner-password').value.trim();
-      const role = document.getElementById('new-partner-role').value;
+      const partnerType = document.getElementById('new-partner-type')?.value || activePartnerType;
+      const isPassive = partnerType === 'passive';
       const defaultHome = document.getElementById('new-partner-home').value;
 
-      if (!name || !username || !password) {
-        showToast('Please fill in Display Name, Username, and Default Password.', 'warning');
+      if (defaultHome === CREATE_NEW_HOME) {
+        window.location.hash = '#add-home';
         return;
       }
 
-      const exists = state.config.partners.some(p => p.username === username || p.name === name);
-      if (exists) {
-        showToast('A partner with this Display Name or Username already exists.', 'warning');
+      if (!name) {
+        showToast('Display Name is required.', 'warning');
         return;
       }
 
+      let username, password, role;
+      if (!isPassive) {
+        username = document.getElementById('new-partner-username').value.trim();
+        password = document.getElementById('new-partner-password').value.trim();
+        role = document.getElementById('new-partner-role').value;
+        if (!username || !password) {
+          showToast('Username and password are required for active users.', 'warning');
+          return;
+        }
+        const exists = state.config.partners.some(p => p.username === username || p.name === name);
+        if (exists) {
+          showToast('A partner with this Display Name or Username already exists.', 'warning');
+          return;
+        }
+      } else if (state.config.partners.some(p => p.name === name)) {
+        showToast('A partner with this Display Name already exists.', 'warning');
+        return;
+      }
+
+      const selectedAvatar = getSelectedAvatar();
       const rules = {};
-      const anyChecked = Array.from(checkboxes).some(c => c.checked);
-      if (anyChecked) {
-        rules.maxSoloNights = parseInt(document.getElementById('new-partner-solo-nights').value) || 2;
-        rules.partnerLimits = {};
-        
-        checkboxes.forEach(cb => {
-          if (cb.checked) {
-            const partnerName = cb.dataset.partnerName;
-            const minNights = parseInt(cb.closest('div').querySelector('.partner-min-nights').value) || 0;
-            const maxNights = parseInt(cb.closest('div').querySelector('.partner-max-nights').value) || 7;
-            
-            rules.partnerLimits[partnerName] = { min: minNights, max: maxNights };
-            
-            const otherPartner = state.config.partners.find(p => p.name === partnerName);
-            if (otherPartner) {
-              if (!otherPartner.rules) otherPartner.rules = {};
-              if (!otherPartner.rules.partnerLimits) otherPartner.rules.partnerLimits = {};
-              otherPartner.rules.partnerLimits[name] = { min: minNights, max: maxNights };
+      if (!isPassive) {
+        const checkboxes = document.querySelectorAll('.sleeping-partner-checkbox');
+        const anyChecked = Array.from(checkboxes).some(c => c.checked);
+        if (anyChecked) {
+          rules.maxSoloNights = parseInt(document.getElementById('new-partner-solo-nights').value) || 2;
+          rules.partnerLimits = {};
+          checkboxes.forEach(cb => {
+            if (cb.checked) {
+              const partnerName = cb.dataset.partnerName;
+              const minNights = parseInt(cb.closest('div').querySelector('.partner-min-nights').value) || 0;
+              const maxNights = parseInt(cb.closest('div').querySelector('.partner-max-nights').value) || 7;
+              rules.partnerLimits[partnerName] = { min: minNights, max: maxNights };
+              const otherPartner = state.config.partners.find(p => p.name === partnerName);
+              if (otherPartner) {
+                if (!otherPartner.rules) otherPartner.rules = {};
+                if (!otherPartner.rules.partnerLimits) otherPartner.rules.partnerLimits = {};
+                otherPartner.rules.partnerLimits[name] = { min: minNights, max: maxNights };
+              }
             }
-          }
-        });
+          });
+        }
       }
 
-      const newId = 'p' + (state.config.partners.length + 1);
-      const newPartner = {
-        id: newId,
-        name,
-        username,
-        password,
-        role,
-        defaultHome,
-        avatar: selectedAvatar,
-        rules
-      };
+      const newId = 'p' + Date.now();
+      const newPartner = isPassive
+        ? { id: newId, name, passive: true, defaultHome, avatar: selectedAvatar, rules: {} }
+        : { id: newId, name, username, password, role, defaultHome, avatar: selectedAvatar, rules };
 
       state.config.partners.push(newPartner);
-      localStorage.setItem('polyschedule_local_config', JSON.stringify(state.config));
+      saveConfig();
+      addLog(`Logistics: ${isPassive ? 'Passive' : 'Active'} partner "${name}" added.`, 'info');
       showToast(`Partner "${name}" added successfully!`, 'success');
       window.location.hash = '#logistics';
     });
@@ -1269,11 +1451,186 @@ function bindAddHomeEvents() {
       };
 
       state.config.residences.push(newHome);
-      localStorage.setItem('polyschedule_local_config', JSON.stringify(state.config));
+      saveConfig();
+      addLog(`Logistics: Home "${name}" added.`, 'info');
       showToast(`Home "${name}" added successfully!`, 'success');
       window.location.hash = '#logistics';
     });
   }
+}
+
+function bindEditPartnerEvents() {
+  document.getElementById('btn-edit-partner-back')?.addEventListener('click', () => {
+    window.location.hash = '#logistics';
+  });
+
+  bindHomeSelectCreateNew(document.getElementById('edit-partner-home'));
+  const getSelectedAvatar = bindAvatarPicker('#edit-partner-avatar-options');
+  bindSleepingPartnerCheckboxes();
+
+  document.getElementById('btn-save-edit-partner')?.addEventListener('click', () => {
+    const partnerId = document.getElementById('edit-partner-id').value;
+    const partner = state.config.partners.find(p => p.id === partnerId);
+    if (!partner) return;
+
+    const name = document.getElementById('edit-partner-name').value.trim();
+    const defaultHome = document.getElementById('edit-partner-home').value;
+    if (defaultHome === CREATE_NEW_HOME) {
+      window.location.hash = '#add-home';
+      return;
+    }
+    if (!name) {
+      showToast('Display Name is required.', 'warning');
+      return;
+    }
+
+    partner.name = name;
+    partner.defaultHome = defaultHome;
+    partner.avatar = getSelectedAvatar();
+
+    if (!isPartnerPassive(partner)) {
+      partner.username = document.getElementById('edit-partner-username').value.trim();
+      partner.password = document.getElementById('edit-partner-password').value.trim();
+      partner.role = document.getElementById('edit-partner-role').value;
+      partner.rules = partner.rules || {};
+      partner.rules.maxSoloNights = parseInt(document.getElementById('edit-partner-solo-nights')?.value) || 2;
+      partner.rules.partnerLimits = {};
+      document.querySelectorAll('.sleeping-partner-checkbox').forEach(cb => {
+        if (cb.checked) {
+          const pName = cb.dataset.partnerName;
+          partner.rules.partnerLimits[pName] = {
+            min: parseInt(cb.closest('div').querySelector('.partner-min-nights').value) || 0,
+            max: parseInt(cb.closest('div').querySelector('.partner-max-nights').value) || 7
+          };
+        }
+      });
+    }
+
+    saveConfig();
+    addLog(`Admin: Partner "${name}" updated.`, 'info');
+    showToast(`Partner "${name}" updated.`, 'success');
+    window.location.hash = '#logistics';
+  });
+}
+
+function bindEditHomeEvents() {
+  document.getElementById('btn-edit-home-back')?.addEventListener('click', () => {
+    window.location.hash = '#logistics';
+  });
+
+  const bedroomsInput = document.getElementById('edit-home-bedrooms-count');
+  const bedroomContainer = document.getElementById('bedroom-names-container');
+
+  if (bedroomsInput && bedroomContainer) {
+    bedroomsInput.addEventListener('input', () => {
+      const homeId = document.getElementById('edit-home-id').value;
+      const home = state.config.residences.find(h => h.id === homeId);
+      const count = Math.max(1, parseInt(bedroomsInput.value) || 1);
+      let inputsHtml = '<h4 class="font-label-md" style="font-weight: bold;">Bedroom Names</h4>';
+      for (let i = 0; i < count; i++) {
+        const existing = home?.bedroomDetails?.[i]?.name || '';
+        inputsHtml += `<div class="form-group" style="margin-bottom: var(--space-xs);"><input class="form-input bedroom-name-input" type="text" data-index="${i}" value="${existing}"/></div>`;
+      }
+      bedroomContainer.innerHTML = inputsHtml;
+    });
+  }
+
+  document.getElementById('btn-save-edit-home')?.addEventListener('click', () => {
+    const homeId = document.getElementById('edit-home-id').value;
+    const home = state.config.residences.find(h => h.id === homeId);
+    if (!home) return;
+
+    const name = document.getElementById('edit-home-name').value.trim();
+    const address = document.getElementById('edit-home-address').value.trim();
+    const bedroomsCount = Math.max(1, parseInt(bedroomsInput.value) || 1);
+
+    if (!name || !address) {
+      showToast('Home Name and Address are required.', 'warning');
+      return;
+    }
+
+    const bedroomInputs = document.querySelectorAll('.bedroom-name-input');
+    const bedroomsList = [];
+    for (let i = 0; i < bedroomsCount; i++) {
+      const input = Array.from(bedroomInputs).find(inp => parseInt(inp.dataset.index) === i);
+      bedroomsList.push({ id: `r${i + 1}`, name: (input?.value.trim()) || `Bedroom ${i + 1}` });
+    }
+
+    const associatedPeople = [];
+    document.querySelectorAll('.home-associated-partner').forEach(cb => {
+      if (cb.checked) associatedPeople.push(cb.dataset.partnerName);
+    });
+
+    home.name = name;
+    home.address = address;
+    home.bedrooms = bedroomsCount;
+    home.bedroomDetails = bedroomsList;
+    home.associatedPeople = associatedPeople;
+
+    saveConfig();
+    addLog(`Admin: Home "${name}" updated.`, 'info');
+    showToast(`Home "${name}" updated.`, 'success');
+    window.location.hash = '#logistics';
+  });
+}
+
+function bindActivatePartnerEvents() {
+  document.getElementById('btn-activate-partner-back')?.addEventListener('click', () => {
+    window.location.hash = '#logistics';
+  });
+
+  bindSleepingPartnerCheckboxes();
+
+  document.getElementById('btn-submit-activate')?.addEventListener('click', () => {
+    const partnerId = document.getElementById('activate-partner-select').value;
+    const partner = state.config.partners.find(p => p.id === partnerId);
+    if (!partner || !isPartnerPassive(partner)) {
+      showToast('Select a passive partner to activate.', 'warning');
+      return;
+    }
+
+    const username = document.getElementById('activate-username').value.trim();
+    const password = document.getElementById('activate-password').value.trim();
+    const role = document.getElementById('activate-role').value;
+
+    if (!username || !password) {
+      showToast('Username and password are required.', 'warning');
+      return;
+    }
+
+    if (state.config.partners.some(p => p.username === username && p.id !== partnerId)) {
+      showToast('Username already in use.', 'warning');
+      return;
+    }
+
+    partner.username = username;
+    partner.password = password;
+    partner.role = role;
+    delete partner.passive;
+
+    const rules = {};
+    const checkboxes = document.querySelectorAll('.sleeping-partner-checkbox');
+    const anyChecked = Array.from(checkboxes).some(c => c.checked);
+    if (anyChecked) {
+      rules.maxSoloNights = parseInt(document.getElementById('activate-solo-nights').value) || 2;
+      rules.partnerLimits = {};
+      checkboxes.forEach(cb => {
+        if (cb.checked) {
+          const pName = cb.dataset.partnerName;
+          rules.partnerLimits[pName] = {
+            min: parseInt(cb.closest('div').querySelector('.partner-min-nights').value) || 0,
+            max: parseInt(cb.closest('div').querySelector('.partner-max-nights').value) || 7
+          };
+        }
+      });
+    }
+    partner.rules = rules;
+
+    saveConfig();
+    addLog(`Logistics: Passive partner "${partner.name}" activated as ${role}.`, 'info');
+    showToast(`"${partner.name}" is now an active user!`, 'success');
+    window.location.hash = '#logistics';
+  });
 }
 
 function updateAdminNavVisibility() {
@@ -1401,105 +1758,69 @@ async function bootstrapData(mode) {
 }
 
 // Global initialization
-document.addEventListener('DOMContentLoaded', () => {
-  // 1. Setup Hash Router
+document.addEventListener('DOMContentLoaded', async () => {
   window.addEventListener('hashchange', router);
 
-  // 2. Auth State Callback setup
-  AuthManager.init((authState) => {
-    const loginBtn = document.getElementById('btn-google-login');
-    const avatarContainer = document.getElementById('avatar-container');
-    const avatarImg = document.getElementById('user-avatar-img');
+  if (state.logs.length === 0) {
+    addLog('Application initialized.', 'info');
+  }
 
-    if (authState.loggedIn) {
-      if (loginBtn) loginBtn.style.display = 'none';
-      if (avatarContainer) avatarContainer.style.display = 'block';
-      if (avatarImg) avatarImg.src = authState.user.picture;
-      state.currentUser = authState.user;
-      
-      // Upgrade mode to sync since we are logged in
-      state.isOffline = false;
-      localStorage.setItem('polyschedule_mode', 'sync');
-      bootstrapData('sync');
-    } else {
-      if (loginBtn) {
-        // Show login button if they configured credentials, else hide
-        loginBtn.style.display = AuthManager.clientId ? 'inline-flex' : 'none';
-      }
-      if (avatarContainer) avatarContainer.style.display = 'block';
-      state.currentUser = {
-        id: 'p1',
-        name: 'Alex Rivera',
-        username: 'alex',
-        password: 'password123',
-        email: 'alex@example.com',
-        picture: 'https://lh3.googleusercontent.com/aida-public/AB6AXuDjdXIAb6DttZ_Ivp6ocVuKGc_Cor-qtG3fqxi_3id35pEHmgyk008IoZOgCHsrXXysAKWNYlZFuovzj6OKFhoWqHjHVChafb9BWYQUKgMOWrT51kd1Tdr82IASulIokvB5JGV92NEWkmoFCt2MkVI_dzGJjUZabAGyiL8VI29nblqzqFUfEGWtrBPaXGI5Iz7QpmL4coomXYBEqrLuzJk18OWKIc0wuJe6pzRMziouxu7oZAVZjCFPxSRuTnPx874S9TseYaOXwWA'
-      };
-      if (avatarImg) avatarImg.src = state.currentUser.picture;
-      
-      // Boot Offline mode
-      state.isOffline = true;
-      localStorage.setItem('polyschedule_mode', 'offline');
-      bootstrapData('offline');
-    }
-    updateAdminNavVisibility();
-  });
-
-  // 3. Bind Google Login Button Click
   const loginBtn = document.getElementById('btn-google-login');
   if (loginBtn) {
     loginBtn.addEventListener('click', () => {
-      try {
-        AuthManager.login();
-      } catch (err) {
-        showToast(err.message, 'error');
-      }
+      try { AuthManager.login(); } catch (err) { showToast(err.message, 'error'); }
     });
   }
 
-  // 4. Bind FAB click
   const fab = document.getElementById('fab-quick-add');
-  if (fab) {
-    fab.addEventListener('click', () => {
-      window.location.hash = '#create';
-    });
-  }
+  if (fab) fab.addEventListener('click', () => { window.location.hash = '#create'; });
 
-  // 4b. Bind notifications button and initialize badge
   const notifBtn = document.getElementById('btn-notifications');
-  if (notifBtn) {
-    notifBtn.addEventListener('click', () => {
-      openNotificationsModal();
-    });
-  }
+  if (notifBtn) notifBtn.addEventListener('click', () => openNotificationsModal());
   updateNotificationsBadge();
 
-  // 4c. Load build info for the header banner
   initBuildBanner();
 
-  // 4d. Bind user avatar click to open user profile modal
   const avatarContainer = document.getElementById('avatar-container');
-  if (avatarContainer) {
-    avatarContainer.addEventListener('click', () => {
-      openUserProfileModal();
+  if (avatarContainer) avatarContainer.addEventListener('click', () => openUserProfileModal());
+
+  const sideLogout = document.getElementById('side-nav-logout');
+  if (sideLogout) {
+    sideLogout.addEventListener('click', (e) => {
+      e.preventDefault();
+      logoutUser();
+      showToast('Logged out successfully.', 'success');
     });
   }
 
-  // 5. Setup live console scroll loop for visual bento aesthetics in Logistics screen
-  setInterval(() => {
-    if (state.currentView !== 'logistics') return;
-    
-    const logs = [
-      'Auth: User Casey logged in successfully.',
-      'API: Conflict audit executed for week.',
-      'Sync: Google Calendar endpoints validated.',
-      'Rules: Quota check verification completed. 0 fatal conflicts.',
-      'Cron: Backup completed to cloud node-7.',
-      'Auth: Token refresh scheduled in 30 minutes.'
-    ];
-    const mockMessage = logs[Math.floor(Math.random() * logs.length)];
-    addLog(mockMessage, 'info');
-  }, 7000);
+  if (new URLSearchParams(window.location.search).get('reset') === '1') {
+    localStorage.clear();
+    window.history.replaceState({}, '', window.location.pathname);
+    addLog('System: Application data reset to defaults.', 'warning');
+  }
+
+  await bootstrapData('offline');
+
+  const savedProfile = JSON.parse(localStorage.getItem('polyschedule_user_profile') || 'null');
+  if (savedProfile?.sessionActive) {
+    const partner = state.config?.partners?.find(p => p.id === savedProfile.id && !isPartnerPassive(p));
+    if (partner && partner.username === savedProfile.username) {
+      establishSession(partner);
+      router();
+    } else {
+      localStorage.removeItem('polyschedule_user_profile');
+      showLoginView();
+    }
+  } else {
+    showLoginView();
+  }
+
+  AuthManager.init((authState) => {
+    if (authState.loggedIn && authState.user?.email) {
+      const loginBtnEl = document.getElementById('btn-google-login');
+      if (loginBtnEl) loginBtnEl.style.display = 'none';
+    }
+  });
 });
 
 async function initBuildBanner() {

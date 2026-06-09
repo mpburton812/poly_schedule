@@ -5,6 +5,12 @@
   "main": "index.html",
   "scripts": {
     "start": "node generate-version.js && http-server -p 8080 -c-1",
+    "dev": "node generate-version.js && live-server --port=8080 --host=127.0.0.1 --no-css-inject --wait=300",
+    "emulator": "node scripts/web-emulator.js",
+    "emulator:mobile": "node scripts/web-emulator.js --preset=mobile",
+    "emulator:tablet": "node scripts/web-emulator.js --preset=tablet",
+    "emulator:desktop": "node scripts/web-emulator.js --preset=desktop",
+    "reset": "node generate-version.js && echo Open http://127.0.0.1:8080/?reset=1 to reset local app data",
     "test": "playwright test"
   },
   "keywords": [
@@ -17,6 +23,7 @@
   "license": "ISC",
   "devDependencies": {
     "@playwright/test": "^1.42.1",
-    "http-server": "^14.1.1"
+    "http-server": "^14.1.1",
+    "live-server": "^1.2.2"
   }
 }
