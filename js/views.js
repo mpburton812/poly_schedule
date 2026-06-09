@@ -9,7 +9,9 @@ import {
   defaultBatchAssignment,
   defaultBatchNight,
   normalizeBatchNight,
-  getBedroomOptionsForHome
+  getBedroomOptionsForHome,
+  getCurrentUserPartner,
+  hasSleepingPartnerConnections
 } from './helpers.js';
 import {
   WORKFLOW,
@@ -454,8 +456,8 @@ export const Views = {
    */
   createProposal(state, type = 'event', formState = {}) {
     // Check if current user has sleeping partner connections
-    const currentUserProfile = state.config?.partners?.find(p => p.name === state.currentUser?.name);
-    const hasSleepingPartners = currentUserProfile && currentUserProfile.rules && currentUserProfile.rules.partnerLimits && Object.keys(currentUserProfile.rules.partnerLimits).length > 0;
+    const currentUserProfile = getCurrentUserPartner(state.config, state.currentUser);
+    const hasSleepingPartners = hasSleepingPartnerConnections(currentUserProfile);
 
     // Populate partner options (checkboxes or select)
     let circleHtml = '';

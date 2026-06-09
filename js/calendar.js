@@ -8,7 +8,8 @@ import {
   renamePartnerReferences,
   expandBatchSleepingToEvents,
   removePartnerReferences,
-  removeHomeReferences
+  removeHomeReferences,
+  normalizeConfigPartners
 } from './helpers.js';
 import {
   WORKFLOW,
@@ -238,6 +239,9 @@ export const CalendarSync = {
       const saved = localStorage.getItem(LOCAL_CONFIG_KEY);
       if (saved) {
         this.config = JSON.parse(saved);
+        if (normalizeConfigPartners(this.config, DEFAULT_CONFIG)) {
+          localStorage.setItem(LOCAL_CONFIG_KEY, JSON.stringify(this.config));
+        }
       } else {
         this.config = DEFAULT_CONFIG;
         localStorage.setItem(LOCAL_CONFIG_KEY, JSON.stringify(DEFAULT_CONFIG));

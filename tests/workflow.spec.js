@@ -107,6 +107,33 @@ test.describe('Proposal Workflow Unit Tests', () => {
     expect(result).toEqual(['Alex Rivera']);
   });
 
+  test('normalizeConfigPartners restores empty sleeping rules from defaults', async ({ page }) => {
+    const repaired = await page.evaluate(async () => {
+      const { normalizeConfigPartners } = await import('./js/helpers.js');
+      const config = {
+        partners: [{
+          id: 'p1',
+          name: 'Alex Rivera',
+          rules: { minSoloNights: 2, partnerLimits: {} }
+        }]
+      };
+      const defaults = {
+        partners: [{
+          id: 'p1',
+          name: 'Alex Rivera',
+          rules: { minSoloNights: 2, partnerLimits: { Sam: { min: 3, max: 3 } } }
+        }]
+      };
+      const changed = normalizeConfigPartners(config, defaults);
+      return {
+        changed,
+        limits: config.partners[0].rules.partnerLimits
+      };
+    });
+    expect(repaired.changed).toBe(true);
+    expect(repaired.limits.Sam).toEqual({ min: 3, max: 3 });
+  });
+
   test('reopen declined proposal creates a new draft id', async ({ page }) => {
     const ids = await page.evaluate(async () => {
       const { CalendarSync } = await import('./js/calendar.js');

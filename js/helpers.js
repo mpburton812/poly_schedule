@@ -25,6 +25,52 @@ export function isPartnerActive(partner) {
   return partner && !isPartnerPassive(partner);
 }
 
+export function getPartnerById(config, partnerId) {
+  if (!partnerId || !config?.partners) return null;
+  return config.partners.find(p => p.id === partnerId) || null;
+}
+
+export function getCurrentUserPartner(config, currentUser) {
+  if (!currentUser) return null;
+  return getPartnerById(config, currentUser.id)
+    || config?.partners?.find(p => p.name === currentUser.name)
+    || null;
+}
+
+export function hasSleepingPartnerConnections(partner) {
+  return !!(partner?.rules?.partnerLimits && Object.keys(partner.rules.partnerLimits).length > 0);
+}
+
+/**
+ * Restore seed sleeping rules when a partner profile lost its connections.
+ * Returns true when config was modified.
+ */
+export function normalizeConfigPartners(config, defaultConfig) {
+  if (!config?.partners || !defaultConfig?.partners) return false;
+
+  let changed = false;
+  defaultConfig.partners.forEach(defaultPartner => {
+    const partner = config.partners.find(p => p.id === defaultPartner.id);
+    if (!partner) return;
+
+    partner.rules = partner.rules || {};
+    const savedLimits = partner.rules.partnerLimits || {};
+    const defaultLimits = defaultPartner.rules?.partnerLimits || {};
+
+    if (Object.keys(defaultLimits).length > 0 && Object.keys(savedLimits).length === 0) {
+      partner.rules.partnerLimits = JSON.parse(JSON.stringify(defaultLimits));
+      changed = true;
+    }
+
+    if (partner.rules.minSoloNights === undefined && defaultPartner.rules?.minSoloNights !== undefined) {
+      partner.rules.minSoloNights = defaultPartner.rules.minSoloNights;
+      changed = true;
+    }
+  });
+
+  return changed;
+}
+
 export function renderHomeSelectOptions(residences, selectedId = '') {
   const blankSelected = !selectedId ? 'selected' : '';
   const options = (residences || []).map(h =>

@@ -22,7 +22,9 @@ import {
   cloneBatchNight,
   normalizeBatchNight,
   getBedroomOptionsForHome,
-  buildBatchNightsPayload
+  buildBatchNightsPayload,
+  getCurrentUserPartner,
+  hasSleepingPartnerConnections
 } from './helpers.js';
 import {
   WORKFLOW,
@@ -752,8 +754,8 @@ function renderView() {
     bindProposalsEvents();
   } else if (state.currentView === 'create') {
     // If they try to load sleeping but have no sleeping partners, force event
-    const currentUserProfile = state.config?.partners?.find(p => p.name === state.currentUser?.name);
-    const hasSleepingPartners = currentUserProfile && currentUserProfile.rules && currentUserProfile.rules.partnerLimits && Object.keys(currentUserProfile.rules.partnerLimits).length > 0;
+    const currentUserProfile = getCurrentUserPartner(state.config, state.currentUser);
+    const hasSleepingPartners = hasSleepingPartnerConnections(currentUserProfile);
     
     if ((currentCreateType === 'sleeping' || currentCreateType === 'batch_sleeping') && !hasSleepingPartners) {
       currentCreateType = 'event';
@@ -2143,16 +2145,17 @@ function bindEditPartnerEvents() {
       partner.rules = partner.rules || {};
       partner.rules.minSoloNights = parseInt(document.getElementById('edit-partner-solo-nights')?.value, 10) || 2;
       delete partner.rules.maxSoloNights;
-      partner.rules.partnerLimits = {};
+      const nextLimits = {};
       document.querySelectorAll('.sleeping-partner-checkbox').forEach(cb => {
         if (cb.checked) {
           const pName = cb.dataset.partnerName;
-          partner.rules.partnerLimits[pName] = {
+          nextLimits[pName] = {
             min: parseInt(cb.closest('div').querySelector('.partner-min-nights').value) || 0,
             max: parseInt(cb.closest('div').querySelector('.partner-max-nights').value) || 7
           };
         }
       });
+      partner.rules.partnerLimits = nextLimits;
     }
 
     saveConfig();
