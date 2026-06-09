@@ -5,7 +5,11 @@ import {
   renderHomeSelectOptions,
   renderAvatarPickerHtml,
   render12HourTimePicker,
-  responseStatusLabel
+  responseStatusLabel,
+  defaultBatchAssignment,
+  defaultBatchNight,
+  normalizeBatchNight,
+  getBedroomOptionsForHome
 } from './helpers.js';
 
 export { DEFAULT_AVATARS };
@@ -151,7 +155,7 @@ export const Views = {
         const countAccepted = Object.values(p.responses || {}).filter(r => r.status === 'accept').length;
         const totalVotes = Object.keys(p.responses || {}).length;
         const awaitName = Object.keys(p.responses || {}).find(k => p.responses[k].status === 'pending') || 'Others';
-        const typeBadge = p.type === 'sleeping' ? 'bed' : 'forum';
+        const typeBadge = p.type === 'sleeping' ? 'bed' : p.type === 'batch_sleeping' ? 'date_range' : 'forum';
         
         proposalsListHtml += `
           <div class="bento-card proposal-summary-card" data-id="${p.id}" style="cursor: pointer; flex-direction: row; gap: var(--space-md); align-items: center; border: 1px solid var(--outline-variant); background-color: var(--surface); transition: background-color 0.2s;">
@@ -324,10 +328,10 @@ export const Views = {
           : '';
 
         listHtml += `
-          <div class="proposal-card ${p.type === 'sleeping' ? 'sleeping' : ''}" id="prop-${p.id}">
+          <div class="proposal-card ${p.type === 'sleeping' || p.type === 'batch_sleeping' ? 'sleeping' : ''}" id="prop-${p.id}">
             <div class="proposal-header">
               <div>
-                <span class="proposal-badge ${p.type}">${p.type.toUpperCase()} PROPOSAL</span>
+                <span class="proposal-badge ${p.type === 'batch_sleeping' ? 'batch' : p.type}">${p.type === 'batch_sleeping' ? 'BATCH SLEEPING' : p.type.toUpperCase()} PROPOSAL</span>
                 <h3 class="font-title-lg" style="margin-top: 4px; font-weight: 700; color: var(--on-surface);">${p.title}${statusBadge}</h3>
               </div>
               <div style="text-align: right;">
@@ -343,8 +347,10 @@ export const Views = {
                   <span>${dateStr} • ${timeStr}</span>
                 </div>
                 <div class="proposal-meta-item">
-                  <span class="material-symbols-outlined" style="font-size: 18px;">${p.type === 'sleeping' ? 'bed' : 'location_on'}</span>
-                  <span>${p.type === 'sleeping' ? `${p.homeName || 'Home'}: ${p.roomName || 'Room'}` : p.location || 'No location set'}</span>
+                  <span class="material-symbols-outlined" style="font-size: 18px;">${p.type === 'sleeping' || p.type === 'batch_sleeping' ? 'bed' : 'location_on'}</span>
+                  <span>${p.type === 'batch_sleeping'
+                    ? `${(p.batchNights || []).length} nights · ${new Date(p.start).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })} – ${new Date(p.end).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}`
+                    : p.type === 'sleeping' ? `${p.homeName || 'Home'}: ${p.roomName || 'Room'}` : p.location || 'No location set'}</span>
                 </div>
               </div>
 
@@ -395,7 +401,7 @@ export const Views = {
   /**
    * Renders the Create Proposal View
    */
-  createProposal(state, type = 'event') {
+  createProposal(state, type = 'event', formState = {}) {
     // Check if current user has sleeping partner connections
     const currentUserProfile = state.config?.partners?.find(p => p.name === state.currentUser?.name);
     const hasSleepingPartners = currentUserProfile && currentUserProfile.rules && currentUserProfile.rules.partnerLimits && Object.keys(currentUserProfile.rules.partnerLimits).length > 0;
@@ -450,6 +456,88 @@ export const Views = {
           </div>
         </div>
       `;
+    } else if (type === 'batch_sleeping') {
+      const nightCount = formState.batchNightCount || 3;
+      const nightAssignments = formState.batchAssignments || [];
+      const startDate = formState.batchStartDate || new Date().toISOString().split('T')[0];
+      const start = new Date(startDate + 'T12:00:00');
+
+      const renderAssignmentBlock = (assign, assignIndex, canRemove) => {
+        const home = state.config.residences.find(h => h.id === assign.homeId) || state.config.residences[0];
+        const bedrooms = getBedroomOptionsForHome(home);
+        const homeOptions = state.config.residences.map(h =>
+          `<option value="${h.id}" ${h.id === assign.homeId ? 'selected' : ''}>${h.name}</option>`
+        ).join('');
+        const roomOptions = bedrooms.map(r =>
+          `<option value="${r.id}" ${r.id === assign.roomId ? 'selected' : ''}>${r.name}</option>`
+        ).join('');
+        const partnerChecks = state.config.partners.map(p => {
+          const checked = (assign.participants || []).includes(p.name) ? 'checked' : '';
+          return `
+            <label style="display: inline-flex; align-items: center; gap: 4px; font-size: 0.8rem; margin-right: 8px; cursor: pointer;">
+              <input type="checkbox" class="batch-partner-cb" data-partner="${p.name}" ${checked} style="accent-color: var(--primary);"/>
+              ${p.name.split(' ')[0]}
+            </label>
+          `;
+        }).join('');
+
+        return `
+          <div class="batch-assignment-block" data-assign-index="${assignIndex}">
+            <div class="batch-assignment-header">
+              <span class="font-label-sm" style="font-weight: 600;">Room ${assignIndex + 1}</span>
+              ${canRemove ? `<button type="button" class="btn-text btn-batch-remove-room" data-assign-index="${assignIndex}" style="color: var(--error); font-size: 0.75rem;">Remove</button>` : ''}
+            </div>
+            <div class="batch-night-fields">
+              <div class="form-group" style="margin-bottom: 0;">
+                <label class="form-label">Home</label>
+                <select class="form-input batch-home-select">${homeOptions}</select>
+              </div>
+              <div class="form-group" style="margin-bottom: 0;">
+                <label class="form-label">Room</label>
+                <select class="form-input batch-room-select">${roomOptions}</select>
+              </div>
+            </div>
+            <div class="form-group" style="margin-bottom: 0;">
+              <label class="form-label">Sleeping Here</label>
+              <div class="batch-partner-list">${partnerChecks}</div>
+            </div>
+          </div>
+        `;
+      };
+
+      let batchRowsHtml = '';
+      for (let i = 0; i < nightCount; i++) {
+        const d = new Date(start);
+        d.setDate(start.getDate() + i);
+        const dayLabel = d.toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' });
+        const night = normalizeBatchNight(nightAssignments[i], state.config);
+        const blocksHtml = (night.assignments || []).map((assign, j) =>
+          renderAssignmentBlock(assign, j, night.assignments.length > 1)
+        ).join('');
+
+        batchRowsHtml += `
+          <div class="batch-night-row" data-night-index="${i}">
+            <div class="batch-night-header">
+              <div>
+                <span class="font-label-md" style="font-weight: 700;">Night ${i + 1}</span>
+                <span class="font-label-sm" style="color: var(--on-surface-variant); margin-left: 8px;">${dayLabel}</span>
+              </div>
+              <div class="batch-night-actions">
+                ${i > 0 ? `<button type="button" class="btn btn-outline btn-batch-copy" data-night-index="${i}" style="padding: 4px 10px; font-size: 0.75rem;">Copy Previous</button>` : ''}
+                <button type="button" class="btn btn-outline btn-batch-add-room" data-night-index="${i}" style="padding: 4px 10px; font-size: 0.75rem;">+ Add Room</button>
+              </div>
+            </div>
+            <div class="batch-night-assignments">${blocksHtml}</div>
+          </div>
+        `;
+      }
+
+      locationHtml = `
+        <div class="form-group">
+          <label class="form-label">Nightly Assignments</label>
+          <div class="batch-sleeping-grid" id="batch-sleeping-grid">${batchRowsHtml}</div>
+        </div>
+      `;
     } else {
       locationHtml = `
         <div class="form-group">
@@ -467,11 +555,12 @@ export const Views = {
         <button class="btn btn-filled" id="btn-submit-proposal">Send Proposal</button>
       </div>
 
-      <!-- Toggle Switch Event/Sleep -->
-      <div class="switch-selector">
+      <!-- Toggle Switch Event/Sleep/Batch -->
+      <div class="switch-selector" style="flex-wrap: wrap;">
         <button class="switch-btn ${type === 'event' ? 'active' : ''}" id="btn-toggle-event">Event</button>
         ${hasSleepingPartners ? `
           <button class="switch-btn ${type === 'sleeping' ? 'active' : ''}" id="btn-toggle-sleeping">Sleeping Arrangement</button>
+          <button class="switch-btn ${type === 'batch_sleeping' ? 'active' : ''}" id="btn-toggle-batch-sleeping">Batch Sleeping</button>
         ` : `
           <button class="switch-btn" disabled style="opacity: 0.4; cursor: not-allowed; background-color: var(--surface-container-highest);" title="No sleeping connections configured for your profile.">Sleeping (Disabled)</button>
         `}
@@ -494,9 +583,10 @@ export const Views = {
         <!-- Title -->
         <div class="form-group">
           <label class="form-label" for="prop-title">Title / Description</label>
-          <input class="form-input" id="prop-title" placeholder="${type === 'sleeping' ? 'e.g. Weekend at Lake Cabin' : 'e.g. Dinner & Game Night'}" type="text"/>
+          <input class="form-input" id="prop-title" placeholder="${type === 'event' ? 'e.g. Dinner & Game Night' : 'e.g. Two-Week Rotation'}" type="text" value="${formState.draftTitle || ''}"/>
         </div>
 
+        ${type !== 'batch_sleeping' ? `
         <!-- Poly Circle Selection -->
         <div class="form-group">
           <label class="form-label" style="margin-bottom: var(--space-sm);">${polyFamilyName} (Invitees)</label>
@@ -504,17 +594,18 @@ export const Views = {
             ${circleHtml}
           </div>
         </div>
+        ` : ''}
 
         <!-- Date Inputs -->
         <div style="display: grid; grid-template-columns: 1fr; gap: var(--space-lg); margin-bottom: var(--space-lg);">
           <div class="form-group" style="margin-bottom: 0;">
             <label class="form-label" for="prop-start-date">Start Date</label>
-            <input class="form-input" id="prop-start-date" type="date" value="${new Date().toISOString().split('T')[0]}"/>
+            <input class="form-input" id="prop-start-date" type="date" value="${formState.batchStartDate || new Date().toISOString().split('T')[0]}"/>
           </div>
-          ${type === 'sleeping' ? `
+          ${type === 'sleeping' || type === 'batch_sleeping' ? `
           <div class="form-group" style="margin-bottom: 0;">
             <label class="form-label" for="prop-duration">Number of Nights</label>
-            <input class="form-input" id="prop-duration" placeholder="e.g. 2" type="number" min="1" max="14" value="1"/>
+            <input class="form-input" id="prop-duration" placeholder="e.g. 2" type="number" min="1" max="14" value="${formState.batchNightCount || (type === 'batch_sleeping' ? 3 : 1)}"/>
           </div>
           ` : `
           <div style="display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-md);">
@@ -1107,7 +1198,10 @@ export const Views = {
           <button class="btn-icon-only" id="btn-edit-partner-back"><span class="material-symbols-outlined">arrow_back</span></button>
           <h2 class="font-title-lg">Edit Partner: ${partner.name}</h2>
         </div>
-        <button class="btn btn-filled" id="btn-save-edit-partner">Save Changes</button>
+        <div style="display: flex; gap: var(--space-sm);">
+          <button class="btn btn-outline" id="btn-delete-edit-partner" style="color: var(--error); border-color: var(--error);">Delete Partner</button>
+          <button class="btn btn-filled" id="btn-save-edit-partner">Save Changes</button>
+        </div>
       </div>
       <input type="hidden" id="edit-partner-id" value="${partner.id}"/>
       <div style="display: grid; gap: var(--space-xl); max-width: 900px;">
@@ -1154,7 +1248,10 @@ export const Views = {
           <button class="btn-icon-only" id="btn-edit-home-back"><span class="material-symbols-outlined">arrow_back</span></button>
           <h2 class="font-title-lg">Edit Home: ${home.name}</h2>
         </div>
-        <button class="btn btn-filled" id="btn-save-edit-home">Save Changes</button>
+        <div style="display: flex; gap: var(--space-sm);">
+          <button class="btn btn-outline" id="btn-delete-edit-home" style="color: var(--error); border-color: var(--error);">Delete Home</button>
+          <button class="btn btn-filled" id="btn-save-edit-home">Save Changes</button>
+        </div>
       </div>
       <input type="hidden" id="edit-home-id" value="${home.id}"/>
       <div style="display: grid; gap: var(--space-xl); max-width: 900px; grid-template-columns: 2fr 1fr;">

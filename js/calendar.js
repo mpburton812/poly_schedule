@@ -3,7 +3,14 @@
  * Synchronizes local state with Google Calendar events or provides offline localStorage mock sync.
  */
 
-import { DEFAULT_AVATARS, getProposalOutcome, renamePartnerReferences } from './helpers.js';
+import {
+  DEFAULT_AVATARS,
+  getProposalOutcome,
+  renamePartnerReferences,
+  expandBatchSleepingToEvents,
+  removePartnerReferences,
+  removeHomeReferences
+} from './helpers.js';
 
 // Local Storage Keys
 const LOCAL_EVENTS_KEY = 'polyschedule_local_events';
@@ -347,6 +354,27 @@ export const CalendarSync = {
     localStorage.setItem(LOCAL_CONFIG_KEY, JSON.stringify(this.config));
   },
 
+  removePartner(partnerId) {
+    const partner = this.config?.partners?.find(p => p.id === partnerId);
+    if (!partner) return false;
+    removePartnerReferences(this.config, this.events, partnerId, partner.name);
+    this.config.partners = this.config.partners.filter(p => p.id !== partnerId);
+    this.persistEvents();
+    localStorage.setItem(LOCAL_CONFIG_KEY, JSON.stringify(this.config));
+    if (this.onStateUpdate) this.onStateUpdate();
+    return true;
+  },
+
+  removeHome(homeId) {
+    const home = this.config?.residences?.find(h => h.id === homeId);
+    if (!home) return false;
+    removeHomeReferences(this.config, this.events, homeId);
+    this.config.residences = this.config.residences.filter(h => h.id !== homeId);
+    localStorage.setItem(LOCAL_CONFIG_KEY, JSON.stringify(this.config));
+    if (this.onStateUpdate) this.onStateUpdate();
+    return true;
+  },
+
   // --- CRUD Operations ---
 
   async createEvent(eventData) {
@@ -381,6 +409,14 @@ export const CalendarSync = {
     
     if (updated.status === 'pending' || updated.status === 'rejected') {
       this.applyProposalOutcome(updated);
+    }
+
+    if (updated.type === 'batch_sleeping' && updated.status === 'confirmed') {
+      const expanded = expandBatchSleepingToEvents(updated);
+      this.events.splice(idx, 1, ...expanded);
+      this.persistEvents();
+      if (this.onStateUpdate) this.onStateUpdate();
+      return expanded;
     }
 
     if (this.mode === 'offline') {
@@ -569,12 +605,15 @@ export const CalendarSync = {
       homeId: event.homeId || '',
       proposer: event.proposer || '',
       responses: event.responses || {},
-      participants: event.participants || []
+      participants: event.participants || [],
+      batchNights: event.batchNights || undefined
     };
 
     let title = event.title;
     if (event.status === 'pending') {
-      const prefix = event.type === 'sleeping' ? '[PROPOSAL-SLEEP] ' : '[PROPOSAL] ';
+      let prefix = '[PROPOSAL] ';
+      if (event.type === 'sleeping') prefix = '[PROPOSAL-SLEEP] ';
+      if (event.type === 'batch_sleeping') prefix = '[PROPOSAL-BATCH] ';
       if (!title.startsWith(prefix)) {
         title = prefix + title;
       }

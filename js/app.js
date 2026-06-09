@@ -16,7 +16,13 @@ import {
   parseHashParams,
   getRouteBase,
   isPartnerPassive,
-  read12HourTime
+  read12HourTime,
+  defaultBatchAssignment,
+  defaultBatchNight,
+  cloneBatchNight,
+  normalizeBatchNight,
+  getBedroomOptionsForHome,
+  buildBatchNightsPayload
 } from './helpers.js';
 
 function loadPersistedLogs() {
@@ -51,7 +57,11 @@ let activePartnerType = 'active';
 const newProposalState = {
   participants: [],
   homeId: 'h1',
-  roomId: 'r1'
+  roomId: 'r1',
+  batchNightCount: 3,
+  batchAssignments: [],
+  batchStartDate: new Date().toISOString().split('T')[0],
+  draftTitle: ''
 };
 
 /**
@@ -733,10 +743,13 @@ function renderView() {
     const currentUserProfile = state.config?.partners?.find(p => p.name === state.currentUser?.name);
     const hasSleepingPartners = currentUserProfile && currentUserProfile.rules && currentUserProfile.rules.partnerLimits && Object.keys(currentUserProfile.rules.partnerLimits).length > 0;
     
-    if (currentCreateType === 'sleeping' && !hasSleepingPartners) {
+    if ((currentCreateType === 'sleeping' || currentCreateType === 'batch_sleeping') && !hasSleepingPartners) {
       currentCreateType = 'event';
     }
-    container.innerHTML = Views.createProposal(state, currentCreateType);
+    if (currentCreateType === 'batch_sleeping') {
+      ensureBatchAssignments(newProposalState.batchNightCount);
+    }
+    container.innerHTML = Views.createProposal(state, currentCreateType, newProposalState);
     bindCreateEvents();
   } else if (state.currentView === 'logistics') {
     container.innerHTML = Views.logistics(state);
@@ -925,13 +938,122 @@ function updateSleepingArrangementTitle() {
   titleInput.value = `Sleeping : ${names} : ${homeName} ${roomName}`;
 }
 
+function ensureBatchAssignments(count) {
+  const n = Math.min(14, Math.max(1, count || 1));
+  const defaultNight = defaultBatchNight(state.config);
+  while (newProposalState.batchAssignments.length < n) {
+    newProposalState.batchAssignments.push(cloneBatchNight(defaultNight));
+  }
+  newProposalState.batchAssignments = newProposalState.batchAssignments.slice(0, n);
+  newProposalState.batchAssignments = newProposalState.batchAssignments.map(night =>
+    normalizeBatchNight(night, state.config)
+  );
+  newProposalState.batchNightCount = n;
+}
+
+function syncBatchAssignmentsFromDom() {
+  if (currentCreateType !== 'batch_sleeping') return;
+  document.querySelectorAll('.batch-night-row').forEach(row => {
+    const idx = parseInt(row.dataset.nightIndex, 10);
+    const assignments = [];
+    row.querySelectorAll('.batch-assignment-block').forEach(block => {
+      const homeSelect = block.querySelector('.batch-home-select');
+      const roomSelect = block.querySelector('.batch-room-select');
+      if (!homeSelect || !roomSelect) return;
+      const homeObj = state.config.residences.find(h => h.id === homeSelect.value);
+      assignments.push({
+        homeId: homeSelect.value,
+        roomId: roomSelect.value,
+        homeName: homeObj?.name || '',
+        roomName: roomSelect.options[roomSelect.selectedIndex]?.text || '',
+        participants: Array.from(block.querySelectorAll('.batch-partner-cb:checked')).map(cb => cb.dataset.partner)
+      });
+    });
+    newProposalState.batchAssignments[idx] = { assignments };
+  });
+}
+
+function highlightBatchRowErrors(warnings) {
+  document.querySelectorAll('.batch-night-row').forEach(row => {
+    row.classList.remove('batch-night-row-error');
+    row.removeAttribute('title');
+  });
+  document.querySelectorAll('.batch-assignment-block').forEach(block => {
+    block.classList.remove('batch-assignment-error');
+    block.removeAttribute('title');
+  });
+
+  warnings.forEach(w => {
+    if (w.nightIndex === undefined) return;
+    const row = document.querySelector(`.batch-night-row[data-night-index="${w.nightIndex}"]`);
+    if (!row) return;
+    row.classList.add('batch-night-row-error');
+    row.title = w.message;
+    if (w.assignIndex !== undefined) {
+      const block = row.querySelector(`.batch-assignment-block[data-assign-index="${w.assignIndex}"]`);
+      if (block) {
+        block.classList.add('batch-assignment-error');
+        block.title = w.message;
+      }
+    }
+  });
+}
+
+function readBatchAssignmentsFromDom() {
+  syncBatchAssignmentsFromDom();
+  return newProposalState.batchAssignments;
+}
+
+function showProposalRulesBanner(warnings) {
+  const banner = document.getElementById('proposal-rules-banner');
+  const titleEl = document.getElementById('banner-warning-title');
+  const descEl = document.getElementById('banner-warning-desc');
+  const conflictNotice = document.getElementById('micro-cal-conflict-notice');
+  if (!banner) return;
+
+  if (warnings.length > 0) {
+    banner.classList.remove('hidden');
+    const capacityErr = warnings.find(w => w.type === 'CAPACITY_CONFLICT');
+    const partnerErr = warnings.find(w => w.type === 'PARTNER_MAX_LIMIT');
+    if (capacityErr) {
+      titleEl.textContent = 'Room Capacity Conflict';
+      descEl.textContent = capacityErr.message;
+      banner.style.backgroundColor = 'var(--error-container)';
+      banner.style.color = 'var(--on-error-container)';
+      banner.style.borderColor = 'var(--error)';
+    } else if (partnerErr) {
+      titleEl.textContent = 'Extended Stay Alert';
+      descEl.textContent = partnerErr.message;
+      banner.style.backgroundColor = 'var(--tertiary-fixed)';
+      banner.style.color = 'var(--on-tertiary-fixed)';
+      banner.style.borderColor = 'var(--tertiary)';
+    } else {
+      titleEl.textContent = 'Preference Limit Alert';
+      descEl.textContent = warnings.map(w => w.message).join(' ');
+    }
+    if (conflictNotice) conflictNotice.style.display = 'block';
+  } else {
+    banner.classList.add('hidden');
+    if (conflictNotice) conflictNotice.style.display = 'none';
+  }
+}
+
+function preserveCreateFormDraft() {
+  const titleEl = document.getElementById('prop-title');
+  if (titleEl) newProposalState.draftTitle = titleEl.value;
+}
+
 function bindCreateEvents() {
   // Reset create proposal state
   newProposalState.participants = [];
+  if (currentCreateType !== 'batch_sleeping') {
+    newProposalState.draftTitle = '';
+  }
 
-  // Event/Sleeping toggle
+  // Event/Sleeping/Batch toggle
   const btnEvent = document.getElementById('btn-toggle-event');
   const btnSleep = document.getElementById('btn-toggle-sleeping');
+  const btnBatch = document.getElementById('btn-toggle-batch-sleeping');
   if (btnEvent && btnSleep) {
     btnEvent.addEventListener('click', () => {
       currentCreateType = 'event';
@@ -939,6 +1061,13 @@ function bindCreateEvents() {
     });
     btnSleep.addEventListener('click', () => {
       currentCreateType = 'sleeping';
+      renderView();
+    });
+  }
+  if (btnBatch) {
+    btnBatch.addEventListener('click', () => {
+      currentCreateType = 'batch_sleeping';
+      ensureBatchAssignments(newProposalState.batchNightCount || 3);
       renderView();
     });
   }
@@ -965,11 +1094,99 @@ function bindCreateEvents() {
     });
   });
 
-  // Date and duration checks
   const startDateInput = document.getElementById('prop-start-date');
   const durationInput = document.getElementById('prop-duration');
-  if (startDateInput) startDateInput.addEventListener('change', runRulesChecks);
-  if (durationInput) durationInput.addEventListener('input', runRulesChecks);
+  if (startDateInput) {
+    startDateInput.addEventListener('change', () => {
+      if (currentCreateType === 'batch_sleeping') {
+        preserveCreateFormDraft();
+        syncBatchAssignmentsFromDom();
+        newProposalState.batchStartDate = startDateInput.value;
+        renderView();
+      } else {
+        runRulesChecks();
+      }
+    });
+  }
+  if (durationInput) {
+    durationInput.addEventListener('input', () => {
+      if (currentCreateType === 'batch_sleeping') {
+        preserveCreateFormDraft();
+        syncBatchAssignmentsFromDom();
+        ensureBatchAssignments(parseInt(durationInput.value, 10) || 1);
+        renderView();
+      } else {
+        runRulesChecks();
+      }
+    });
+  }
+
+  document.querySelectorAll('.batch-night-row').forEach(row => {
+    row.querySelectorAll('.batch-assignment-block').forEach(block => {
+      const homeSelect = block.querySelector('.batch-home-select');
+      const roomSelect = block.querySelector('.batch-room-select');
+      if (homeSelect && roomSelect) {
+        homeSelect.addEventListener('change', () => {
+          const homeObj = state.config.residences.find(h => h.id === homeSelect.value);
+          const bedrooms = getBedroomOptionsForHome(homeObj);
+          roomSelect.innerHTML = bedrooms.map(r => `<option value="${r.id}">${r.name}</option>`).join('');
+          runRulesChecks();
+        });
+        roomSelect.addEventListener('change', runRulesChecks);
+      }
+      block.querySelectorAll('.batch-partner-cb').forEach(cb => {
+        cb.addEventListener('change', runRulesChecks);
+      });
+    });
+  });
+
+  document.querySelectorAll('.btn-batch-copy').forEach(btn => {
+    btn.addEventListener('click', () => {
+      preserveCreateFormDraft();
+      syncBatchAssignmentsFromDom();
+      const idx = parseInt(btn.dataset.nightIndex, 10);
+      if (idx > 0 && newProposalState.batchAssignments[idx - 1]) {
+        newProposalState.batchAssignments[idx] = cloneBatchNight(newProposalState.batchAssignments[idx - 1]);
+        renderView();
+      }
+    });
+  });
+
+  document.querySelectorAll('.btn-batch-add-room').forEach(btn => {
+    btn.addEventListener('click', () => {
+      preserveCreateFormDraft();
+      syncBatchAssignmentsFromDom();
+      const idx = parseInt(btn.dataset.nightIndex, 10);
+      const night = normalizeBatchNight(newProposalState.batchAssignments[idx], state.config);
+      const defaultAssign = defaultBatchAssignment(state.config);
+      night.assignments.push({
+        ...defaultAssign,
+        participants: [...(defaultAssign.participants || [])]
+      });
+      newProposalState.batchAssignments[idx] = night;
+      renderView();
+    });
+  });
+
+  document.querySelectorAll('.btn-batch-remove-room').forEach(btn => {
+    btn.addEventListener('click', () => {
+      preserveCreateFormDraft();
+      syncBatchAssignmentsFromDom();
+      const row = btn.closest('.batch-night-row');
+      const nightIdx = parseInt(row?.dataset.nightIndex, 10);
+      const assignIdx = parseInt(btn.dataset.assignIndex, 10);
+      const night = normalizeBatchNight(newProposalState.batchAssignments[nightIdx], state.config);
+      if (night.assignments.length > 1) {
+        night.assignments.splice(assignIdx, 1);
+        newProposalState.batchAssignments[nightIdx] = night;
+        renderView();
+      }
+    });
+  });
+
+  if (currentCreateType === 'batch_sleeping') {
+    runRulesChecks();
+  }
 
   // Bedroom selection bindings (for sleeping arrangement)
   const homeSelect = document.getElementById('sleep-home-select');
@@ -1022,58 +1239,91 @@ function bindCreateEvents() {
         return;
       }
 
-      // Format Start/End Dates
-      const startD = new Date(startInput.value);
-      let endD = new Date(startD);
+      const currentUserName = state.currentUser?.name || 'Alex Rivera';
+      let proposalData;
 
-      if (currentCreateType === 'sleeping') {
+      if (currentCreateType === 'batch_sleeping') {
         const durationVal = document.getElementById('prop-duration')?.value || '1';
-        const nights = parseInt(durationVal, 10) || 1;
-        endD.setDate(startD.getDate() + nights);
-      } else {
-        const startTime = read12HourTime('prop-start');
-        const endTime = read12HourTime('prop-end');
-        startD.setHours(startTime.hours, startTime.minutes, 0, 0);
-        endD.setHours(endTime.hours, endTime.minutes, 0, 0);
-        if (endD <= startD) {
-          showToast('End time must be after start time.', 'warning');
+        const nightCount = Math.min(14, Math.max(1, parseInt(durationVal, 10) || 1));
+        const assignments = readBatchAssignmentsFromDom();
+        const { batchNights, start, end } = buildBatchNightsPayload(startInput.value, nightCount, assignments, state.config);
+        const emptyNight = batchNights.findIndex(n => !(n.assignments || []).length);
+        if (emptyNight !== -1) {
+          showToast(`Night ${emptyNight + 1} needs at least one room with people assigned.`, 'warning');
           return;
         }
-      }
-
-      // Add proposer's own name as a participant automatically
-      const currentUserName = state.currentUser?.name || 'Alex Rivera';
-      if (!newProposalState.participants.includes(currentUserName)) {
-        newProposalState.participants.push(currentUserName);
-      }
-
-      // Set up default responses map
-      const responses = {};
-      newProposalState.participants.forEach(p => {
-        responses[p] = {
-          status: p === currentUserName ? 'accept' : 'pending',
-          comment: p === currentUserName ? 'Organizer' : ''
+        const participantSet = new Set();
+        batchNights.forEach(night => {
+          (night.assignments || []).forEach(a => (a.participants || []).forEach(p => participantSet.add(p)));
+        });
+        if (!participantSet.has(currentUserName)) participantSet.add(currentUserName);
+        const participants = Array.from(participantSet);
+        const responses = {};
+        participants.forEach(p => {
+          responses[p] = {
+            status: p === currentUserName ? 'accept' : 'pending',
+            comment: p === currentUserName ? 'Organizer' : ''
+          };
+        });
+        proposalData = {
+          title: titleInput.value.trim(),
+          type: 'batch_sleeping',
+          start,
+          end,
+          batchNights,
+          participants,
+          proposer: currentUserName,
+          status: 'pending',
+          responses
         };
-      });
-
-      const proposalData = {
-        title: titleInput.value.trim(),
-        type: currentCreateType,
-        start: startD.toISOString(),
-        end: endD.toISOString(),
-        participants: newProposalState.participants,
-        proposer: currentUserName,
-        status: 'pending',
-        responses
-      };
-
-      if (currentCreateType === 'sleeping') {
-        proposalData.homeId = newProposalState.homeId;
-        proposalData.roomId = newProposalState.roomId;
-        proposalData.homeName = newProposalState.homeName || 'The Sanctuary';
-        proposalData.roomName = newProposalState.roomName || 'North Bedroom';
       } else {
-        proposalData.location = document.getElementById('event-location')?.value || 'The Loft at Main St';
+        const startD = new Date(startInput.value);
+        let endD = new Date(startD);
+
+        if (currentCreateType === 'sleeping') {
+          const durationVal = document.getElementById('prop-duration')?.value || '1';
+          const nights = parseInt(durationVal, 10) || 1;
+          endD.setDate(startD.getDate() + nights);
+        } else {
+          const startTime = read12HourTime('prop-start');
+          const endTime = read12HourTime('prop-end');
+          startD.setHours(startTime.hours, startTime.minutes, 0, 0);
+          endD.setHours(endTime.hours, endTime.minutes, 0, 0);
+          if (endD <= startD) {
+            showToast('End time must be after start time.', 'warning');
+            return;
+          }
+        }
+
+        if (!newProposalState.participants.includes(currentUserName)) {
+          newProposalState.participants.push(currentUserName);
+        }
+        const responses = {};
+        newProposalState.participants.forEach(p => {
+          responses[p] = {
+            status: p === currentUserName ? 'accept' : 'pending',
+            comment: p === currentUserName ? 'Organizer' : ''
+          };
+        });
+        proposalData = {
+          title: titleInput.value.trim(),
+          type: currentCreateType,
+          start: startD.toISOString(),
+          end: endD.toISOString(),
+          participants: newProposalState.participants,
+          proposer: currentUserName,
+          status: 'pending',
+          responses
+        };
+
+        if (currentCreateType === 'sleeping') {
+          proposalData.homeId = newProposalState.homeId;
+          proposalData.roomId = newProposalState.roomId;
+          proposalData.homeName = newProposalState.homeName || 'The Sanctuary';
+          proposalData.roomName = newProposalState.roomName || 'North Bedroom';
+        } else {
+          proposalData.location = document.getElementById('event-location')?.value || 'The Loft at Main St';
+        }
       }
 
       try {
@@ -1089,76 +1339,67 @@ function bindCreateEvents() {
 }
 
 function runRulesChecks() {
-  if (currentCreateType !== 'sleeping') return;
+  if (currentCreateType !== 'sleeping' && currentCreateType !== 'batch_sleeping') return;
 
   const startInput = document.getElementById('prop-start-date');
   const durationVal = document.getElementById('prop-duration')?.value || '1';
-  const banner = document.getElementById('proposal-rules-banner');
-  const titleEl = document.getElementById('banner-warning-title');
-  const descEl = document.getElementById('banner-warning-desc');
-  const conflictNotice = document.getElementById('micro-cal-conflict-notice');
+  if (!startInput) return;
 
-  if (!startInput || !banner) return;
-
-  // Construct temp proposal
-  const startD = new Date(startInput.value);
-  const endD = new Date(startD);
-  endD.setDate(startD.getDate() + (parseInt(durationVal) || 1));
-
-  // Current proposer name
   const currentUserName = state.currentUser?.name || 'Alex Rivera';
-  const participants = [...newProposalState.participants];
-  if (!participants.includes(currentUserName)) {
-    participants.push(currentUserName);
+  let warnings = [];
+
+  if (currentCreateType === 'batch_sleeping') {
+    const nightCount = Math.min(14, Math.max(1, parseInt(durationVal, 10) || 1));
+    const assignments = readBatchAssignmentsFromDom();
+    const { batchNights, start, end } = buildBatchNightsPayload(startInput.value, nightCount, assignments, state.config);
+    const participantSet = new Set();
+    batchNights.forEach(night => {
+      (night.assignments || []).forEach(a => (a.participants || []).forEach(p => participantSet.add(p)));
+    });
+    if (!participantSet.has(currentUserName)) participantSet.add(currentUserName);
+
+    const tempProposal = {
+      id: 'temp_create',
+      type: 'batch_sleeping',
+      start,
+      end,
+      batchNights,
+      participants: Array.from(participantSet)
+    };
+    warnings = RulesEngine.evaluateBatchSleepingProposal(
+      tempProposal,
+      state.events,
+      state.config,
+      state.config.partners
+    );
+  } else {
+    const startD = new Date(startInput.value);
+    const endD = new Date(startD);
+    endD.setDate(startD.getDate() + (parseInt(durationVal, 10) || 1));
+    const participants = [...newProposalState.participants];
+    if (!participants.includes(currentUserName)) participants.push(currentUserName);
+
+    const tempProposal = {
+      id: 'temp_create',
+      type: 'sleeping',
+      start: startD.toISOString(),
+      end: endD.toISOString(),
+      participants,
+      homeId: newProposalState.homeId,
+      roomId: newProposalState.roomId,
+      roomName: newProposalState.roomName
+    };
+    warnings = RulesEngine.evaluateSleepingProposal(
+      tempProposal,
+      state.events,
+      state.config,
+      state.config.partners
+    );
   }
 
-  const tempProposal = {
-    id: 'temp_create',
-    type: 'sleeping',
-    start: startD.toISOString(),
-    end: endD.toISOString(),
-    participants,
-    homeId: newProposalState.homeId,
-    roomId: newProposalState.roomId,
-    roomName: newProposalState.roomName
-  };
-
-  const warnings = RulesEngine.evaluateSleepingProposal(
-    tempProposal,
-    state.events,
-    state.config,
-    state.config.partners
-  );
-
-  if (warnings.length > 0) {
-    // Show top warning banner
-    banner.classList.remove('hidden');
-    
-    const capacityErr = warnings.find(w => w.type === 'CAPACITY_CONFLICT');
-    const partnerErr = warnings.find(w => w.type === 'PARTNER_MAX_LIMIT');
-    
-    if (capacityErr) {
-      titleEl.textContent = 'Room Capacity Conflict';
-      descEl.textContent = capacityErr.message;
-      banner.style.backgroundColor = 'var(--error-container)';
-      banner.style.color = 'var(--on-error-container)';
-      banner.style.borderColor = 'var(--error)';
-    } else if (partnerErr) {
-      titleEl.textContent = 'Extended Stay Alert';
-      descEl.textContent = partnerErr.message;
-      banner.style.backgroundColor = 'var(--tertiary-fixed)';
-      banner.style.color = 'var(--on-tertiary-fixed)';
-      banner.style.borderColor = 'var(--tertiary)';
-    } else {
-      titleEl.textContent = 'Preference Limit Alert';
-      descEl.textContent = warnings[0].message;
-    }
-
-    // Toggle micro calendar conflict notice
-    if (conflictNotice) conflictNotice.style.display = 'block';
-  } else {
-    banner.classList.add('hidden');
-    if (conflictNotice) conflictNotice.style.display = 'none';
+  showProposalRulesBanner(warnings);
+  if (currentCreateType === 'batch_sleeping') {
+    highlightBatchRowErrors(warnings);
   }
 }
 
@@ -1589,6 +1830,32 @@ function bindEditPartnerEvents() {
     showToast(`Partner "${name}" updated.`, 'success');
     window.location.hash = '#logistics';
   });
+
+  document.getElementById('btn-delete-edit-partner')?.addEventListener('click', () => {
+    const partnerId = document.getElementById('edit-partner-id').value;
+    const partner = state.config.partners.find(p => p.id === partnerId);
+    if (!partner) return;
+
+    if (state.currentUser?.id === partnerId) {
+      showToast('You cannot delete your own account.', 'warning');
+      return;
+    }
+
+    const adminCount = state.config.partners.filter(p => p.role === 'Admin' && !isPartnerPassive(p)).length;
+    if (partner.role === 'Admin' && adminCount <= 1) {
+      showToast('Cannot delete the only admin account.', 'warning');
+      return;
+    }
+
+    if (!confirm(`Delete partner "${partner.name}"? This cannot be undone.`)) return;
+
+    CalendarSync.removePartner(partnerId);
+    state.config = CalendarSync.config;
+    state.events = CalendarSync.events;
+    addLog(`Admin: Partner "${partner.name}" deleted.`, 'warning');
+    showToast(`Partner "${partner.name}" deleted.`, 'success');
+    window.location.hash = '#logistics';
+  });
 }
 
 function bindEditHomeEvents() {
@@ -1648,6 +1915,21 @@ function bindEditHomeEvents() {
     saveConfig();
     addLog(`Admin: Home "${name}" updated.`, 'info');
     showToast(`Home "${name}" updated.`, 'success');
+    window.location.hash = '#logistics';
+  });
+
+  document.getElementById('btn-delete-edit-home')?.addEventListener('click', () => {
+    const homeId = document.getElementById('edit-home-id').value;
+    const home = state.config.residences.find(h => h.id === homeId);
+    if (!home) return;
+
+    if (!confirm(`Delete home "${home.name}"? Partners linked to this home will have their default home cleared.`)) return;
+
+    CalendarSync.removeHome(homeId);
+    state.config = CalendarSync.config;
+    state.events = CalendarSync.events;
+    addLog(`Admin: Home "${home.name}" deleted.`, 'warning');
+    showToast(`Home "${home.name}" deleted.`, 'success');
     window.location.hash = '#logistics';
   });
 }

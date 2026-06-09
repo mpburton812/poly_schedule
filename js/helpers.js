@@ -102,6 +102,14 @@ export function renamePartnerReferences(config, events, oldName, newName) {
       event.responses[newName] = event.responses[oldName];
       delete event.responses[oldName];
     }
+
+    if (event.type === 'batch_sleeping' && Array.isArray(event.batchNights)) {
+      event.batchNights.forEach(night => {
+        (night.assignments || []).forEach(assign => {
+          assign.participants = (assign.participants || []).map(p => p === oldName ? newName : p);
+        });
+      });
+    }
   });
 }
 
@@ -119,6 +127,236 @@ export function responseStatusLabel(status) {
   if (status === 'reject') return 'Rejected';
   if (status === 'abstain') return 'Abstained';
   return 'Awaiting';
+}
+
+export function defaultBatchNight(config) {
+  const assign = defaultBatchAssignment(config);
+  return {
+    assignments: [{
+      ...assign,
+      participants: [...(assign.participants || [])]
+    }]
+  };
+}
+
+export function cloneBatchNight(night) {
+  const source = night?.assignments
+    ? night
+    : { assignments: [{ ...night, participants: [...(night.participants || [])] }] };
+  return {
+    assignments: (source.assignments || []).map(a => ({
+      homeId: a.homeId,
+      roomId: a.roomId,
+      homeName: a.homeName,
+      roomName: a.roomName,
+      participants: [...(a.participants || [])]
+    }))
+  };
+}
+
+export function normalizeBatchNight(night, config) {
+  if (night?.assignments?.length) return cloneBatchNight(night);
+  if (night?.homeId) {
+    return { assignments: [{ ...night, participants: [...(night.participants || [])] }] };
+  }
+  return defaultBatchNight(config);
+}
+
+/**
+ * Remove a partner from config references and events.
+ */
+export function removePartnerReferences(config, events, partnerId, partnerName) {
+  if (!partnerName) return;
+
+  const nameFirst = partnerName.split(' ')[0];
+
+  (config?.partners || []).forEach(partner => {
+    if (partner.id === partnerId) return;
+    if (partner.rules?.partnerLimits) {
+      Object.keys(partner.rules.partnerLimits).forEach(key => {
+        if (key === partnerName || key.split(' ')[0] === nameFirst) {
+          delete partner.rules.partnerLimits[key];
+        }
+      });
+    }
+  });
+
+  (config?.residences || []).forEach(home => {
+    if (Array.isArray(home.associatedPeople)) {
+      home.associatedPeople = home.associatedPeople.filter(n =>
+        n !== partnerName && n.split(' ')[0] !== nameFirst
+      );
+    }
+  });
+
+  (events || []).forEach(event => {
+    if (event.proposer === partnerName) {
+      event.proposer = '(removed)';
+    }
+
+    if (Array.isArray(event.participants)) {
+      event.participants = event.participants.filter(p =>
+        p !== partnerName && p.split(' ')[0] !== nameFirst
+      );
+    }
+
+    if (event.responses) {
+      delete event.responses[partnerName];
+      Object.keys(event.responses).forEach(key => {
+        if (key.split(' ')[0] === nameFirst) delete event.responses[key];
+      });
+    }
+
+    if (event.type === 'batch_sleeping' && Array.isArray(event.batchNights)) {
+      event.batchNights.forEach(night => {
+        (night.assignments || []).forEach(assign => {
+          assign.participants = (assign.participants || []).filter(p =>
+            p !== partnerName && p.split(' ')[0] !== nameFirst
+          );
+        });
+      });
+    }
+  });
+}
+
+/**
+ * Clear home references before removing a residence.
+ */
+export function removeHomeReferences(config, events, homeId) {
+  (config?.partners || []).forEach(partner => {
+    if (partner.defaultHome === homeId) partner.defaultHome = '';
+  });
+
+  (config?.residences || []).forEach(home => {
+    if (home.id === homeId) return;
+    if (Array.isArray(home.associatedPeople)) {
+      home.associatedPeople = home.associatedPeople.filter(() => true);
+    }
+  });
+
+  (events || []).forEach(event => {
+    if (event.homeId === homeId) {
+      event.homeName = event.homeName ? `${event.homeName} (removed)` : '(removed home)';
+    }
+    if (event.type === 'batch_sleeping' && Array.isArray(event.batchNights)) {
+      event.batchNights.forEach(night => {
+        (night.assignments || []).forEach(assign => {
+          if (assign.homeId === homeId) {
+            assign.homeName = assign.homeName ? `${assign.homeName} (removed)` : '(removed home)';
+          }
+        });
+      });
+    }
+  });
+}
+
+export function defaultBatchAssignment(config) {
+  const home = config?.residences?.[0];
+  if (!home) {
+    return { homeId: '', roomId: '', homeName: '', roomName: '', participants: [] };
+  }
+  let roomId = 'r1';
+  let roomName = 'Bedroom 1';
+  if (home.bedroomDetails?.length) {
+    roomId = home.bedroomDetails[0].id;
+    roomName = home.bedroomDetails[0].name;
+  }
+  return {
+    homeId: home.id,
+    roomId,
+    homeName: home.name,
+    roomName,
+    participants: []
+  };
+}
+
+export function getBedroomOptionsForHome(home) {
+  if (!home) return [];
+  if (home.bedroomDetails?.length) {
+    return home.bedroomDetails.map(r => ({ id: r.id, name: r.name }));
+  }
+  const count = home.bedrooms || 1;
+  return Array.from({ length: count }, (_, i) => ({
+    id: `r${i + 1}`,
+    name: `Bedroom ${i + 1}`
+  }));
+}
+
+export function nightAssignmentToSleepingEvent(nightDate, assign, id = 'temp') {
+  const start = new Date(nightDate);
+  start.setHours(22, 0, 0, 0);
+  const end = new Date(start);
+  end.setDate(end.getDate() + 1);
+  end.setHours(8, 0, 0, 0);
+  return {
+    id,
+    type: 'sleeping',
+    start: start.toISOString(),
+    end: end.toISOString(),
+    homeId: assign.homeId,
+    roomId: assign.roomId,
+    homeName: assign.homeName,
+    roomName: assign.roomName,
+    participants: assign.participants || [],
+    status: 'pending'
+  };
+}
+
+export function batchProposalToSleepingEvents(batchProposal) {
+  const events = [];
+  (batchProposal.batchNights || []).forEach((night, nightIdx) => {
+    (night.assignments || []).forEach((assign, assignIdx) => {
+      events.push(nightAssignmentToSleepingEvent(
+        night.date,
+        assign,
+        `${batchProposal.id || 'batch'}_${nightIdx}_${assignIdx}`
+      ));
+    });
+  });
+  return events;
+}
+
+export function expandBatchSleepingToEvents(batchProposal) {
+  const events = [];
+  (batchProposal.batchNights || []).forEach((night, nightIdx) => {
+    (night.assignments || []).forEach((assign, assignIdx) => {
+      const sleeping = nightAssignmentToSleepingEvent(
+        night.date,
+        assign,
+        `e_${batchProposal.id}_${nightIdx}_${assignIdx}`
+      );
+      sleeping.status = 'confirmed';
+      sleeping.title = `SLEEP: ${assign.roomName}: ${(assign.participants || []).join(' & ')}`;
+      events.push(sleeping);
+    });
+  });
+  return events;
+}
+
+export function buildBatchNightsPayload(startDateStr, nightCount, nightAssignments, config = {}) {
+  const start = new Date(startDateStr);
+  const batchNights = [];
+  for (let i = 0; i < nightCount; i++) {
+    const d = new Date(start);
+    d.setDate(start.getDate() + i);
+    const dateStr = d.toISOString().split('T')[0];
+    const night = normalizeBatchNight(nightAssignments[i], config);
+    const assignments = (night.assignments || [])
+      .filter(a => (a.participants || []).length > 0)
+      .map(a => ({
+        homeId: a.homeId,
+        roomId: a.roomId,
+        homeName: a.homeName,
+        roomName: a.roomName,
+        participants: [...(a.participants || [])]
+      }));
+    batchNights.push({ date: dateStr, assignments });
+  }
+  const end = new Date(start);
+  end.setDate(start.getDate() + nightCount);
+  end.setHours(8, 0, 0, 0);
+  start.setHours(22, 0, 0, 0);
+  return { batchNights, start: start.toISOString(), end: end.toISOString() };
 }
 
 export function renderAvatarPickerHtml(selectedUrl, containerId) {

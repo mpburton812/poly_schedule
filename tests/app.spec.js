@@ -95,6 +95,44 @@ test.describe('PolySchedule UI E2E Flow Tests', () => {
     await expect(page.locator('text=Weekly Family Dinner')).toBeVisible();
   });
 
+  test('should show Batch Sleeping option for users with sleeping partners', async ({ page }) => {
+    await page.click('#fab-quick-add');
+    await expect(page.locator('#btn-toggle-batch-sleeping')).toBeVisible();
+  });
+
+  test('should create a batch sleeping proposal', async ({ page }) => {
+    await page.click('#fab-quick-add');
+    await page.click('#btn-toggle-batch-sleeping');
+    await page.fill('#prop-duration', '3');
+    await page.fill('#prop-title', 'June Rotation Plan');
+    const rows = page.locator('.batch-night-row');
+    await expect(rows).toHaveCount(3);
+    for (let i = 0; i < 3; i++) {
+      await rows.nth(i).locator('.batch-partner-cb[data-partner="Alex Rivera"]').check();
+      await rows.nth(i).locator('.batch-partner-cb[data-partner="Sam Davis"]').check();
+    }
+    await page.click('#btn-submit-proposal');
+    await expect(page.url()).toContain('#proposals');
+    await expect(page.locator('text=June Rotation Plan')).toBeVisible();
+    await expect(page.locator('text=BATCH SLEEPING')).toBeVisible();
+  });
+
+  test('should warn on batch sleeping when partner max nights exceeded', async ({ page }) => {
+    await page.click('#fab-quick-add');
+    await page.click('#btn-toggle-batch-sleeping');
+    await page.fill('#prop-duration', '4');
+    await page.waitForSelector('.batch-night-row');
+    const rows = page.locator('.batch-night-row');
+    const count = await rows.count();
+    for (let i = 0; i < count; i++) {
+      await rows.nth(i).locator('.batch-partner-cb[data-partner="Alex Rivera"]').check();
+      await rows.nth(i).locator('.batch-partner-cb[data-partner="Sam Davis"]').check();
+    }
+    const warningBanner = page.locator('#proposal-rules-banner');
+    await expect(warningBanner).not.toHaveClass(/hidden/);
+    await expect(warningBanner).toContainText('Extended Stay Alert');
+  });
+
   test('should trigger rules warning banner on sleep limits', async ({ page }) => {
     await page.click('#fab-quick-add');
     await page.click('#btn-toggle-sleeping');
@@ -224,6 +262,14 @@ test.describe('PolySchedule UI E2E Flow Tests', () => {
     await expect(page.locator('text=PASSIVE').first()).toBeVisible();
   });
 
+  test('should block batch sleeping option if user has no sleeping partners', async ({ page }) => {
+    await page.evaluate(() => localStorage.clear());
+    await page.goto('/');
+    await loginAs(page, 'jordan', 'password123');
+    await page.click('#fab-quick-add');
+    await expect(page.locator('#btn-toggle-batch-sleeping')).toHaveCount(0);
+  });
+
   test('should block sleeping proposal option if user has no sleeping partners', async ({ page }) => {
     await page.evaluate(() => localStorage.clear());
     await page.goto('/');
@@ -296,5 +342,39 @@ test.describe('PolySchedule UI E2E Flow Tests', () => {
     await expect(page.locator('text=System Administration Log')).toBeVisible();
     await expect(page.locator('#console-logs-body .console-line').first()).toBeVisible();
     await expect(page.locator('#console-logs-body')).not.toContainText('Cron: Backup completed to cloud node-7');
+  });
+
+  test('should allow admin to delete a passive partner', async ({ page }) => {
+    await clickNav(page, '#logistics');
+    await page.locator('.btn-edit-partner[data-partner-id="p4"]').click();
+    await expect(page.url()).toContain('#edit-partner');
+    page.once('dialog', dialog => dialog.accept());
+    await page.click('#btn-delete-edit-partner');
+    await expect(page.url()).toContain('#logistics');
+    await expect(page.getByRole('heading', { name: 'Casey Chen' })).toHaveCount(0);
+  });
+
+  test('should allow admin to delete a home', async ({ page }) => {
+    await clickNav(page, '#logistics');
+    await page.locator('.btn-edit-home[data-home-id="h2"]').click();
+    await expect(page.url()).toContain('#edit-home');
+    page.once('dialog', dialog => dialog.accept());
+    await page.click('#btn-delete-edit-home');
+    await expect(page.url()).toContain('#logistics');
+    await expect(page.getByRole('heading', { name: 'Urban Loft' })).toHaveCount(0);
+  });
+
+  test('should support batch sleeping copy previous and add room', async ({ page }) => {
+    await page.goto('/#create');
+    await page.waitForSelector('#btn-toggle-batch-sleeping');
+    await page.click('#btn-toggle-batch-sleeping');
+    await page.fill('#prop-duration', '2');
+    await page.waitForSelector('.batch-night-row');
+    const night1 = page.locator('.batch-night-row').nth(0);
+    await night1.locator('.batch-partner-cb[data-partner="Alex Rivera"]').check();
+    await page.locator('.btn-batch-copy').click();
+    await expect(page.locator('.batch-night-row').nth(1).locator('.batch-partner-cb[data-partner="Alex Rivera"]')).toBeChecked();
+    await page.locator('.btn-batch-add-room').first().click();
+    await expect(page.locator('.batch-assignment-block')).toHaveCount(3);
   });
 });
