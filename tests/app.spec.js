@@ -32,10 +32,10 @@ test.describe('PolySchedule UI E2E Flow Tests', () => {
     await expect(page.locator('text=Collective Profiles')).toBeVisible();
     await expect(page.locator('text=Homes & Spaces')).toBeVisible();
 
-    // 3. Navigate to Settings view
-    await page.click('a[href="#settings"]');
-    await expect(page.url()).toContain('#settings');
-    await expect(page.locator('text=Connection Mode')).toBeVisible();
+    // 3. Open user profile modal (settings pop-up)
+    await page.click('#avatar-container');
+    await expect(page.locator('#app-modal')).toHaveClass(/open/);
+    await expect(page.locator('text=Connection Settings')).toBeVisible();
   });
 
   test('should support creating a new event proposal', async ({ page }) => {

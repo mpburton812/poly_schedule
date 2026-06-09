@@ -452,9 +452,7 @@ export const Views = {
     // Populate partner options (checkboxes or select)
     let circleHtml = '';
     state.config.partners.forEach(partner => {
-      // Skip current user
-      if (partner.name === state.currentUser?.name) return;
-      
+      // Current user is included as a possible invitee per user request
       circleHtml += `
         <div class="circle-partner-option" data-name="${partner.name}" style="display: flex; flex-direction: column; align-items: center; gap: var(--space-xs); cursor: pointer; transition: opacity var(--transition-speed); opacity: 0.6;">
           <div class="profile-avatar" style="width: 56px; height: 56px; border: 2px solid var(--outline-variant); border-radius: var(--radius-full); overflow: hidden;">
@@ -494,20 +492,13 @@ export const Views = {
     } else {
       locationHtml = `
         <div class="form-group">
-          <label class="form-label">Location</label>
-          <div class="bg-surface-container" style="border-radius: var(--radius-md); overflow: hidden; border: 1px solid var(--outline-variant);">
-            <div style="display: flex; align-items: center; padding: var(--space-sm) var(--space-md); gap: var(--space-md); background-color: var(--surface-container-lowest); border-bottom: 1px solid var(--outline-variant);">
-              <span class="material-symbols-outlined text-primary">location_on</span>
-              <input class="form-input" id="event-location" placeholder="Search for location or address..." type="text" style="border: none; padding: 0; background: transparent; border-radius: 0; flex-grow: 1;"/>
-            </div>
-            <div class="mock-map">
-              <img src="https://lh3.googleusercontent.com/aida-public/AB6AXuBNYyFWbt4bipzEMxmhbDsYEY4hV9stPsQRHMtZalOqgTDKD2ntxtQktX6Nb-VLbj7dX99qnS40hkv6UFA3IHaPWBsLfP5lQUsodnFzpyCk1UuHUT4iBPkEYl_SG0HjzpKNrxFNqKHH-iiqYHSfXtjJSIrqX_YSbudmR_ITNEcKB2l-MGTbjFfQ-ZPS6le_l_XuIQFeov5kxfck7VLd9McmRwqkHnkEQGzVOJdPSVCcepeFS63j-NJt-Q-9xX1hnmm3Oz4k75AOUnk" alt="Map View"/>
-              <span class="material-symbols-outlined mock-map-pin">location_on</span>
-            </div>
-          </div>
+          <label class="form-label" for="event-location">Location</label>
+          <input class="form-input" id="event-location" placeholder="Search for location or address..." type="text"/>
         </div>
       `;
     }
+
+    const polyFamilyName = localStorage.getItem('polyschedule_poly_family_name') || 'The Poly Circle';
 
     return `
       <!-- Back Header Row -->
@@ -549,7 +540,7 @@ export const Views = {
 
         <!-- Poly Circle Selection -->
         <div class="form-group">
-          <label class="form-label" style="margin-bottom: var(--space-sm);">The Poly Circle (Invitees)</label>
+          <label class="form-label" style="margin-bottom: var(--space-sm);">${polyFamilyName} (Invitees)</label>
           <div style="display: flex; flex-wrap: wrap; gap: var(--space-lg); padding: var(--space-sm) 0;" id="circle-options-row">
             ${circleHtml}
           </div>
@@ -668,6 +659,36 @@ export const Views = {
       `;
     });
 
+    const showAdmin = state.currentUser ? (state.config?.partners?.find(p => p.name === state.currentUser.name)?.role === 'Admin') : false;
+    const adminPanelHtml = showAdmin ? `
+        <!-- System Administration Panel -->
+        <section class="bento-span-6" style="display: flex; flex-direction: column; gap: var(--space-md);">
+          <h3 class="font-title-lg" style="display: flex; align-items: center; gap: var(--space-base); font-weight: 700;">
+            <span class="material-symbols-outlined text-primary">admin_panel_settings</span> System Administration
+          </h3>
+          <div class="console-container">
+            <div class="console-header">
+              <span class="font-label-sm">Live System Logs</span>
+              <div style="display: flex; align-items: center; gap: 6px;">
+                <span style="width: 8px; height: 8px; border-radius: var(--radius-full); background-color: #4ade80; display: inline-block; animation: pulse-animation 1s infinite;"></span>
+                <span class="font-label-sm" style="color: #4ade80;">Stable</span>
+              </div>
+            </div>
+            <div class="console-body" id="console-logs-body">
+              ${logsHtml}
+            </div>
+            <div class="console-action-row">
+              <button class="btn-outline" id="btn-run-tests" style="background: transparent; border: none; font-family: var(--font-mono); font-size: 0.75rem; color: var(--primary-fixed-dim); cursor: pointer; display: flex; align-items: center; gap: 4px;">
+                <span class="material-symbols-outlined" style="font-size: 16px;">sync</span> Run System Test
+              </button>
+              <button class="btn-outline" id="btn-export-logs" style="background: transparent; border: none; font-family: var(--font-mono); font-size: 0.75rem; color: rgba(255,255,255,0.6); cursor: pointer; display: flex; align-items: center; gap: 4px;">
+                <span class="material-symbols-outlined" style="font-size: 16px;">download</span> Export Logs
+              </button>
+            </div>
+          </div>
+        </section>
+    ` : '';
+
     return `
       <div class="mb-xl" style="margin-bottom: var(--space-xl);">
         <h2 class="font-headline-lg">Logistics & Configuration</h2>
@@ -719,7 +740,7 @@ export const Views = {
         </aside>
 
         <!-- Homes & Locations -->
-        <section class="bento-span-6" style="display: flex; flex-direction: column; gap: var(--space-md);">
+        <section class="${showAdmin ? 'bento-span-6' : 'bento-span-12'}" style="display: flex; flex-direction: column; gap: var(--space-md);">
           <h3 class="font-title-lg" style="display: flex; align-items: center; gap: var(--space-base); font-weight: 700;">
             <span class="material-symbols-outlined text-primary">home_work</span> Homes & Spaces
           </h3>
@@ -728,32 +749,7 @@ export const Views = {
           </div>
         </section>
 
-        <!-- System Administration Panel -->
-        <section class="bento-span-6" style="display: flex; flex-direction: column; gap: var(--space-md);">
-          <h3 class="font-title-lg" style="display: flex; align-items: center; gap: var(--space-base); font-weight: 700;">
-            <span class="material-symbols-outlined text-primary">admin_panel_settings</span> System Administration
-          </h3>
-          <div class="console-container">
-            <div class="console-header">
-              <span class="font-label-sm">Live System Logs</span>
-              <div style="display: flex; align-items: center; gap: 6px;">
-                <span style="width: 8px; height: 8px; border-radius: var(--radius-full); background-color: #4ade80; display: inline-block; animation: pulse-animation 1s infinite;"></span>
-                <span class="font-label-sm" style="color: #4ade80;">Stable</span>
-              </div>
-            </div>
-            <div class="console-body" id="console-logs-body">
-              ${logsHtml}
-            </div>
-            <div class="console-action-row">
-              <button class="btn-outline" id="btn-run-tests" style="background: transparent; border: none; font-family: var(--font-mono); font-size: 0.75rem; color: var(--primary-fixed-dim); cursor: pointer; display: flex; align-items: center; gap: 4px;">
-                <span class="material-symbols-outlined" style="font-size: 16px;">sync</span> Run System Test
-              </button>
-              <button class="btn-outline" id="btn-export-logs" style="background: transparent; border: none; font-family: var(--font-mono); font-size: 0.75rem; color: rgba(255,255,255,0.6); cursor: pointer; display: flex; align-items: center; gap: 4px;">
-                <span class="material-symbols-outlined" style="font-size: 16px;">download</span> Export Logs
-              </button>
-            </div>
-          </div>
-        </section>
+        ${adminPanelHtml}
       </div>
     `;
   },
