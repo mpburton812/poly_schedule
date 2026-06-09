@@ -44,7 +44,7 @@ test.describe('PolySchedule UI E2E Flow Tests', () => {
   test('should load application and render dashboard', async ({ page }) => {
     await expect(page.locator('.logo-text')).toContainText('PolySchedule');
     await expect(page.locator('.week-grid')).toBeVisible();
-    await expect(page.locator('.day-column').first()).toBeVisible();
+    await expect(page.locator('.day-column')).toHaveCount(7);
     await expect(page.locator('.card-event').first()).toBeVisible();
     await expect(page.locator('.card-sleeping').first()).toBeVisible();
   });
@@ -81,9 +81,15 @@ test.describe('PolySchedule UI E2E Flow Tests', () => {
   test('should support creating a new event proposal', async ({ page }) => {
     await page.click('#fab-quick-add');
     await expect(page.url()).toContain('#create');
+    await expect(page.locator('#btn-create-back')).toHaveCount(0);
     await page.fill('#prop-title', 'Weekly Family Dinner');
     await page.locator('.circle-partner-option[data-name="Sam Davis"]').click();
-    await page.fill('#prop-duration', '18:00 - 21:00');
+    await page.selectOption('#prop-start-hour', '6');
+    await page.selectOption('#prop-start-minute', '00');
+    await page.selectOption('#prop-start-ampm', 'PM');
+    await page.selectOption('#prop-end-hour', '9');
+    await page.selectOption('#prop-end-minute', '00');
+    await page.selectOption('#prop-end-ampm', 'PM');
     await page.click('#btn-submit-proposal');
     await expect(page.url()).toContain('#proposals');
     await expect(page.locator('text=Weekly Family Dinner')).toBeVisible();
@@ -159,6 +165,7 @@ test.describe('PolySchedule UI E2E Flow Tests', () => {
   test('should support adding an active partner with sleeping rules', async ({ page }) => {
     await clickNav(page, '#logistics');
     await page.click('#btn-add-partner');
+    await expect(page.locator('#new-partner-home option[value=""]')).toHaveCount(1);
     await page.fill('#new-partner-name', 'Robin Williams');
     await page.fill('#new-partner-username', 'robin');
     await page.fill('#new-partner-password', 'password123');

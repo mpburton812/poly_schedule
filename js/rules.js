@@ -186,8 +186,9 @@ export const RulesEngine = {
         }
       }
 
-      // 2b. Max Solo Nights Limit
-      if (rules.maxSoloNights !== undefined) {
+      // 2b. Min Solo Nights preference
+      const minSoloNights = rules.minSoloNights ?? rules.maxSoloNights;
+      if (minSoloNights !== undefined) {
         let soloNights = 0;
 
         for (const day of daysOfWeek) {
@@ -206,10 +207,10 @@ export const RulesEngine = {
           }
         }
 
-        if (soloNights > rules.maxSoloNights) {
+        if (soloNights < minSoloNights) {
           warnings.push({
-            type: 'SOLO_MAX_LIMIT',
-            message: `${pA} sleeping alone for ${soloNights} nights exceeds preferred limit of ${rules.maxSoloNights} solo nights/week.`
+            type: 'SOLO_MIN_LIMIT',
+            message: `${pA} sleeping alone for ${soloNights} nights is below preferred minimum of ${minSoloNights} solo nights/week.`
           });
         }
       }

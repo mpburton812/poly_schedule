@@ -3,7 +3,8 @@ import {
   DEFAULT_AVATARS,
   isPartnerPassive,
   renderHomeSelectOptions,
-  renderAvatarPickerHtml
+  renderAvatarPickerHtml,
+  render12HourTimePicker
 } from './helpers.js';
 
 export { DEFAULT_AVATARS };
@@ -68,25 +69,22 @@ export const Views = {
     const pendingProposals = state.events.filter(e => e.status === 'pending');
 
     let daysHtml = '';
-    
-    // Render Monday through Friday
-    for (let i = 0; i < 5; i++) {
+
+    for (let i = 0; i < 7; i++) {
       const day = weekdays[i];
       const dayStr = day.toDateString();
-      
-      // Filter events for this day
+
       const dayEvents = weekEvents.filter(e => {
         const startD = new Date(e.start);
         return startD.toDateString() === dayStr;
       });
 
-      // Sort: normal events first, then sleeping
       dayEvents.sort((a, b) => (a.type === 'sleeping' ? 1 : -1));
 
       let cardsHtml = '';
       if (dayEvents.length === 0) {
         cardsHtml = `
-          <div style="height: 100px; display: flex; align-items: center; justify-content: center; border: 1px dashed var(--outline-variant); border-radius: var(--radius-default); color: var(--on-surface-variant); font-size: 0.75rem;">
+          <div style="height: 60px; display: flex; align-items: center; justify-content: center; border: 1px dashed var(--outline-variant); border-radius: var(--radius-default); color: var(--on-surface-variant); font-size: 0.75rem;">
             No Events
           </div>
         `;
@@ -105,7 +103,6 @@ export const Views = {
               </div>
             `;
           } else {
-            // Avatars stack
             let avatarsHtml = '';
             e.participants.forEach(pName => {
               const p = state.config.partners.find(part => part.name === pName);
@@ -117,7 +114,7 @@ export const Views = {
               }
             });
 
-            const timeStr = new Date(e.start).toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit', hour12: false });
+            const timeStr = new Date(e.start).toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit', hour12: true });
             cardsHtml += `
               <div class="card-event" data-id="${e.id}">
                 <div class="event-title">${e.title}</div>
@@ -139,48 +136,6 @@ export const Views = {
         </div>
       `;
     }
-
-    // Weekend Bento Layout (Saturday/Sunday)
-    const sat = weekdays[5];
-    const sun = weekdays[6];
-    
-    const satEvents = weekEvents.filter(e => new Date(e.start).toDateString() === sat.toDateString());
-    const sunEvents = weekEvents.filter(e => new Date(e.start).toDateString() === sun.toDateString());
-    
-    // Find weekend retreat if group is together
-    const weekendRetreat = weekEvents.find(e => e.title.toLowerCase().includes('retreat') || e.title.toLowerCase().includes('trip'));
-
-    let retreatHtml = '';
-    if (weekendRetreat) {
-      retreatHtml = `
-        <div class="bento-weekend">
-          <div>
-            <span class="font-label-md" style="opacity: 0.8; letter-spacing: 1.5px; text-transform: uppercase;">Full Group</span>
-            <h3 class="font-headline-lg" style="margin-top: 4px; line-height: 1.1;">${weekendRetreat.title}</h3>
-            <div class="bento-weekend-details font-body-md">
-              <span class="material-symbols-outlined" style="font-size: 16px;">location_on</span>
-              <span>${weekendRetreat.location || 'Retreat Location'}</span>
-            </div>
-          </div>
-        </div>
-      `;
-    } else {
-      retreatHtml = `
-        <div class="bento-weekend" style="background-color: var(--surface-container-high); color: var(--on-surface);">
-          <div>
-            <span class="font-label-md" style="opacity: 0.8; text-transform: uppercase;">Weekend Schedule</span>
-            <h3 class="font-headline-lg" style="margin-top: 4px; line-height: 1.1;">No retreats scheduled</h3>
-            <div class="bento-weekend-details font-body-md">
-              <span class="material-symbols-outlined" style="font-size: 16px;">hotel</span>
-              <span>Sleep logic operates locally</span>
-            </div>
-          </div>
-        </div>
-      `;
-    }
-
-    const satAct = satEvents.find(e => e.type !== 'sleeping') || { title: 'Hiking Loop', location: 'Parks' };
-    const sunAct = sunEvents.find(e => e.type !== 'sleeping') || { title: 'Homebound', location: 'Home' };
 
     // Proposals Center mini summary
     let proposalsListHtml = '';
@@ -245,27 +200,9 @@ export const Views = {
         </div>
       </section>
 
-      <!-- Weekly Schedule Grid -->
+      <!-- Weekly Schedule (vertical) -->
       <section class="week-grid">
         ${daysHtml}
-        
-        <!-- Sat & Sun bento structure -->
-        <div class="day-column" style="grid-column: span 2; display: flex; flex-direction: column; gap: var(--space-base); background: transparent; padding: 0;">
-          ${retreatHtml}
-          
-          <div class="bento-split">
-            <div class="bento-sub-card">
-              <span class="font-label-sm" style="color: var(--on-surface-variant);">SAT ${sat.getDate()}</span>
-              <span class="font-label-md" style="background-color: var(--secondary-container); color: var(--on-secondary-container); padding: 1px 8px; border-radius: var(--radius-full); width: fit-content; font-size: 10px;">Activity</span>
-              <p class="font-body-md" style="font-weight: bold; margin-top: 4px;">${satAct.title}</p>
-            </div>
-            <div class="bento-sub-card">
-              <span class="font-label-sm" style="color: var(--on-surface-variant);">SUN ${sun.getDate()}</span>
-              <span class="font-label-md" style="background-color: var(--tertiary-container); color: var(--on-tertiary-container); padding: 1px 8px; border-radius: var(--radius-full); width: fit-content; font-size: 10px;">Travel</span>
-              <p class="font-body-md" style="font-weight: bold; margin-top: 4px;">${sunAct.title}</p>
-            </div>
-          </div>
-        </div>
       </section>
 
       <!-- Active Proposals Section -->
@@ -518,14 +455,8 @@ export const Views = {
     const polyFamilyName = localStorage.getItem('polyschedule_poly_family_name') || 'The Poly Circle';
 
     return `
-      <!-- Back Header Row -->
       <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: var(--space-lg);">
-        <div style="display: flex; align-items: center; gap: var(--space-base);">
-          <button class="btn-icon-only" id="btn-create-back" aria-label="Cancel">
-            <span class="material-symbols-outlined">close</span>
-          </button>
-          <h2 class="font-title-lg">New Proposal</h2>
-        </div>
+        <h2 class="font-title-lg">New Proposal</h2>
         <button class="btn btn-filled" id="btn-submit-proposal">Send Proposal</button>
       </div>
 
@@ -573,10 +504,17 @@ export const Views = {
             <label class="form-label" for="prop-start-date">Start Date</label>
             <input class="form-input" id="prop-start-date" type="date" value="${new Date().toISOString().split('T')[0]}"/>
           </div>
+          ${type === 'sleeping' ? `
           <div class="form-group" style="margin-bottom: 0;">
-            <label class="form-label" for="prop-duration">${type === 'sleeping' ? 'Number of Nights' : 'Duration / Time'}</label>
-            <input class="form-input" id="prop-duration" placeholder="${type === 'sleeping' ? 'e.g. 2' : 'e.g. 19:00 - 22:00'}" type="text"/>
+            <label class="form-label" for="prop-duration">Number of Nights</label>
+            <input class="form-input" id="prop-duration" placeholder="e.g. 2" type="number" min="1" max="14" value="1"/>
           </div>
+          ` : `
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-md);">
+            ${render12HourTimePicker('prop-start', 'Start Time', 7, '00', 'PM')}
+            ${render12HourTimePicker('prop-end', 'End Time', 10, '00', 'PM')}
+          </div>
+          `}
         </div>
 
         <!-- Dynamic Location block -->
@@ -933,7 +871,6 @@ export const Views = {
               <label class="form-label" for="new-partner-role">Role</label>
               <select class="form-input" id="new-partner-role">
                 <option value="User">User</option>
-                <option value="Guest">Guest</option>
                 <option value="Admin">Admin</option>
               </select>
             </div>
@@ -944,7 +881,7 @@ export const Views = {
           <div class="bento-card" style="padding: var(--space-lg); display: flex; flex-direction: column; gap: var(--space-md);">
             <h3 class="font-title-lg" style="font-weight: 700; border-bottom: 1px solid rgba(138,113,112,0.1); padding-bottom: var(--space-xs);">Sleeping Partner Connections</h3>
             <div class="form-group" id="solo-nights-group" style="display: none;">
-              <label class="form-label" for="new-partner-solo-nights">Number of nights alone (Max Solo Nights)</label>
+              <label class="form-label" for="new-partner-solo-nights">Min Solo Nights</label>
               <input class="form-input" id="new-partner-solo-nights" type="number" min="0" max="7" value="2"/>
             </div>
             <div style="display: flex; flex-direction: column; gap: var(--space-md); margin-top: var(--space-xs);">
@@ -984,7 +921,7 @@ export const Views = {
             <div class="form-group" style="margin-top: var(--space-sm);">
               <label class="form-label" for="new-partner-home">Default Home</label>
               <select class="form-input" id="new-partner-home">
-                ${renderHomeSelectOptions(state.config.residences, state.config.residences[0]?.id)}
+                ${renderHomeSelectOptions(state.config.residences, '')}
               </select>
             </div>
             ${isPassive ? '<p class="font-body-md" style="color: var(--on-surface-variant); font-size: 0.85rem;">Passive partners appear in scheduling but cannot log in.</p>' : ''}
@@ -1129,8 +1066,8 @@ export const Views = {
         <div class="bento-card" style="padding: var(--space-lg);">
           <h3 class="font-title-lg" style="font-weight: 700; margin-bottom: var(--space-md);">Sleeping Rules</h3>
           <div class="form-group">
-            <label class="form-label" for="edit-partner-solo-nights">Max Solo Nights</label>
-            <input class="form-input" id="edit-partner-solo-nights" type="number" min="0" max="7" value="${partner.rules?.maxSoloNights || 2}"/>
+            <label class="form-label" for="edit-partner-solo-nights">Min Solo Nights</label>
+            <input class="form-input" id="edit-partner-solo-nights" type="number" min="0" max="7" value="${partner.rules?.minSoloNights ?? partner.rules?.maxSoloNights ?? 2}"/>
           </div>
           <div style="display: flex; flex-direction: column; gap: var(--space-sm); margin-top: var(--space-md);">${partnersCheckHtml}</div>
         </div>
@@ -1151,8 +1088,7 @@ export const Views = {
       <div class="form-group">
         <label class="form-label" for="edit-partner-role">Role</label>
         <select class="form-input" id="edit-partner-role">
-          <option value="User" ${partner.role === 'User' ? 'selected' : ''}>User</option>
-          <option value="Guest" ${partner.role === 'Guest' ? 'selected' : ''}>Guest</option>
+          <option value="User" ${partner.role === 'User' || (!partner.role || (partner.role !== 'Admin')) ? 'selected' : ''}>User</option>
           <option value="Admin" ${partner.role === 'Admin' ? 'selected' : ''}>Admin</option>
         </select>
       </div>
@@ -1280,13 +1216,13 @@ export const Views = {
           </div>
           <div class="form-group" style="margin-top: var(--space-md);">
             <label class="form-label" for="activate-role">Role</label>
-            <select class="form-input" id="activate-role"><option value="User">User</option><option value="Guest">Guest</option><option value="Admin">Admin</option></select>
+            <select class="form-input" id="activate-role"><option value="User">User</option><option value="Admin">Admin</option></select>
           </div>
         </div>
         <div class="bento-card" style="padding: var(--space-lg);">
           <h3 class="font-title-lg" style="font-weight: 700; margin-bottom: var(--space-md);">Sleeping Partner Connections</h3>
           <div class="form-group" id="solo-nights-group" style="display: none;">
-            <label class="form-label" for="activate-solo-nights">Max Solo Nights</label>
+            <label class="form-label" for="activate-solo-nights">Min Solo Nights</label>
             <input class="form-input" id="activate-solo-nights" type="number" min="0" max="7" value="2"/>
           </div>
           <div style="display: flex; flex-direction: column; gap: var(--space-sm);">${sleepingHtml}</div>

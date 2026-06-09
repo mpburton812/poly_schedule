@@ -42,7 +42,7 @@ const DEFAULT_CONFIG = {
       role: 'Admin',
       defaultHome: 'h1',
       avatar: DEFAULT_AVATARS[0],
-      rules: { maxSoloNights: 2, partnerLimits: { 'Sam': { min: 3, max: 3 }, 'Jordan': { max: 3 } } }
+      rules: { minSoloNights: 2, partnerLimits: { 'Sam': { min: 3, max: 3 }, 'Jordan': { max: 3 } } }
     },
     {
       id: 'p2',
@@ -52,7 +52,7 @@ const DEFAULT_CONFIG = {
       role: 'User',
       defaultHome: 'h1',
       avatar: DEFAULT_AVATARS[1],
-      rules: { maxSoloNights: 3, partnerLimits: { 'Alex': { min: 3, max: 3 } } }
+      rules: { minSoloNights: 3, partnerLimits: { 'Alex': { min: 3, max: 3 } } }
     },
     {
       id: 'p3',
@@ -62,7 +62,7 @@ const DEFAULT_CONFIG = {
       role: 'User',
       defaultHome: 'h2',
       avatar: DEFAULT_AVATARS[2],
-      rules: { maxSoloNights: 4 }
+      rules: { minSoloNights: 4 }
     },
     {
       id: 'p4',

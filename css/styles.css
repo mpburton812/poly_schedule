@@ -577,23 +577,13 @@ body {
   font-size: 0.85rem;
 }
 
-/* Weekly Grid View */
+/* Weekly Grid View — always vertical stack */
 .week-grid {
-  display: grid;
-  grid-template-columns: 1fr;
+  display: flex;
+  flex-direction: column;
   gap: var(--space-md);
   margin-top: var(--space-lg);
-}
-@media (min-width: 600px) {
-  .week-grid {
-    grid-template-columns: repeat(2, 1fr);
-  }
-}
-@media (min-width: 840px) {
-  .week-grid {
-    grid-template-columns: repeat(7, 1fr);
-    gap: var(--space-base);
-  }
+  max-width: 640px;
 }
 
 .day-column {

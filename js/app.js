@@ -15,7 +15,8 @@ import {
   ADD_PARTNER_DRAFT_KEY,
   parseHashParams,
   getRouteBase,
-  isPartnerPassive
+  isPartnerPassive,
+  read12HourTime
 } from './helpers.js';
 
 function loadPersistedLogs() {
@@ -998,21 +999,12 @@ function bindCreateEvents() {
   // Set initial sleeping arrangement title format
   updateSleepingArrangementTitle();
 
-  // Cancel/Back button
-  const btnBack = document.getElementById('btn-create-back');
-  if (btnBack) {
-    btnBack.addEventListener('click', () => {
-      window.location.hash = '#schedule';
-    });
-  }
-
   // Submit Proposal
   const btnSubmit = document.getElementById('btn-submit-proposal');
   if (btnSubmit) {
     btnSubmit.addEventListener('click', async () => {
       const titleInput = document.getElementById('prop-title');
       const startInput = document.getElementById('prop-start-date');
-      const durationVal = document.getElementById('prop-duration').value;
       
       if (!titleInput.value.trim()) {
         showToast('Please enter a title for the proposal.', 'warning');
@@ -1024,21 +1016,18 @@ function bindCreateEvents() {
       let endD = new Date(startD);
 
       if (currentCreateType === 'sleeping') {
-        const nights = parseInt(durationVal) || 1;
+        const durationVal = document.getElementById('prop-duration')?.value || '1';
+        const nights = parseInt(durationVal, 10) || 1;
         endD.setDate(startD.getDate() + nights);
       } else {
-        // Parse time: "19:00 - 22:00"
-        let startHour = 19, startMin = 0;
-        let endHour = 22, endMin = 0;
-        const timeMatch = durationVal.match(/(\d{2}):(\d{2})\s*-\s*(\d{2}):(\d{2})/);
-        if (timeMatch) {
-          startHour = parseInt(timeMatch[1]);
-          startMin = parseInt(timeMatch[2]);
-          endHour = parseInt(timeMatch[3]);
-          endMin = parseInt(timeMatch[4]);
+        const startTime = read12HourTime('prop-start');
+        const endTime = read12HourTime('prop-end');
+        startD.setHours(startTime.hours, startTime.minutes, 0, 0);
+        endD.setHours(endTime.hours, endTime.minutes, 0, 0);
+        if (endD <= startD) {
+          showToast('End time must be after start time.', 'warning');
+          return;
         }
-        startD.setHours(startHour, startMin, 0, 0);
-        endD.setHours(endHour, endMin, 0, 0);
       }
 
       // Add proposer's own name as a participant automatically
@@ -1410,7 +1399,8 @@ function bindAddPartnerEvents() {
         const checkboxes = document.querySelectorAll('.sleeping-partner-checkbox');
         const anyChecked = Array.from(checkboxes).some(c => c.checked);
         if (anyChecked) {
-          rules.maxSoloNights = parseInt(document.getElementById('new-partner-solo-nights').value) || 2;
+          rules.minSoloNights = parseInt(document.getElementById('new-partner-solo-nights').value, 10) || 2;
+          delete rules.maxSoloNights;
           rules.partnerLimits = {};
           checkboxes.forEach(cb => {
             if (cb.checked) {
@@ -1564,7 +1554,8 @@ function bindEditPartnerEvents() {
       partner.password = document.getElementById('edit-partner-password').value.trim();
       partner.role = document.getElementById('edit-partner-role').value;
       partner.rules = partner.rules || {};
-      partner.rules.maxSoloNights = parseInt(document.getElementById('edit-partner-solo-nights')?.value) || 2;
+      partner.rules.minSoloNights = parseInt(document.getElementById('edit-partner-solo-nights')?.value, 10) || 2;
+      delete partner.rules.maxSoloNights;
       partner.rules.partnerLimits = {};
       document.querySelectorAll('.sleeping-partner-checkbox').forEach(cb => {
         if (cb.checked) {
@@ -1683,7 +1674,8 @@ function bindActivatePartnerEvents() {
     const checkboxes = document.querySelectorAll('.sleeping-partner-checkbox');
     const anyChecked = Array.from(checkboxes).some(c => c.checked);
     if (anyChecked) {
-      rules.maxSoloNights = parseInt(document.getElementById('activate-solo-nights').value) || 2;
+      rules.minSoloNights = parseInt(document.getElementById('activate-solo-nights').value, 10) || 2;
+      delete rules.maxSoloNights;
       rules.partnerLimits = {};
       checkboxes.forEach(cb => {
         if (cb.checked) {

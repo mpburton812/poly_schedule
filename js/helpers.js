@@ -26,10 +26,50 @@ export function isPartnerActive(partner) {
 }
 
 export function renderHomeSelectOptions(residences, selectedId = '') {
+  const blankSelected = !selectedId ? 'selected' : '';
   const options = (residences || []).map(h =>
     `<option value="${h.id}" ${h.id === selectedId ? 'selected' : ''}>${h.name}</option>`
   ).join('');
-  return `${options}<option value="${CREATE_NEW_HOME}">+ Create New Home</option>`;
+  return `<option value="" ${blankSelected}>— None —</option>${options}<option value="${CREATE_NEW_HOME}">+ Create New Home</option>`;
+}
+
+export function render12HourTimePicker(prefix, label, hour12 = 7, minute = '00', ampm = 'PM') {
+  const hours = Array.from({ length: 12 }, (_, i) => {
+    const h = i + 1;
+    return `<option value="${h}" ${h === hour12 ? 'selected' : ''}>${h}</option>`;
+  }).join('');
+  const minutes = ['00', '15', '30', '45'].map(m =>
+    `<option value="${m}" ${m === minute ? 'selected' : ''}>${m}</option>`
+  ).join('');
+  const amSelected = ampm === 'AM' ? 'selected' : '';
+  const pmSelected = ampm === 'PM' ? 'selected' : '';
+  return `
+    <div class="form-group" style="margin-bottom: 0;">
+      <label class="form-label" for="${prefix}-hour">${label}</label>
+      <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: var(--space-sm);">
+        <select class="form-input" id="${prefix}-hour" aria-label="${label} hour">${hours}</select>
+        <select class="form-input" id="${prefix}-minute" aria-label="${label} minute">${minutes}</select>
+        <select class="form-input" id="${prefix}-ampm" aria-label="${label} AM or PM">
+          <option value="AM" ${amSelected}>AM</option>
+          <option value="PM" ${pmSelected}>PM</option>
+        </select>
+      </div>
+    </div>
+  `;
+}
+
+export function read12HourTime(prefix) {
+  const hour12 = parseInt(document.getElementById(`${prefix}-hour`)?.value || '12', 10);
+  const minute = parseInt(document.getElementById(`${prefix}-minute`)?.value || '0', 10);
+  const ampm = document.getElementById(`${prefix}-ampm`)?.value || 'AM';
+  let hours24 = hour12 % 12;
+  if (ampm === 'PM') hours24 += 12;
+  return { hours: hours24, minutes: minute };
+}
+
+export function getMinSoloNights(rules = {}) {
+  if (rules.minSoloNights !== undefined) return rules.minSoloNights;
+  return rules.maxSoloNights;
 }
 
 export function renderAvatarPickerHtml(selectedUrl, containerId) {
