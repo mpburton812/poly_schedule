@@ -43,18 +43,16 @@ function addLog(message, type = 'info') {
   state.logs.push({ time, message, type });
   if (state.logs.length > 20) state.logs.shift();
   
-  // Dynamic update if currently viewing logistics
-  if (state.currentView === 'logistics') {
-    const consoleBody = document.getElementById('console-logs-body');
-    if (consoleBody) {
-      const p = document.createElement('p');
-      p.className = 'console-line';
-      let color = type === 'error' ? 'var(--error)' : type === 'warning' ? 'var(--tertiary)' : 'inherit';
-      p.innerHTML = `<span class="console-time">[${time}]</span> <span style="color: ${color};">${message}</span>`;
-      consoleBody.appendChild(p);
-      consoleBody.scrollTop = consoleBody.scrollHeight;
-    }
-  }
+  // Dynamic update if currently viewing logistics or if modal log console is open
+  const consoleBodies = document.querySelectorAll('#console-logs-body');
+  consoleBodies.forEach(consoleBody => {
+    const p = document.createElement('p');
+    p.className = 'console-line';
+    let color = type === 'error' ? 'var(--error)' : type === 'warning' ? 'var(--tertiary)' : 'inherit';
+    p.innerHTML = `<span class="console-time">[${time}]</span> <span style="color: ${color};">${message}</span>`;
+    consoleBody.appendChild(p);
+    consoleBody.scrollTop = consoleBody.scrollHeight;
+  });
 }
 
 /**
@@ -209,6 +207,152 @@ function openNotificationsModal() {
     modal.classList.remove('open');
     showToast('Notifications cleared.', 'success');
   });
+}
+
+/**
+ * Open the user profile modal with settings, system administration logs, log out, and delete account options
+ */
+function openUserProfileModal() {
+  const modal = document.getElementById('app-modal');
+  const box = document.getElementById('app-modal-content');
+  if (!modal || !box) return;
+
+  const isOffline = state.isOffline;
+  const clientId = localStorage.getItem('polyschedule_client_id') || '';
+  const apiKey = localStorage.getItem('polyschedule_api_key') || '';
+  const calendarId = localStorage.getItem('polyschedule_calendar_id') || 'primary';
+
+  // Render logs
+  const logsHtml = state.logs.map(log => {
+    let color = log.type === 'error' ? 'var(--error)' : log.type === 'warning' ? 'var(--tertiary)' : 'inherit';
+    return `<p class="console-line"><span class="console-time">[${log.time}]</span> <span style="color: ${color};">${log.message}</span></p>`;
+  }).join('');
+
+  box.innerHTML = `
+    <div style="display: flex; justify-content: space-between; align-items: start; margin-bottom: var(--space-md); border-bottom: 1px solid var(--outline-variant); padding-bottom: var(--space-sm);">
+      <div style="display: flex; gap: var(--space-md); align-items: center;">
+        <div class="profile-avatar" style="width: 48px; height: 48px; border: 2px solid var(--primary);">
+          <img src="${state.currentUser?.picture || 'https://lh3.googleusercontent.com/a/default-user'}" alt="Profile Image" style="width: 100%; height: 100%; object-fit: cover;"/>
+        </div>
+        <div>
+          <h3 class="font-title-lg" style="font-weight: 700; line-height: 1.2;">${state.currentUser?.name || 'Alex Rivera'}</h3>
+          <span class="font-body-md" style="color: var(--on-surface-variant); font-size: 0.8rem;">${state.currentUser?.email || 'alex@example.com'}</span>
+        </div>
+      </div>
+      <button class="btn-icon-only" id="modal-close-btn" style="margin-top: -6px;">
+        <span class="material-symbols-outlined">close</span>
+      </button>
+    </div>
+
+    <div style="max-height: 55vh; overflow-y: auto; display: flex; flex-direction: column; gap: var(--space-lg); padding-right: 4px;">
+      <!-- Account Actions -->
+      <div style="display: flex; gap: var(--space-sm);">
+        <button class="btn btn-outline" id="modal-btn-logout" style="flex: 1; padding: 8px 16px; font-size: 0.85rem;">
+          <span class="material-symbols-outlined" style="font-size: 18px;">logout</span> Log Out
+        </button>
+        <button class="btn btn-error" id="modal-btn-delete-account" style="flex: 1; padding: 8px 16px; font-size: 0.85rem; border-color: var(--error); color: var(--error);">
+          <span class="material-symbols-outlined" style="font-size: 18px;">delete_forever</span> Delete Account
+        </button>
+      </div>
+
+      <!-- Settings & Integrations -->
+      <div style="display: flex; flex-direction: column; gap: var(--space-md);">
+        <h4 class="font-title-lg" style="font-weight: 700; font-size: 1.1rem; border-bottom: 1px solid rgba(138,113,112,0.1); padding-bottom: var(--space-xs);">Connection Settings</h4>
+        
+        <div style="display: flex; flex-direction: column; gap: var(--space-sm);">
+          <label style="display: flex; align-items: center; gap: var(--space-md); cursor: pointer; padding: var(--space-xs); background-color: ${isOffline ? 'var(--surface-container-high)' : 'transparent'}; border-radius: var(--radius-default);">
+            <input type="radio" name="mode-select" value="offline" ${isOffline ? 'checked' : ''} style="accent-color: var(--primary);"/>
+            <div>
+              <strong style="display: block; font-size: 0.9rem;">Offline Mode</strong>
+              <span class="font-body-md" style="color: var(--on-surface-variant); font-size: 0.75rem;">Persists data locally in browser storage.</span>
+            </div>
+          </label>
+          <label style="display: flex; align-items: center; gap: var(--space-md); cursor: pointer; padding: var(--space-xs); background-color: ${!isOffline ? 'var(--surface-container-high)' : 'transparent'}; border-radius: var(--radius-default);">
+            <input type="radio" name="mode-select" value="sync" ${!isOffline ? 'checked' : ''} style="accent-color: var(--primary);"/>
+            <div>
+              <strong style="display: block; font-size: 0.9rem;">Google Calendar API Sync Mode</strong>
+              <span class="font-body-md" style="color: var(--on-surface-variant); font-size: 0.75rem;">Syncs with Google Calendar.</span>
+            </div>
+          </label>
+        </div>
+
+        <div id="api-keys-section" style="display: ${isOffline ? 'none' : 'flex'}; flex-direction: column; gap: var(--space-sm); border: 1px solid var(--outline-variant); padding: var(--space-md); border-radius: var(--radius-md);">
+          <div class="form-group" style="margin-bottom: 0;">
+            <label class="form-label" for="setting-client-id" style="font-size: 0.8rem;">Client ID</label>
+            <input class="form-input" id="setting-client-id" placeholder="xxxxxx.apps.googleusercontent.com" type="text" value="${clientId}" style="padding: 6px 12px; font-size: 0.85rem;"/>
+          </div>
+          <div class="form-group" style="margin-bottom: 0;">
+            <label class="form-label" for="setting-api-key" style="font-size: 0.8rem;">API Key</label>
+            <input class="form-input" id="setting-api-key" placeholder="AIzaSy..." type="password" value="${apiKey}" style="padding: 6px 12px; font-size: 0.85rem;"/>
+          </div>
+          <div class="form-group" style="margin-bottom: 0;">
+            <label class="form-label" for="setting-calendar-id" style="font-size: 0.8rem;">Calendar ID</label>
+            <input class="form-input" id="setting-calendar-id" placeholder="primary" type="text" value="${calendarId}" style="padding: 6px 12px; font-size: 0.85rem;"/>
+          </div>
+          <button class="btn btn-filled" id="btn-save-credentials" style="align-self: flex-start; padding: 6px 16px; font-size: 0.8rem; margin-top: var(--space-xs);">Save Credentials</button>
+        </div>
+
+        <button class="btn btn-outline" id="btn-reset-app" style="border-color: var(--error-container); color: var(--error); align-self: flex-start; padding: 6px 16px; font-size: 0.8rem;">Clear Local Data</button>
+      </div>
+
+      <!-- System Administration Log -->
+      <div style="display: flex; flex-direction: column; gap: var(--space-md);">
+        <h4 class="font-title-lg" style="font-weight: 700; font-size: 1.1rem; border-bottom: 1px solid rgba(138,113,112,0.1); padding-bottom: var(--space-xs);">System Administration Log</h4>
+        
+        <div class="console-container">
+          <div class="console-header">
+            <span class="font-label-sm">Live System Logs</span>
+            <div style="display: flex; align-items: center; gap: 6px;">
+              <span style="width: 8px; height: 8px; border-radius: var(--radius-full); background-color: #4ade80; display: inline-block; animation: pulse-animation 1s infinite;"></span>
+              <span class="font-label-sm" style="color: #4ade80;">Stable</span>
+            </div>
+          </div>
+          <div class="console-body" id="console-logs-body" style="max-height: 120px; overflow-y: auto;">
+            ${logsHtml}
+          </div>
+          <div class="console-action-row">
+            <button class="btn-outline" id="btn-run-tests" style="background: transparent; border: none; font-family: var(--font-mono); font-size: 0.75rem; color: var(--primary-fixed-dim); cursor: pointer; display: flex; align-items: center; gap: 4px;">
+              <span class="material-symbols-outlined" style="font-size: 16px;">sync</span> Run System Test
+            </button>
+            <button class="btn-outline" id="btn-export-logs" style="background: transparent; border: none; font-family: var(--font-mono); font-size: 0.75rem; color: rgba(255,255,255,0.6); cursor: pointer; display: flex; align-items: center; gap: 4px;">
+              <span class="material-symbols-outlined" style="font-size: 16px;">download</span> Export Logs
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  `;
+
+  modal.classList.add('open');
+
+  // Bind close btn
+  document.getElementById('modal-close-btn').addEventListener('click', () => {
+    modal.classList.remove('open');
+  });
+
+  // Bind Logout
+  document.getElementById('modal-btn-logout').addEventListener('click', () => {
+    AuthManager.logout();
+    modal.classList.remove('open');
+    showToast('Logged out successfully.', 'success');
+  });
+
+  // Bind Delete Account
+  document.getElementById('modal-btn-delete-account').addEventListener('click', () => {
+    if (confirm('Are you sure you want to permanently delete your account and clear all local data? This action cannot be undone.')) {
+      AuthManager.clearCredentials();
+      localStorage.clear();
+      modal.classList.remove('open');
+      showToast('Account deleted. Reloading...', 'warning');
+      setTimeout(() => window.location.reload(), 1500);
+    }
+  });
+
+  // Bind Settings Events
+  bindSettingsEvents(box);
+
+  // Bind Logistics Events
+  bindLogisticsEvents(box);
 }
 
 /**
@@ -630,9 +774,9 @@ function runRulesChecks() {
   }
 }
 
-function bindLogisticsEvents() {
+function bindLogisticsEvents(container = document) {
   // Live simulated log updates
-  const logBtn = document.getElementById('btn-run-tests');
+  const logBtn = container.querySelector('#btn-run-tests');
   if (logBtn) {
     logBtn.addEventListener('click', () => {
       addLog('Auth: Running system integration audit...', 'info');
@@ -644,7 +788,7 @@ function bindLogisticsEvents() {
     });
   }
   
-  const exportBtn = document.getElementById('btn-export-logs');
+  const exportBtn = container.querySelector('#btn-export-logs');
   if (exportBtn) {
     exportBtn.addEventListener('click', () => {
       const blob = new Blob([JSON.stringify(state.logs, null, 2)], { type: 'application/json' });
@@ -658,13 +802,13 @@ function bindLogisticsEvents() {
   }
 }
 
-function bindSettingsEvents() {
+function bindSettingsEvents(container = document) {
   // Connection Mode Switcher
-  const radios = document.querySelectorAll('input[name="mode-select"]');
+  const radios = container.querySelectorAll('input[name="mode-select"]');
   radios.forEach(radio => {
     radio.addEventListener('change', (e) => {
       const selected = e.target.value;
-      const apiSection = document.getElementById('api-keys-section');
+      const apiSection = container.querySelector('#api-keys-section');
       
       if (selected === 'sync') {
         if (apiSection) apiSection.style.display = 'flex';
@@ -680,12 +824,12 @@ function bindSettingsEvents() {
   });
 
   // Save Credentials Click
-  const btnSave = document.getElementById('btn-save-credentials');
+  const btnSave = container.querySelector('#btn-save-credentials');
   if (btnSave) {
     btnSave.addEventListener('click', () => {
-      const cid = document.getElementById('setting-client-id').value.trim();
-      const akey = document.getElementById('setting-api-key').value.trim();
-      const calid = document.getElementById('setting-calendar-id').value.trim();
+      const cid = container.querySelector('#setting-client-id').value.trim();
+      const akey = container.querySelector('#setting-api-key').value.trim();
+      const calid = container.querySelector('#setting-calendar-id').value.trim();
 
       if (!cid || !akey) {
         showToast('OAuth Client ID and API Key are required for Sync.', 'warning');
@@ -707,7 +851,7 @@ function bindSettingsEvents() {
   }
 
   // Reset App Data
-  const btnReset = document.getElementById('btn-reset-app');
+  const btnReset = container.querySelector('#btn-reset-app');
   if (btnReset) {
     btnReset.addEventListener('click', () => {
       if (confirm('Are you sure you want to delete all local storage cache, custom settings, and credentials?')) {
@@ -907,6 +1051,14 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // 4c. Load build info for the header banner
   initBuildBanner();
+
+  // 4d. Bind user avatar click to open user profile modal
+  const avatarContainer = document.getElementById('avatar-container');
+  if (avatarContainer) {
+    avatarContainer.addEventListener('click', () => {
+      openUserProfileModal();
+    });
+  }
 
   // 5. Setup live console scroll loop for visual bento aesthetics in Logistics screen
   setInterval(() => {
