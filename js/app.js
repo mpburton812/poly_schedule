@@ -6,7 +6,7 @@
 import { AuthManager } from './auth.js';
 import { CalendarSync } from './calendar.js';
 import { RulesEngine } from './rules.js';
-import { Views } from './views.js';
+import { Views, DEFAULT_AVATARS } from './views.js';
 
 // Global Application State
 const state = {
@@ -292,13 +292,41 @@ function openUserProfileModal() {
         </button>
       </div>
 
-      <!-- Family Settings -->
+      <!-- Profile Settings -->
       <div style="display: flex; flex-direction: column; gap: var(--space-md);">
-        <h4 class="font-title-lg" style="font-weight: 700; font-size: 1.1rem; border-bottom: 1px solid rgba(138,113,112,0.1); padding-bottom: var(--space-xs);">Family Settings</h4>
+        <h4 class="font-title-lg" style="font-weight: 700; font-size: 1.1rem; border-bottom: 1px solid rgba(138,113,112,0.1); padding-bottom: var(--space-xs);">Edit Profile</h4>
+        
         <div class="form-group" style="margin-bottom: 0;">
-          <label class="form-label" for="setting-poly-family-name" style="font-size: 0.8rem;">Poly Family Name</label>
-          <input class="form-input" id="setting-poly-family-name" placeholder="The Poly Circle" type="text" value="${localStorage.getItem('polyschedule_poly_family_name') || 'The Poly Circle'}" style="padding: 6px 12px; font-size: 0.85rem;"/>
+          <label class="form-label" for="setting-display-name" style="font-size: 0.8rem;">Display Name</label>
+          <input class="form-input" id="setting-display-name" type="text" value="${state.currentUser?.name || ''}" style="padding: 6px 12px; font-size: 0.85rem;"/>
         </div>
+
+        <div class="grid grid-cols-2 gap-md" style="display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-md);">
+          <div class="form-group" style="margin-bottom: 0;">
+            <label class="form-label" for="setting-username" style="font-size: 0.8rem;">Username</label>
+            <input class="form-input" id="setting-username" type="text" value="${state.currentUser?.username || ''}" style="padding: 6px 12px; font-size: 0.85rem;"/>
+          </div>
+          <div class="form-group" style="margin-bottom: 0;">
+            <label class="form-label" for="setting-password" style="font-size: 0.8rem;">Password</label>
+            <input class="form-input" id="setting-password" type="password" value="${state.currentUser?.password || ''}" style="padding: 6px 12px; font-size: 0.85rem;"/>
+          </div>
+        </div>
+
+        <div class="form-group" style="margin-bottom: 0;">
+          <label class="form-label" style="font-size: 0.8rem;">Select Avatar</label>
+          <div style="display: flex; gap: var(--space-sm); flex-wrap: wrap; margin-top: var(--space-xs);" id="setting-avatar-options">
+            ${DEFAULT_AVATARS.map((av, idx) => {
+              const isSelected = (state.currentUser?.picture === av || (!state.currentUser?.picture && idx === 0));
+              return `
+                <div class="avatar-option ${isSelected ? 'selected' : ''}" data-url="${av}" style="width: 44px; height: 44px; border-radius: var(--radius-full); overflow: hidden; border: 3px solid ${isSelected ? 'var(--primary)' : 'transparent'}; cursor: pointer; transition: all 0.2s;">
+                  <img src="${av}" alt="Avatar ${idx + 1}" style="width: 100%; height: 100%; object-fit: cover;"/>
+                </div>
+              `;
+            }).join('')}
+          </div>
+        </div>
+
+        <button class="btn btn-filled" id="btn-save-profile" style="align-self: flex-start; padding: 6px 16px; font-size: 0.8rem; margin-top: var(--space-xs);">Save Profile</button>
       </div>
 
       <!-- Settings & Integrations -->
@@ -375,6 +403,69 @@ function openUserProfileModal() {
     }
   });
 
+  // Bind Profile Save Click
+  let selectedAvatar = state.currentUser?.picture || DEFAULT_AVATARS[0];
+  const avatarOpts = box.querySelectorAll('#setting-avatar-options .avatar-option');
+  avatarOpts.forEach(opt => {
+    opt.addEventListener('click', () => {
+      avatarOpts.forEach(o => {
+        o.style.borderColor = 'transparent';
+        o.classList.remove('selected');
+      });
+      opt.style.borderColor = 'var(--primary)';
+      opt.classList.add('selected');
+      selectedAvatar = opt.dataset.url;
+    });
+  });
+
+  const btnSaveProfile = box.querySelector('#btn-save-profile');
+  if (btnSaveProfile) {
+    btnSaveProfile.addEventListener('click', () => {
+      const dispName = box.querySelector('#setting-display-name').value.trim();
+      const userName = box.querySelector('#setting-username').value.trim();
+      const pwd = box.querySelector('#setting-password').value.trim();
+      
+      if (!dispName || !userName) {
+        showToast('Display Name and User Name are required.', 'warning');
+        return;
+      }
+
+      // Update state.currentUser
+      state.currentUser.name = dispName;
+      state.currentUser.username = userName;
+      state.currentUser.password = pwd;
+      state.currentUser.picture = selectedAvatar;
+
+      // Persist in localStorage
+      localStorage.setItem('polyschedule_user_profile', JSON.stringify(state.currentUser));
+
+      // Update avatar image in top app bar
+      const avatarImg = document.getElementById('user-avatar-img');
+      if (avatarImg) avatarImg.src = selectedAvatar;
+
+      // Update modal display elements dynamically
+      const modalHeading = box.querySelector('h3.font-title-lg');
+      if (modalHeading) modalHeading.textContent = dispName;
+      const modalAvatarImg = box.querySelector('.profile-avatar img');
+      if (modalAvatarImg) modalAvatarImg.src = selectedAvatar;
+
+      // Update name/avatar in config partners if match
+      const partner = state.config?.partners?.find(p => p.id === state.currentUser.id || p.name === state.currentUser.name || p.username === state.currentUser.username);
+      if (partner) {
+        partner.name = dispName;
+        partner.avatar = selectedAvatar;
+        partner.username = userName;
+        partner.password = pwd;
+        
+        // Save config
+        localStorage.setItem('polyschedule_local_config', JSON.stringify(state.config));
+      }
+
+      showToast('Profile updated successfully.', 'success');
+      renderView();
+    });
+  }
+
   // Bind Settings Events
   bindSettingsEvents(box);
 
@@ -392,6 +483,12 @@ function router() {
   // Map sub-routes if any
   if (view.startsWith('create')) {
     view = 'create';
+  }
+
+  // Auth check for admin route
+  if (view === 'admin' && !isAdmin()) {
+    window.location.hash = '#schedule';
+    return;
   }
   
   state.currentView = view;
@@ -423,7 +520,7 @@ function renderView() {
 
   // Manage visibility of transactional elements
   const fab = document.getElementById('fab-quick-add');
-  if (state.currentView === 'create' || state.currentView === 'settings') {
+  if (state.currentView === 'create' || state.currentView === 'settings' || state.currentView === 'add-partner' || state.currentView === 'add-home') {
     if (fab) fab.style.display = 'none';
   } else {
     if (fab) fab.style.display = 'flex';
@@ -437,6 +534,13 @@ function renderView() {
     container.innerHTML = Views.proposals(state, activeProposalsTab);
     bindProposalsEvents();
   } else if (state.currentView === 'create') {
+    // If they try to load sleeping but have no sleeping partners, force event
+    const currentUserProfile = state.config?.partners?.find(p => p.name === state.currentUser?.name);
+    const hasSleepingPartners = currentUserProfile && currentUserProfile.rules && currentUserProfile.rules.partnerLimits && Object.keys(currentUserProfile.rules.partnerLimits).length > 0;
+    
+    if (currentCreateType === 'sleeping' && !hasSleepingPartners) {
+      currentCreateType = 'event';
+    }
     container.innerHTML = Views.createProposal(state, currentCreateType);
     bindCreateEvents();
   } else if (state.currentView === 'logistics') {
@@ -445,6 +549,19 @@ function renderView() {
   } else if (state.currentView === 'settings') {
     container.innerHTML = Views.settings(state);
     bindSettingsEvents();
+  } else if (state.currentView === 'admin') {
+    if (!isAdmin()) {
+      window.location.hash = '#schedule';
+      return;
+    }
+    container.innerHTML = Views.admin(state);
+    bindAdminEvents();
+  } else if (state.currentView === 'add-partner') {
+    container.innerHTML = Views.addPartner(state);
+    bindAddPartnerEvents();
+  } else if (state.currentView === 'add-home') {
+    container.innerHTML = Views.addHome(state);
+    bindAddHomeEvents();
   }
 }
 
@@ -649,14 +766,18 @@ function bindCreateEvents() {
       const homeObj = state.config.residences.find(h => h.id === e.target.value);
       newProposalState.homeName = homeObj ? homeObj.name : '';
       
-      // Seed bedroom select based on home
-      if (e.target.value === 'h2') {
-        roomSelect.innerHTML = `<option value="r2">Loft</option>`;
-      } else {
-        roomSelect.innerHTML = `
-          <option value="r1">North Bedroom</option>
-          <option value="r3">Guest Suite</option>
-        `;
+      // Seed bedroom select dynamically based on home's bedroomDetails
+      if (homeObj) {
+        if (homeObj.bedroomDetails && homeObj.bedroomDetails.length > 0) {
+          roomSelect.innerHTML = homeObj.bedroomDetails.map(r => `<option value="${r.id}">${r.name}</option>`).join('');
+        } else {
+          // Generate generic options based on bedrooms count
+          let genericOpts = '';
+          for (let i = 0; i < homeObj.bedrooms; i++) {
+            genericOpts += `<option value="r${i + 1}">Bedroom ${i + 1}</option>`;
+          }
+          roomSelect.innerHTML = genericOpts;
+        }
       }
       newProposalState.roomId = roomSelect.value;
       newProposalState.roomName = roomSelect.options[roomSelect.selectedIndex].text;
@@ -865,6 +986,20 @@ function bindLogisticsEvents(container = document) {
       showToast('Logs exported successfully!', 'success');
     });
   }
+
+  const addPartnerBtn = container.querySelector('#btn-add-partner');
+  if (addPartnerBtn) {
+    addPartnerBtn.addEventListener('click', () => {
+      window.location.hash = '#add-partner';
+    });
+  }
+
+  const addHomeBtn = container.querySelector('#btn-add-home');
+  if (addHomeBtn) {
+    addHomeBtn.addEventListener('click', () => {
+      window.location.hash = '#add-home';
+    });
+  }
 }
 
 function bindSettingsEvents(container = document) {
@@ -927,14 +1062,6 @@ function bindSettingsEvents(container = document) {
     });
   }
 
-  // Poly Family Name Input
-  const familyInput = container.querySelector('#setting-poly-family-name');
-  if (familyInput) {
-    familyInput.addEventListener('input', (e) => {
-      localStorage.setItem('polyschedule_poly_family_name', e.target.value.trim() || 'The Poly Circle');
-    });
-  }
-
   // Force Update Software
   const btnForceUpdate = container.querySelector('#btn-force-update');
   if (btnForceUpdate) {
@@ -959,6 +1086,202 @@ function bindSettingsEvents(container = document) {
       }, 1000);
     });
   }
+}
+
+function bindAdminEvents() {
+  const familyInput = document.getElementById('admin-poly-family-name');
+  if (familyInput) {
+    familyInput.addEventListener('input', (e) => {
+      localStorage.setItem('polyschedule_poly_family_name', e.target.value.trim() || 'The Poly Circle');
+    });
+  }
+}
+
+function bindAddPartnerEvents() {
+  const btnBack = document.getElementById('btn-add-partner-back');
+  if (btnBack) {
+    btnBack.addEventListener('click', () => {
+      window.location.hash = '#logistics';
+    });
+  }
+
+  let selectedAvatar = DEFAULT_AVATARS[0];
+  const avatarOpts = document.querySelectorAll('#new-partner-avatar-options .avatar-option');
+  avatarOpts.forEach(opt => {
+    opt.addEventListener('click', () => {
+      avatarOpts.forEach(o => {
+        o.style.borderColor = 'transparent';
+        o.classList.remove('selected');
+      });
+      opt.style.borderColor = 'var(--primary)';
+      opt.classList.add('selected');
+      selectedAvatar = opt.dataset.url;
+    });
+  });
+
+  const checkboxes = document.querySelectorAll('.sleeping-partner-checkbox');
+  const soloNightsGroup = document.getElementById('solo-nights-group');
+  
+  checkboxes.forEach(cb => {
+    cb.addEventListener('change', () => {
+      const details = cb.closest('div').querySelector('.sleeping-partner-details');
+      if (cb.checked) {
+        details.style.display = 'flex';
+      } else {
+        details.style.display = 'none';
+      }
+      
+      const anyChecked = Array.from(checkboxes).some(c => c.checked);
+      if (anyChecked) {
+        soloNightsGroup.style.display = 'block';
+      } else {
+        soloNightsGroup.style.display = 'none';
+      }
+    });
+  });
+
+  const btnSubmit = document.getElementById('btn-submit-partner');
+  if (btnSubmit) {
+    btnSubmit.addEventListener('click', () => {
+      const name = document.getElementById('new-partner-name').value.trim();
+      const username = document.getElementById('new-partner-username').value.trim();
+      const password = document.getElementById('new-partner-password').value.trim();
+      const role = document.getElementById('new-partner-role').value;
+      const defaultHome = document.getElementById('new-partner-home').value;
+
+      if (!name || !username || !password) {
+        showToast('Please fill in Display Name, Username, and Default Password.', 'warning');
+        return;
+      }
+
+      const exists = state.config.partners.some(p => p.username === username || p.name === name);
+      if (exists) {
+        showToast('A partner with this Display Name or Username already exists.', 'warning');
+        return;
+      }
+
+      const rules = {};
+      const anyChecked = Array.from(checkboxes).some(c => c.checked);
+      if (anyChecked) {
+        rules.maxSoloNights = parseInt(document.getElementById('new-partner-solo-nights').value) || 2;
+        rules.partnerLimits = {};
+        
+        checkboxes.forEach(cb => {
+          if (cb.checked) {
+            const partnerName = cb.dataset.partnerName;
+            const minNights = parseInt(cb.closest('div').querySelector('.partner-min-nights').value) || 0;
+            const maxNights = parseInt(cb.closest('div').querySelector('.partner-max-nights').value) || 7;
+            
+            rules.partnerLimits[partnerName] = { min: minNights, max: maxNights };
+            
+            const otherPartner = state.config.partners.find(p => p.name === partnerName);
+            if (otherPartner) {
+              if (!otherPartner.rules) otherPartner.rules = {};
+              if (!otherPartner.rules.partnerLimits) otherPartner.rules.partnerLimits = {};
+              otherPartner.rules.partnerLimits[name] = { min: minNights, max: maxNights };
+            }
+          }
+        });
+      }
+
+      const newId = 'p' + (state.config.partners.length + 1);
+      const newPartner = {
+        id: newId,
+        name,
+        username,
+        password,
+        role,
+        defaultHome,
+        avatar: selectedAvatar,
+        rules
+      };
+
+      state.config.partners.push(newPartner);
+      localStorage.setItem('polyschedule_local_config', JSON.stringify(state.config));
+      showToast(`Partner "${name}" added successfully!`, 'success');
+      window.location.hash = '#logistics';
+    });
+  }
+}
+
+function bindAddHomeEvents() {
+  const btnBack = document.getElementById('btn-add-home-back');
+  if (btnBack) {
+    btnBack.addEventListener('click', () => {
+      window.location.hash = '#logistics';
+    });
+  }
+
+  const bedroomsInput = document.getElementById('new-home-bedrooms-count');
+  const bedroomContainer = document.getElementById('bedroom-names-container');
+
+  if (bedroomsInput && bedroomContainer) {
+    bedroomsInput.addEventListener('input', () => {
+      const count = Math.max(1, parseInt(bedroomsInput.value) || 1);
+      let inputsHtml = '<h4 class="font-label-md" style="font-weight: bold;">Bedroom Names (Optional)</h4>';
+      for (let i = 0; i < count; i++) {
+        inputsHtml += `
+          <div class="form-group" style="margin-bottom: var(--space-xs);">
+            <input class="form-input bedroom-name-input" placeholder="Bedroom ${i + 1} Name (e.g. Bedroom ${i + 1})" type="text" data-index="${i}"/>
+          </div>
+        `;
+      }
+      bedroomContainer.innerHTML = inputsHtml;
+    });
+  }
+
+  const btnSubmit = document.getElementById('btn-submit-home');
+  if (btnSubmit) {
+    btnSubmit.addEventListener('click', () => {
+      const name = document.getElementById('new-home-name').value.trim();
+      const address = document.getElementById('new-home-address').value.trim();
+      const bedroomsCount = Math.max(1, parseInt(bedroomsInput.value) || 1);
+
+      if (!name || !address) {
+        showToast('Please fill in Home Name and Address.', 'warning');
+        return;
+      }
+
+      const bedroomInputs = document.querySelectorAll('.bedroom-name-input');
+      const bedroomsList = [];
+      for (let i = 0; i < bedroomsCount; i++) {
+        const input = Array.from(bedroomInputs).find(inp => parseInt(inp.dataset.index) === i);
+        const bedName = (input && input.value.trim()) ? input.value.trim() : `Bedroom ${i + 1}`;
+        bedroomsList.push({ id: `r${i + 1}`, name: bedName });
+      }
+
+      const associatedCheckboxes = document.querySelectorAll('.home-associated-partner');
+      const associatedPeople = [];
+      associatedCheckboxes.forEach(cb => {
+        if (cb.checked) {
+          associatedPeople.push(cb.dataset.partnerName);
+        }
+      });
+
+      const newHomeId = 'h' + (state.config.residences.length + 1);
+      const newHome = {
+        id: newHomeId,
+        name,
+        address,
+        bedrooms: bedroomsCount,
+        bedroomDetails: bedroomsList,
+        associatedPeople: associatedPeople
+      };
+
+      state.config.residences.push(newHome);
+      localStorage.setItem('polyschedule_local_config', JSON.stringify(state.config));
+      showToast(`Home "${name}" added successfully!`, 'success');
+      window.location.hash = '#logistics';
+    });
+  }
+}
+
+function updateAdminNavVisibility() {
+  const showAdmin = isAdmin();
+  const sideNavAdmin = document.getElementById('side-nav-admin');
+  const mobileNavAdmin = document.getElementById('mobile-nav-admin');
+  if (sideNavAdmin) sideNavAdmin.style.display = showAdmin ? 'flex' : 'none';
+  if (mobileNavAdmin) mobileNavAdmin.style.display = showAdmin ? 'inline-flex' : 'none';
 }
 
 // --- Shared Dialogs / Modals ---
@@ -1105,7 +1428,10 @@ document.addEventListener('DOMContentLoaded', () => {
       }
       if (avatarContainer) avatarContainer.style.display = 'block';
       state.currentUser = {
+        id: 'p1',
         name: 'Alex Rivera',
+        username: 'alex',
+        password: 'password123',
         email: 'alex@example.com',
         picture: 'https://lh3.googleusercontent.com/aida-public/AB6AXuDjdXIAb6DttZ_Ivp6ocVuKGc_Cor-qtG3fqxi_3id35pEHmgyk008IoZOgCHsrXXysAKWNYlZFuovzj6OKFhoWqHjHVChafb9BWYQUKgMOWrT51kd1Tdr82IASulIokvB5JGV92NEWkmoFCt2MkVI_dzGJjUZabAGyiL8VI29nblqzqFUfEGWtrBPaXGI5Iz7QpmL4coomXYBEqrLuzJk18OWKIc0wuJe6pzRMziouxu7oZAVZjCFPxSRuTnPx874S9TseYaOXwWA'
       };
@@ -1116,6 +1442,7 @@ document.addEventListener('DOMContentLoaded', () => {
       localStorage.setItem('polyschedule_mode', 'offline');
       bootstrapData('offline');
     }
+    updateAdminNavVisibility();
   });
 
   // 3. Bind Google Login Button Click

@@ -10,13 +10,33 @@ const LOCAL_CONFIG_KEY = 'polyschedule_local_config';
 // Default Fallback Mock Data
 const DEFAULT_CONFIG = {
   residences: [
-    { id: 'h1', name: 'The Sanctuary', address: '420 Willow Ave, Portland OR', bedrooms: 3 },
-    { id: 'h2', name: 'Urban Loft', address: '1580 N Pearl St, Ste 402', bedrooms: 1 }
+    { 
+      id: 'h1', 
+      name: 'The Sanctuary', 
+      address: '420 Willow Ave, Portland OR', 
+      bedrooms: 3,
+      bedroomDetails: [
+        { id: 'r1', name: 'North Bedroom' },
+        { id: 'r2', name: 'Loft' },
+        { id: 'r3', name: 'Guest Suite' }
+      ]
+    },
+    { 
+      id: 'h2', 
+      name: 'Urban Loft', 
+      address: '1580 N Pearl St, Ste 402', 
+      bedrooms: 1,
+      bedroomDetails: [
+        { id: 'r2', name: 'Loft' }
+      ]
+    }
   ],
   partners: [
     {
       id: 'p1',
       name: 'Alex Rivera',
+      username: 'alex',
+      password: 'password123',
       role: 'Admin',
       defaultHome: 'h1',
       avatar: 'https://lh3.googleusercontent.com/aida-public/AB6AXuDjdXIAb6DttZ_Ivp6ocVuKGc_Cor-qtG3fqxi_3id35pEHmgyk008IoZOgCHsrXXysAKWNYlZFuovzj6OKFhoWqHjHVChafb9BWYQUKgMOWrT51kd1Tdr82IASulIokvB5JGV92NEWkmoFCt2MkVI_dzGJjUZabAGyiL8VI29nblqzqFUfEGWtrBPaXGI5Iz7QpmL4coomXYBEqrLuzJk18OWKIc0wuJe6pzRMziouxu7oZAVZjCFPxSRuTnPx874S9TseYaOXwWA',
@@ -25,6 +45,8 @@ const DEFAULT_CONFIG = {
     {
       id: 'p2',
       name: 'Sam Davis',
+      username: 'sam',
+      password: 'password123',
       role: 'User',
       defaultHome: 'h1',
       avatar: 'https://lh3.googleusercontent.com/aida-public/AB6AXuBkiDXcixh9wTyqQ3mmTu32lJeACKwp10ETuYGyHNNM9iiXkeQCKZaUKHex9Lpzd_fXcn73BGgQd5ucgB9njInlBc6hfkUlsx03rdKp04jBzSmhltD32IP9XqSq2KG3_3rQ4zg9y_V67OWA8qV35uzz3wE5q_eIXLqKv8e1YMIEdlzc3fy7VGbbrhx-59Z_t6VTkMgiwRiAerfEGDs5v0Q1tDcEzLm9Fa0y8r4aQOHcmoY4KfivutCmK2ZtPIZJC4AWKSC1VdbZtU8',
@@ -33,6 +55,8 @@ const DEFAULT_CONFIG = {
     {
       id: 'p3',
       name: 'Jordan Smith',
+      username: 'jordan',
+      password: 'password123',
       role: 'User',
       defaultHome: 'h2',
       avatar: 'https://lh3.googleusercontent.com/aida-public/AB6AXuAsuXXVIcZMSQ62tOZzFQEkE5ntyY1weFLJF0wQCcgxYTMjElV1EJXmqIIjOuprQgQKLmSo_-xB4Tci-zC2zg9MT-Jb7Fmeflk6Bw0wVll9QVmutqIBX9UDU76I08ZYRvmEdnN-pCSfW-Gd44ZvHPM5qCqIWw8PxEFsMGkCZ0hWMeI5XK_EiSI_BsQyHQ0MvsjM42D8nSTDAmL2T5OOTkG2SVSrBtzTsAiJxFnOjYR4yQ9NA17x9iQuir5F8dYT7-iCzK_PG1qyNTY',
@@ -41,6 +65,8 @@ const DEFAULT_CONFIG = {
     {
       id: 'p4',
       name: 'Casey Chen',
+      username: 'casey',
+      password: 'password123',
       role: 'Guest',
       defaultHome: 'h2',
       avatar: 'https://lh3.googleusercontent.com/aida-public/AB6AXuANBeZwLI4tsSql8d73NMsZfXzGtVbeWj5tLl9hR48DeEIHHSCeXAHWVqLkG9SEbO2_fhBq3bxSKUhjod3yItdQkx2BDWgpb9Zzl_Bklaz_azg-r0i9dbzVu2sVwDMHeOy6FYMgpX7d7799HcAyAXPRts4rmyc2hic8KQSmmMrXK8SIhqFJZ2KkJuUq2jJIeu8irpMQWbROQrVtrFVTm-HLi5jcBDtL0VLAA9yWsO4QAYBhswSXZyh7xsuzFesu38a0gN0N0aBIUcI',

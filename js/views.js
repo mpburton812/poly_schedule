@@ -1,9 +1,13 @@
-/**
- * PolySchedule HTML Views Renderer
- * Generates dynamic template contents for all SPA screens.
- */
-
 import { RulesEngine } from './rules.js';
+
+export const DEFAULT_AVATARS = [
+  'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80',
+  'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=150&auto=format&fit=crop&q=80',
+  'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=150&auto=format&fit=crop&q=80',
+  'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=150&auto=format&fit=crop&q=80',
+  'https://images.unsplash.com/photo-1438761681033-6461ffad8d80?w=150&auto=format&fit=crop&q=80',
+  'https://images.unsplash.com/photo-1522075469751-3a6694fb2f61?w=150&auto=format&fit=crop&q=80'
+];
 
 export const Views = {
   /**
@@ -449,6 +453,10 @@ export const Views = {
    * Renders the Create Proposal View
    */
   createProposal(state, type = 'event') {
+    // Check if current user has sleeping partner connections
+    const currentUserProfile = state.config?.partners?.find(p => p.name === state.currentUser?.name);
+    const hasSleepingPartners = currentUserProfile && currentUserProfile.rules && currentUserProfile.rules.partnerLimits && Object.keys(currentUserProfile.rules.partnerLimits).length > 0;
+
     // Populate partner options (checkboxes or select)
     let circleHtml = '';
     state.config.partners.forEach(partner => {
@@ -471,6 +479,18 @@ export const Views = {
         residenceOptions += `<option value="${home.id}">${home.name}</option>`;
       });
 
+      const defaultHome = state.config.residences[0];
+      let bedroomOptions = '';
+      if (defaultHome) {
+        if (defaultHome.bedroomDetails && defaultHome.bedroomDetails.length > 0) {
+          bedroomOptions = defaultHome.bedroomDetails.map(r => `<option value="${r.id}">${r.name}</option>`).join('');
+        } else {
+          for (let i = 0; i < defaultHome.bedrooms; i++) {
+            bedroomOptions += `<option value="r${i + 1}">Bedroom ${i + 1}</option>`;
+          }
+        }
+      }
+
       locationHtml = `
         <div class="grid grid-cols-1 md:grid-cols-2 gap-md" style="display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-md); margin-bottom: var(--space-lg);">
           <div class="form-group" style="margin-bottom: 0;">
@@ -482,9 +502,7 @@ export const Views = {
           <div class="form-group" style="margin-bottom: 0;">
             <label class="form-label" for="sleep-room-select">Bedroom</label>
             <select class="form-input" id="sleep-room-select" style="border-radius: var(--radius-default); border: 1px solid var(--outline);">
-              <option value="r1">North Bedroom</option>
-              <option value="r2">Loft</option>
-              <option value="r3">Guest Suite</option>
+              ${bedroomOptions}
             </select>
           </div>
         </div>
@@ -515,7 +533,11 @@ export const Views = {
       <!-- Toggle Switch Event/Sleep -->
       <div class="switch-selector">
         <button class="switch-btn ${type === 'event' ? 'active' : ''}" id="btn-toggle-event">Event</button>
-        <button class="switch-btn ${type === 'sleeping' ? 'active' : ''}" id="btn-toggle-sleeping">Sleeping Arrangement</button>
+        ${hasSleepingPartners ? `
+          <button class="switch-btn ${type === 'sleeping' ? 'active' : ''}" id="btn-toggle-sleeping">Sleeping Arrangement</button>
+        ` : `
+          <button class="switch-btn" disabled style="opacity: 0.4; cursor: not-allowed; background-color: var(--surface-container-highest);" title="No sleeping connections configured for your profile.">Sleeping (Disabled)</button>
+        `}
       </div>
 
       <!-- Live Logistics Rules Warning Banner -->
@@ -626,16 +648,45 @@ export const Views = {
 
     let homesHtml = '';
     state.config.residences.forEach(home => {
+      // Bedrooms list
+      let bedroomsStr = '';
+      if (home.bedroomDetails) {
+        bedroomsStr = home.bedroomDetails.map(r => r.name).join(', ');
+      } else {
+        // Fallback bedroom names
+        bedroomsStr = Array.from({ length: home.bedrooms }, (_, i) => `Bedroom ${i + 1}`).join(', ');
+      }
+
+      // Associated people list
+      let peopleStr = '';
+      if (home.associatedPeople && home.associatedPeople.length > 0) {
+        peopleStr = `<div class="font-body-md" style="font-size: 0.8rem; color: var(--on-surface-variant); margin-top: 4px;">
+          <span style="font-weight: bold;">Associated:</span> ${home.associatedPeople.join(', ')}
+        </div>`;
+      } else {
+        // Fallback: check which partners have defaultHome === home.id
+        const associated = state.config.partners.filter(p => p.defaultHome === home.id).map(p => p.name.split(' ')[0]);
+        if (associated.length > 0) {
+          peopleStr = `<div class="font-body-md" style="font-size: 0.8rem; color: var(--on-surface-variant); margin-top: 4px;">
+            <span style="font-weight: bold;">Associated:</span> ${associated.join(', ')}
+          </div>`;
+        }
+      }
+
       homesHtml += `
         <div class="bento-card" style="padding: var(--space-md); background-color: var(--surface-container-high); border: none; cursor: pointer; transition: border 0.2s;">
           <div style="display: flex; justify-content: space-between; align-items: start;">
             <div style="display: flex; gap: var(--space-md);">
               <div style="width: 44px; height: 44px; background-color: var(--primary-fixed); color: var(--on-primary-fixed); border-radius: var(--radius-default); display: flex; align-items: center; justify-content: center;">
-                <span class="material-symbols-outlined">${home.name.includes('Loft') ? 'apartment' : 'bungalow'}</span>
+                <span class="material-symbols-outlined">${home.name.toLowerCase().includes('loft') || home.name.toLowerCase().includes('apartment') ? 'apartment' : 'bungalow'}</span>
               </div>
               <div>
                 <h4 class="font-title-lg" style="font-size: 1.05rem; font-weight: 700;">${home.name}</h4>
                 <p class="font-label-sm" style="color: var(--on-surface-variant);">${home.address}</p>
+                <div class="font-body-md" style="font-size: 0.8rem; color: var(--on-surface-variant); margin-top: 4px;">
+                  <span style="font-weight: bold;">Rooms:</span> ${bedroomsStr}
+                </div>
+                ${peopleStr}
               </div>
             </div>
             <span class="font-label-sm" style="color: var(--secondary); font-weight: bold; display: flex; align-items: center; gap: 4px;">
@@ -741,9 +792,14 @@ export const Views = {
 
         <!-- Homes & Locations -->
         <section class="${showAdmin ? 'bento-span-6' : 'bento-span-12'}" style="display: flex; flex-direction: column; gap: var(--space-md);">
-          <h3 class="font-title-lg" style="display: flex; align-items: center; gap: var(--space-base); font-weight: 700;">
-            <span class="material-symbols-outlined text-primary">home_work</span> Homes & Spaces
-          </h3>
+          <div style="display: flex; justify-content: space-between; align-items: center;">
+            <h3 class="font-title-lg" style="display: flex; align-items: center; gap: var(--space-base); font-weight: 700;">
+              <span class="material-symbols-outlined text-primary">home_work</span> Homes & Spaces
+            </h3>
+            <button class="btn btn-outline" id="btn-add-home" style="padding: var(--space-xs) var(--space-md); font-size: 0.85rem; border-color: var(--primary); color: var(--primary);">
+              <span class="material-symbols-outlined" style="font-size: 16px;">add_home</span> Add Home
+            </button>
+          </div>
           <div style="display: flex; flex-direction: column; gap: var(--space-base);">
             ${homesHtml}
           </div>
@@ -832,6 +888,208 @@ export const Views = {
           <button class="btn btn-error" id="btn-reset-app" style="align-self: flex-start;">Clear Local Data</button>
         </div>
       </section>
+    `;
+  },
+
+  admin(state) {
+    const polyFamilyName = localStorage.getItem('polyschedule_poly_family_name') || 'The Poly Circle';
+    return `
+      <div class="mb-xl" style="margin-bottom: var(--space-xl);">
+        <h2 class="font-headline-lg">System Administration</h2>
+        <p class="font-body-lg" style="color: var(--on-surface-variant); margin-top: 4px;">
+          Configure global system settings, modify collective family naming structures, and manage database operations.
+        </p>
+      </div>
+
+      <section style="max-width: 600px; display: flex; flex-direction: column; gap: var(--space-xl);">
+        <div class="bento-card" style="padding: var(--space-lg); border: 1px solid var(--outline-variant);">
+          <h3 class="font-title-lg" style="font-weight: 700; margin-bottom: var(--space-md);">Family Settings</h3>
+          <div class="form-group" style="margin-bottom: 0;">
+            <label class="form-label" for="admin-poly-family-name">Poly Family Name</label>
+            <input class="form-input" id="admin-poly-family-name" placeholder="The Poly Circle" type="text" value="${polyFamilyName}"/>
+          </div>
+        </div>
+      </section>
+    `;
+  },
+
+  addPartner(state) {
+    // Generate existing partners checkboxes
+    let partnersHtml = '';
+    state.config.partners.forEach(partner => {
+      partnersHtml += `
+        <div style="border: 1px solid var(--outline-variant); padding: var(--space-md); border-radius: var(--radius-md); background-color: var(--surface-container-low); display: flex; flex-direction: column; gap: var(--space-sm);">
+          <label style="display: flex; align-items: center; gap: var(--space-md); font-weight: bold; cursor: pointer;">
+            <input type="checkbox" class="sleeping-partner-checkbox" data-partner-name="${partner.name}" style="accent-color: var(--primary); width: 18px; height: 18px;"/>
+            <span>${partner.name}</span>
+          </label>
+          <div class="sleeping-partner-details" style="display: none; flex-direction: column; gap: var(--space-xs); margin-left: 28px; border-left: 2px solid var(--primary-container); padding-left: var(--space-md);">
+            <div style="display: flex; gap: var(--space-md);">
+              <div class="form-group" style="flex: 1; margin-bottom: 0;">
+                <label class="form-label" style="font-size: 0.75rem;">Min Nights</label>
+                <input class="form-input partner-min-nights" type="number" min="0" max="7" value="1" style="padding: 4px 8px; font-size: 0.8rem;"/>
+              </div>
+              <div class="form-group" style="flex: 1; margin-bottom: 0;">
+                <label class="form-label" style="font-size: 0.75rem;">Max Nights</label>
+                <input class="form-input partner-max-nights" type="number" min="0" max="7" value="3" style="padding: 4px 8px; font-size: 0.8rem;"/>
+              </div>
+            </div>
+          </div>
+        </div>
+      `;
+    });
+
+    const avatarsHtml = DEFAULT_AVATARS.map((av, idx) => `
+      <div class="avatar-option ${idx === 0 ? 'selected' : ''}" data-url="${av}" style="width: 56px; height: 56px; border-radius: var(--radius-full); overflow: hidden; border: 3px solid ${idx === 0 ? 'var(--primary)' : 'transparent'}; cursor: pointer; transition: all 0.2s;">
+        <img src="${av}" alt="Avatar ${idx + 1}" style="width: 100%; height: 100%; object-fit: cover;"/>
+      </div>
+    `).join('');
+
+    return `
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: var(--space-lg);">
+        <div style="display: flex; align-items: center; gap: var(--space-base);">
+          <button class="btn-icon-only" id="btn-add-partner-back" aria-label="Cancel">
+            <span class="material-symbols-outlined">arrow_back</span>
+          </button>
+          <h2 class="font-title-lg">Add New Partner</h2>
+        </div>
+        <button class="btn btn-filled" id="btn-submit-partner">Save Partner</button>
+      </div>
+
+      <div style="display: grid; grid-template-columns: 1fr; md:grid-template-columns: 2fr 1fr; gap: var(--space-xl); max-width: 900px;">
+        <div style="display: flex; flex-direction: column; gap: var(--space-lg);">
+          <!-- Core profile fields -->
+          <div class="bento-card" style="padding: var(--space-lg); display: flex; flex-direction: column; gap: var(--space-md);">
+            <h3 class="font-title-lg" style="font-weight: 700; border-bottom: 1px solid rgba(138,113,112,0.1); padding-bottom: var(--space-xs);">Profile Information</h3>
+            
+            <div class="form-group">
+              <label class="form-label" for="new-partner-name">Display Name</label>
+              <input class="form-input" id="new-partner-name" placeholder="e.g. Robin Williams" type="text"/>
+            </div>
+
+            <div class="grid grid-cols-2 gap-md" style="display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-md);">
+              <div class="form-group" style="margin-bottom: 0;">
+                <label class="form-label" for="new-partner-username">Username</label>
+                <input class="form-input" id="new-partner-username" placeholder="e.g. robin" type="text"/>
+              </div>
+              <div class="form-group" style="margin-bottom: 0;">
+                <label class="form-label" for="new-partner-password">Default Password</label>
+                <input class="form-input" id="new-partner-password" placeholder="e.g. password123" type="password"/>
+              </div>
+            </div>
+
+            <div class="form-group" style="margin-top: var(--space-sm);">
+              <label class="form-label" for="new-partner-role">Role</label>
+              <select class="form-input" id="new-partner-role">
+                <option value="User">User</option>
+                <option value="Guest">Guest</option>
+                <option value="Admin">Admin</option>
+              </select>
+            </div>
+
+            <div class="form-group" style="margin-top: var(--space-sm);">
+              <label class="form-label" for="new-partner-home">Default Home</label>
+              <select class="form-input" id="new-partner-home">
+                ${state.config.residences.map(h => `<option value="${h.id}">${h.name}</option>`).join('')}
+              </select>
+            </div>
+          </div>
+
+          <!-- Avatar Grid -->
+          <div class="bento-card" style="padding: var(--space-lg);">
+            <h3 class="font-title-lg" style="font-weight: 700; border-bottom: 1px solid rgba(138,113,112,0.1); padding-bottom: var(--space-xs); margin-bottom: var(--space-md);">Select Avatar</h3>
+            <div style="display: flex; gap: var(--space-md); flex-wrap: wrap;" id="new-partner-avatar-options">
+              ${avatarsHtml}
+            </div>
+          </div>
+        </div>
+
+        <div style="display: flex; flex-direction: column; gap: var(--space-lg);">
+          <!-- Sleeping connections and limits -->
+          <div class="bento-card" style="padding: var(--space-lg); display: flex; flex-direction: column; gap: var(--space-md);">
+            <h3 class="font-title-lg" style="font-weight: 700; border-bottom: 1px solid rgba(138,113,112,0.1); padding-bottom: var(--space-xs);">Sleeping Partner Connections</h3>
+            
+            <div class="form-group" id="solo-nights-group" style="display: none;">
+              <label class="form-label" for="new-partner-solo-nights">Number of nights alone (Max Solo Nights)</label>
+              <input class="form-input" id="new-partner-solo-nights" type="number" min="0" max="7" value="2"/>
+            </div>
+
+            <div style="display: flex; flex-direction: column; gap: var(--space-md); margin-top: var(--space-xs);">
+              ${partnersHtml}
+            </div>
+          </div>
+        </div>
+      </div>
+    `;
+  },
+
+  addHome(state) {
+    // Generate partner checkboxes for association
+    let partnersHtml = '';
+    state.config.partners.forEach(partner => {
+      partnersHtml += `
+        <label style="display: flex; align-items: center; gap: var(--space-md); cursor: pointer; padding: var(--space-xs);">
+          <input type="checkbox" class="home-associated-partner" data-partner-name="${partner.name}" style="accent-color: var(--primary); width: 18px; height: 18px;"/>
+          <span>${partner.name}</span>
+        </label>
+      `;
+    });
+
+    return `
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: var(--space-lg);">
+        <div style="display: flex; align-items: center; gap: var(--space-base);">
+          <button class="btn-icon-only" id="btn-add-home-back" aria-label="Cancel">
+            <span class="material-symbols-outlined">arrow_back</span>
+          </button>
+          <h2 class="font-title-lg">Add New Home & Space</h2>
+        </div>
+        <button class="btn btn-filled" id="btn-submit-home">Save Home</button>
+      </div>
+
+      <div style="display: grid; grid-template-columns: 1fr; md:grid-template-columns: 2fr 1fr; gap: var(--space-xl); max-width: 900px;">
+        <div style="display: flex; flex-direction: column; gap: var(--space-lg);">
+          <!-- Core residence fields -->
+          <div class="bento-card" style="padding: var(--space-lg); display: flex; flex-direction: column; gap: var(--space-md);">
+            <h3 class="font-title-lg" style="font-weight: 700; border-bottom: 1px solid rgba(138,113,112,0.1); padding-bottom: var(--space-xs);">Home Details</h3>
+            
+            <div class="form-group">
+              <label class="form-label" for="new-home-name">Home Name</label>
+              <input class="form-input" id="new-home-name" placeholder="e.g. Mountain Retreat" type="text"/>
+            </div>
+
+            <div class="form-group">
+              <label class="form-label" for="new-home-address">Address</label>
+              <input class="form-input" id="new-home-address" placeholder="e.g. 742 Evergreen Terrace" type="text"/>
+            </div>
+
+            <div class="form-group">
+              <label class="form-label" for="new-home-bedrooms-count">Number of Bedrooms</label>
+              <input class="form-input" id="new-home-bedrooms-count" type="number" min="1" max="10" value="1"/>
+            </div>
+
+            <!-- Optional Bedroom Names Container -->
+            <div style="display: flex; flex-direction: column; gap: var(--space-sm); margin-top: var(--space-sm);" id="bedroom-names-container">
+              <h4 class="font-label-md" style="font-weight: bold;">Bedroom Names (Optional)</h4>
+              <div class="form-group" style="margin-bottom: 0;">
+                <input class="form-input bedroom-name-input" placeholder="Bedroom 1 Name (e.g. Master Suite)" type="text" data-index="0"/>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div style="display: flex; flex-direction: column; gap: var(--space-lg);">
+          <!-- Associated partners -->
+          <div class="bento-card" style="padding: var(--space-lg); display: flex; flex-direction: column; gap: var(--space-md);">
+            <h3 class="font-title-lg" style="font-weight: 700; border-bottom: 1px solid rgba(138,113,112,0.1); padding-bottom: var(--space-xs);">Associated People</h3>
+            <p class="font-body-md" style="color: var(--on-surface-variant); font-size: 0.8rem; margin-bottom: var(--space-xs);">
+              Select which people are associated with or reside at this home.
+            </p>
+            <div style="display: flex; flex-direction: column; gap: var(--space-xs);">
+              ${partnersHtml}
+            </div>
+          </div>
+        </div>
+      </div>
     `;
   }
 };
