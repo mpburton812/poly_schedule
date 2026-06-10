@@ -3,12 +3,14 @@
  * Manages Google Identity Services OAuth 2.0 flow and local credentials configurations.
  */
 
+import { GOOGLE_PROFILE_KEY, LEGACY_PROFILE_KEY } from './helpers.js';
+
 export const AuthManager = {
   clientId: localStorage.getItem('polyschedule_client_id') || '',
   apiKey: localStorage.getItem('polyschedule_api_key') || '',
   tokenClient: null,
   accessToken: localStorage.getItem('polyschedule_access_token') || '',
-  userProfile: JSON.parse(localStorage.getItem('polyschedule_user_profile') || 'null'),
+  userProfile: JSON.parse(localStorage.getItem(GOOGLE_PROFILE_KEY) || localStorage.getItem(LEGACY_PROFILE_KEY) || 'null'),
   onAuthStateChange: null,
 
   init(callback) {
@@ -42,7 +44,8 @@ export const AuthManager = {
     localStorage.removeItem('polyschedule_client_id');
     localStorage.removeItem('polyschedule_api_key');
     localStorage.removeItem('polyschedule_access_token');
-    localStorage.removeItem('polyschedule_user_profile');
+    localStorage.removeItem(GOOGLE_PROFILE_KEY);
+    localStorage.removeItem(LEGACY_PROFILE_KEY);
     
     if (this.onAuthStateChange) {
       this.onAuthStateChange({ loggedIn: false, user: null, mode: 'offline' });
@@ -125,7 +128,8 @@ export const AuthManager = {
     this.accessToken = '';
     this.userProfile = null;
     localStorage.removeItem('polyschedule_access_token');
-    localStorage.removeItem('polyschedule_user_profile');
+    localStorage.removeItem(GOOGLE_PROFILE_KEY);
+    localStorage.removeItem(LEGACY_PROFILE_KEY);
 
     if (this.onAuthStateChange) {
       this.onAuthStateChange({ loggedIn: false, user: null, mode: 'offline' });
@@ -146,7 +150,7 @@ export const AuthManager = {
         picture: data.picture || 'https://lh3.googleusercontent.com/a/default-user'
       };
       
-      localStorage.setItem('polyschedule_user_profile', JSON.stringify(this.userProfile));
+      localStorage.setItem(GOOGLE_PROFILE_KEY, JSON.stringify(this.userProfile));
 
       if (this.onAuthStateChange) {
         this.onAuthStateChange({ loggedIn: true, user: this.userProfile, mode: 'sync' });
@@ -155,11 +159,11 @@ export const AuthManager = {
       console.error('Error fetching user profile:', e);
       // Fallback profile if request fails
       this.userProfile = {
-        name: 'Alex Rivera',
-        email: 'alex@example.com',
-        picture: 'https://lh3.googleusercontent.com/aida-public/AB6AXuDjdXIAb6DttZ_Ivp6ocVuKGc_Cor-qtG3fqxi_3id35pEHmgyk008IoZOgCHsrXXysAKWNYlZFuovzj6OKFhoWqHjHVChafb9BWYQUKgMOWrT51kd1Tdr82IASulIokvB5JGV92NEWkmoFCt2MkVI_dzGJjUZabAGyiL8VI29nblqzqFUfEGWtrBPaXGI5Iz7QpmL4coomXYBEqrLuzJk18OWKIc0wuJe6pzRMziouxu7oZAVZjCFPxSRuTnPx874S9TseYaOXwWA'
+        name: 'Google User',
+        email: 'unknown@example.com',
+        picture: 'https://lh3.googleusercontent.com/a/default-user'
       };
-      localStorage.setItem('polyschedule_user_profile', JSON.stringify(this.userProfile));
+      localStorage.setItem(GOOGLE_PROFILE_KEY, JSON.stringify(this.userProfile));
       if (this.onAuthStateChange) {
         this.onAuthStateChange({ loggedIn: true, user: this.userProfile, mode: 'sync' });
       }

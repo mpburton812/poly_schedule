@@ -135,6 +135,8 @@ function applyDefaultSeed() {
   localStorage.setItem(LOCAL_CONFIG_KEY, JSON.stringify(config));
   localStorage.setItem(LOCAL_EVENTS_KEY, JSON.stringify(events));
   localStorage.setItem(LOCAL_SEED_VERSION_KEY, String(CURRENT_SEED_VERSION));
+  localStorage.removeItem('polyschedule_local_session');
+  localStorage.removeItem('polyschedule_google_profile');
   localStorage.removeItem('polyschedule_user_profile');
   return { config, events };
 }

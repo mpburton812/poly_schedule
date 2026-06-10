@@ -151,6 +151,25 @@ export function evaluateProposedProposal(proposal, config) {
   return { transition: null };
 }
 
+/** Legacy outcome helper used by tests and UI; delegates to evaluateProposedProposal. */
+export function getProposalOutcome(responses = {}, proposalType = 'event', participantRoles = null, config = null) {
+  const roles = participantRoles || Object.keys(responses || {}).map(name => ({ name, role: 'required' }));
+  const proposal = {
+    type: proposalType,
+    workflowState: WORKFLOW.PROPOSED,
+    responses: responses || {},
+    participantRoles: roles
+  };
+  const result = evaluateProposedProposal(proposal, config || { partners: [] });
+  if (result.transition === 'approved') return 'confirmed';
+  if (result.transition === 'declined') return 'rejected';
+
+  const entries = Object.entries(responses || {});
+  if (entries.length === 0) return 'pending';
+  if (entries.some(([, r]) => r.status === 'pending')) return 'pending';
+  return 'pending';
+}
+
 export function migrateEventRecord(event, config) {
   if (!event || !isProposalType(event.type)) return event;
 

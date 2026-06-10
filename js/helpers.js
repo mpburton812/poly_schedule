@@ -16,6 +16,9 @@ export const CREATE_NEW_HOME = '__create_new__';
 export const RETURN_ADD_PARTNER_KEY = 'polyschedule_return_add_partner';
 export const SELECT_HOME_KEY = 'polyschedule_select_home_id';
 export const ADD_PARTNER_DRAFT_KEY = 'polyschedule_add_partner_draft';
+export const LOCAL_SESSION_KEY = 'polyschedule_local_session';
+export const GOOGLE_PROFILE_KEY = 'polyschedule_google_profile';
+export const LEGACY_PROFILE_KEY = 'polyschedule_user_profile';
 
 export function isPartnerPassive(partner) {
   return partner?.passive === true || !partner?.username;
@@ -159,18 +162,7 @@ export function renamePartnerReferences(config, events, oldName, newName) {
   });
 }
 
-export function getProposalOutcome(responses = {}, proposalType = 'event') {
-  const entries = Object.entries(responses || {});
-  if (entries.length === 0) return 'pending';
-  if (entries.some(([, r]) => r.status === 'reject')) return 'rejected';
-  if (entries.some(([, r]) => r.status === 'pending')) return 'pending';
-  if (proposalType === 'event') {
-    if (entries.every(([, r]) => r.status === 'accept' || r.status === 'abstain')) return 'confirmed';
-  } else if (entries.every(([, r]) => r.status === 'accept')) {
-    return 'confirmed';
-  }
-  return 'pending';
-}
+export { getProposalOutcome } from './proposal-workflow.js';
 
 export function responseStatusLabel(status) {
   if (status === 'accept') return 'Approved';

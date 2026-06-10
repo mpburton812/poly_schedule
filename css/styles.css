@@ -453,7 +453,8 @@ body {
   justify-content: center;
   box-shadow: 0 4px 10px rgba(0,0,0,0.15);
   cursor: pointer;
-  z-index: 45;
+  z-index: 60;
+  text-decoration: none;
   transition: transform var(--transition-speed) var(--transition-easing),
               background-color var(--transition-speed);
 }
