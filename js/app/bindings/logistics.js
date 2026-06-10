@@ -41,6 +41,12 @@ export function bindSettingsEvents(container = document) {
 
       if (selected === 'sync') {
         if (apiSection) apiSection.style.display = 'flex';
+        state.isOffline = false;
+        localStorage.setItem('polyschedule_mode', 'sync');
+        const loginBtn = document.getElementById('btn-google-login');
+        if (loginBtn && AuthManager.clientId && AuthManager.apiKey) {
+          loginBtn.style.display = 'inline-flex';
+        }
       } else {
         if (apiSection) apiSection.style.display = 'none';
 
@@ -73,6 +79,12 @@ export function bindSettingsEvents(container = document) {
 
       const loginBtn = document.getElementById('btn-google-login');
       if (loginBtn) loginBtn.style.display = 'inline-flex';
+
+      if (AuthManager.accessToken) {
+        import('../bootstrap.js').then(({ handleGoogleAuthState }) => {
+          handleGoogleAuthState({ loggedIn: true, user: AuthManager.userProfile, mode: 'sync' });
+        });
+      }
     });
   }
 

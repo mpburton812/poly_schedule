@@ -1315,3 +1315,26 @@ body {
   gap: 8px;
   align-items: center;
 }
+
+.impersonation-banner {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-sm);
+  padding: 6px var(--space-md);
+  background-color: var(--tertiary-container);
+  color: var(--on-tertiary-container);
+  font-size: 0.8rem;
+  border-bottom: 1px solid var(--outline-variant);
+}
+
+.impersonation-select {
+  padding: 4px 8px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--outline);
+  background: var(--surface);
+  color: var(--on-surface);
+  font-family: var(--font-body);
+  font-size: 0.8rem;
+  min-width: 160px;
+}

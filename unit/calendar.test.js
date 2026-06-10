@@ -90,13 +90,3 @@ describe('CalendarSync seed refresh', () => {
     expect(sessionStorage.getItem(SEED_REFRESH_NOTICE_KEY)).toBe('1');
   });
 });
-
-describe('sync mode selection', () => {
-  it('persists sync mode flag in localStorage', () => {
-    localStorage.clear();
-    localStorage.setItem('polyschedule_mode', 'sync');
-    expect(localStorage.getItem('polyschedule_mode')).toBe('sync');
-    localStorage.setItem('polyschedule_mode', 'offline');
-    expect(localStorage.getItem('polyschedule_mode')).toBe('offline');
-  });
-});

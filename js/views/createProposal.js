@@ -255,9 +255,21 @@ export function createProposalView(state, type = 'event', formState = {}) {
           <input class="form-input" id="prop-title" placeholder="${type === 'event' ? 'e.g. Dinner & Game Night' : 'e.g. Two-Week Rotation'}" type="text" value="${formState.draftTitle || ''}"/>
         </div>
 
+        ${type === 'event' ? `
+        <div class="form-group" style="margin-bottom: var(--space-sm);">
+          <label class="solo-event-toggle" style="display: flex; align-items: flex-start; gap: var(--space-sm); cursor: pointer; padding: var(--space-sm); background: var(--surface-container-high); border-radius: var(--radius-default);">
+            <input type="checkbox" id="solo-event-checkbox" ${formState.soloEventMode ? 'checked' : ''} style="accent-color: var(--primary); margin-top: 2px;"/>
+            <span>
+              <strong class="font-label-md" style="display: block;">Just me — add directly to calendar</strong>
+              <span class="font-label-sm" style="color: var(--on-surface-variant);">Personal events skip group review and are confirmed immediately.</span>
+            </span>
+          </label>
+        </div>
+        ` : ''}
+
         ${type !== 'batch_sleeping' ? `
         <!-- Poly Circle Selection -->
-        <div class="form-group">
+        <div class="form-group" id="invitees-section" style="${type === 'event' && formState.soloEventMode ? 'opacity: 0.45; pointer-events: none;' : ''}">
           <label class="form-label" style="margin-bottom: var(--space-sm);">${polyFamilyName} (Invitees)</label>
           <div style="display: flex; flex-wrap: wrap; gap: var(--space-lg); padding: var(--space-sm) 0;" id="circle-options-row">
             ${circleHtml}

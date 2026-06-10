@@ -91,6 +91,23 @@ export function getRequiredVoters(participantRoles, config) {
     .map(p => p.name);
 }
 
+/** True when an event proposal has only the proposer as a required participant. */
+export function isSoloEventProposal(proposal, config) {
+  if (!proposal || proposal.type !== 'event') return false;
+  const proposer = proposal.proposer;
+  if (!proposer) return false;
+  const required = getRequiredVoters(proposal.participantRoles || [], config);
+  if (required.length !== 1) return false;
+  return partnerRefsMatch(config, required[0], proposer);
+}
+
+export function userNeedsProposalVote(proposal, userName, config) {
+  if (getWorkflowState(proposal) !== WORKFLOW.PROPOSED) return false;
+  const required = getRequiredVoters(proposal.participantRoles || [], config);
+  return required.some(name => partnerRefsMatch(config, name, userName)
+    && proposal.responses?.[name]?.status === 'pending');
+}
+
 export function canUserSeeProposal(proposal, userName, config = null) {
   if (!userName || !proposal) return false;
   if (proposal.proposer === userName) return true;

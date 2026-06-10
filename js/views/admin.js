@@ -27,6 +27,13 @@ import {
 export function adminView(state) {
     const polyFamilyName = localStorage.getItem('polyschedule_poly_family_name') || 'The Poly Circle';
     const autoArchiveDays = getAutoArchiveDays();
+    const changeLogHtml = (state.changeLog || []).map(entry => `
+      <p class="console-line">
+        <span class="console-time">[${entry.time}]</span>
+        <strong>${entry.actor}</strong>: ${entry.action}${entry.detail ? ` — ${entry.detail}` : ''}
+      </p>
+    `).join('') || '<p class="console-line" style="color: var(--on-surface-variant);">No configuration changes recorded yet.</p>';
+
     const logsHtml = (state.logs || []).map(log => {
       const color = log.type === 'error' ? 'var(--error)' : log.type === 'warning' ? 'var(--tertiary)' : 'inherit';
       return `<p class="console-line"><span class="console-time">[${log.time}]</span> <span style="color: ${color};">${log.message}</span></p>`;
@@ -58,6 +65,20 @@ export function adminView(state) {
             <p class="font-label-sm" style="color: var(--on-surface-variant); margin-top: var(--space-xs);">Set to 0 to disable automatic archiving (manual only).</p>
           </div>
           <button class="btn btn-filled" id="btn-save-auto-archive" style="align-self: flex-start;">Save Archive Setting</button>
+        </div>
+
+        <div class="bento-card" style="padding: var(--space-lg); border: 1px solid var(--outline-variant);">
+          <h3 class="font-title-lg" style="font-weight: 700; margin-bottom: var(--space-md); display: flex; align-items: center; gap: var(--space-sm);">
+            <span class="material-symbols-outlined text-primary">history</span> Change Control Log
+          </h3>
+          <p class="font-body-md" style="color: var(--on-surface-variant); margin-bottom: var(--space-md);">
+            Audit trail of configuration and workflow changes (${(state.changeLog || []).length} entries).
+          </p>
+          <div class="console-container">
+            <div class="console-body" id="change-log-body" style="max-height: 220px; overflow-y: auto; background: var(--surface-container-low);">
+              ${changeLogHtml}
+            </div>
+          </div>
         </div>
 
         <div class="bento-card" style="padding: var(--space-lg); border: 1px solid var(--outline-variant);">

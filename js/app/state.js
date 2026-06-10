@@ -14,7 +14,10 @@ export const state = {
   notifications: typeof localStorage !== 'undefined'
     ? JSON.parse(localStorage.getItem('polyschedule_notifications') || '[]')
     : [],
-  logs: []
+  logs: [],
+  changeLog: typeof localStorage !== 'undefined'
+    ? JSON.parse(localStorage.getItem('polyschedule_change_log') || '[]')
+    : []
 };
 
 /** Mutable cross-module UI flow state (import bindings are read-only in ES modules). */
@@ -23,7 +26,8 @@ export const flowState = {
   currentCreateType: 'event',
   activePartnerType: 'active',
   currentDraftId: null,
-  draftSaveTimer: null
+  draftSaveTimer: null,
+  soloEventMode: false
 };
 
 export const newProposalState = {
@@ -51,5 +55,6 @@ export function resetNewProposalFormState() {
 export function resetCreateFlowForNavigation() {
   flowState.currentCreateType = 'event';
   flowState.currentDraftId = null;
+  flowState.soloEventMode = false;
   resetNewProposalFormState();
 }

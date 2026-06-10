@@ -3,6 +3,7 @@ import {
   evaluateProposedProposal,
   getProposalOutcome,
   getRequiredVoters,
+  isSoloEventProposal,
   WORKFLOW
 } from '../js/proposal-workflow.js';
 
@@ -69,6 +70,32 @@ describe('getProposalOutcome', () => {
       'Guest User': { status: 'abstain' }
     };
     expect(getProposalOutcome(responses, 'event')).toBe('confirmed');
+  });
+});
+
+describe('isSoloEventProposal', () => {
+  it('returns true when only proposer is required', () => {
+    const config = { partners: [{ id: 'p1', name: 'Alex Rivera', username: 'alex' }] };
+    expect(isSoloEventProposal({
+      type: 'event',
+      proposer: 'Alex Rivera',
+      participantRoles: [{ name: 'Alex Rivera', role: 'required' }]
+    }, config)).toBe(true);
+  });
+
+  it('returns false when others are required', () => {
+    const config = { partners: [
+      { id: 'p1', name: 'Alex Rivera' },
+      { id: 'p2', name: 'Sam Davis' }
+    ] };
+    expect(isSoloEventProposal({
+      type: 'event',
+      proposer: 'Alex Rivera',
+      participantRoles: [
+        { name: 'Alex Rivera', role: 'required' },
+        { name: 'Sam Davis', role: 'required' }
+      ]
+    }, config)).toBe(false);
   });
 });
 

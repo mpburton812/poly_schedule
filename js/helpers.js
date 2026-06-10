@@ -20,6 +20,7 @@ export const LOCAL_SESSION_KEY = 'polyschedule_local_session';
 export const GOOGLE_PROFILE_KEY = 'polyschedule_google_profile';
 export const LEGACY_PROFILE_KEY = 'polyschedule_user_profile';
 export const SEED_REFRESH_NOTICE_KEY = 'polyschedule_seed_refreshed';
+export const CHANGE_LOG_STORAGE_KEY = 'polyschedule_change_log';
 
 export function partnerDisplayFirstName(name) {
   if (!name) return '';
@@ -60,6 +61,41 @@ export function isPartnerActive(partner) {
 export function getPartnerById(config, partnerId) {
   if (!partnerId || !config?.partners) return null;
   return config.partners.find(p => p.id === partnerId) || null;
+}
+
+/**
+ * When a home's associated people list changes, sync partner defaultHome values.
+ */
+export function applyHomeAssociationDefaults(config, homeId, associatedPeople = []) {
+  if (!config?.partners || !homeId) return false;
+
+  const associatedSet = new Set(associatedPeople || []);
+  let changed = false;
+
+  config.partners.forEach(partner => {
+    const isAssociated = associatedSet.has(partner.name);
+    if (isAssociated && partner.defaultHome !== homeId) {
+      partner.defaultHome = homeId;
+      changed = true;
+    } else if (!isAssociated && partner.defaultHome === homeId) {
+      partner.defaultHome = '';
+      changed = true;
+    }
+  });
+
+  return changed;
+}
+
+/** Apply associatedPeople from every residence to partner defaultHome (e.g. on config load). */
+export function syncAllHomeAssociationDefaults(config) {
+  if (!config?.residences?.length) return false;
+  let changed = false;
+  config.residences.forEach(home => {
+    if (applyHomeAssociationDefaults(config, home.id, home.associatedPeople || [])) {
+      changed = true;
+    }
+  });
+  return changed;
 }
 
 export function getCurrentUserPartner(config, currentUser) {

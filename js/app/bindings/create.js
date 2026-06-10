@@ -15,7 +15,8 @@ import {
 import {
   WORKFLOW,
   getWorkflowState,
-  normalizeParticipantRoles
+  normalizeParticipantRoles,
+  isSoloEventProposal
 } from '../../proposal-workflow.js';
 import {
   state,
@@ -23,7 +24,7 @@ import {
   newProposalState,
   resetNewProposalFormState
 } from '../state.js';
-import { addLog, showToast, getCurrentUserName } from '../context.js';
+import { addLog, showToast, getCurrentUserName, notifyProposalReviewers, addChangeLog } from '../context.js';
 import { renderView } from '../router.js';
 
 export function updateSleepingArrangementTitle() {
@@ -313,6 +314,9 @@ export function collectProposalFormData() {
   if (!newProposalState.participants.includes(currentUserName)) {
     newProposalState.participants.push(currentUserName);
   }
+  if (flowState.currentCreateType === 'event' && flowState.soloEventMode) {
+    newProposalState.participants = [currentUserName];
+  }
   syncParticipantRolesFromParticipants();
 
   const data = {
@@ -499,6 +503,11 @@ export function bindCreateEvents() {
   document.querySelectorAll('.circle-partner-option').forEach(opt => {
     opt.addEventListener('click', (e) => {
       if (e.target.closest('.role-toggle-btn')) return;
+      if (flowState.soloEventMode && flowState.currentCreateType === 'event') {
+        flowState.soloEventMode = false;
+        const soloCb = document.getElementById('solo-event-checkbox');
+        if (soloCb) soloCb.checked = false;
+      }
       const name = opt.dataset.name;
       const idx = newProposalState.participants.indexOf(name);
 
@@ -531,6 +540,20 @@ export function bindCreateEvents() {
       renderView();
     });
   });
+
+  const soloCheckbox = document.getElementById('solo-event-checkbox');
+  if (soloCheckbox) {
+    soloCheckbox.addEventListener('change', () => {
+      flowState.soloEventMode = soloCheckbox.checked;
+      const currentUserName = getCurrentUserName();
+      if (flowState.soloEventMode) {
+        newProposalState.participants = [currentUserName];
+        newProposalState.participantRoles = [{ name: currentUserName, role: 'required' }];
+      }
+      scheduleDraftSave();
+      renderView();
+    });
+  }
 
   const titleInputEl = document.getElementById('prop-title');
   if (titleInputEl) {
@@ -715,13 +738,31 @@ export function bindCreateEvents() {
 
       try {
         const data = collectProposalFormData();
-        await CalendarSync.saveDraft(flowState.currentDraftId, data);
-        await CalendarSync.submitProposal(flowState.currentDraftId);
-        showToast('Proposal submitted successfully!', 'success');
+        const draftId = flowState.currentDraftId;
+        await CalendarSync.saveDraft(draftId, data);
+        await CalendarSync.submitProposal(draftId);
+        const finalEvent = state.events.find(e => e.id === draftId);
+
+        if (finalEvent && getWorkflowState(finalEvent) === WORKFLOW.APPROVED) {
+          if (isSoloEventProposal(finalEvent, state.config)) {
+            showToast('Personal event confirmed and added to your calendar.', 'success');
+          } else {
+            showToast('Proposal approved and added to your calendar.', 'success');
+          }
+          addChangeLog('Proposal approved', finalEvent.title);
+          flowState.currentDraftId = null;
+          flowState.soloEventMode = false;
+          window.location.hash = '#schedule';
+        } else {
+          if (finalEvent) notifyProposalReviewers(finalEvent, state.config);
+          showToast('Proposal submitted successfully!', 'success');
+          addChangeLog('Proposal submitted', finalEvent?.title || data.title);
+          flowState.currentDraftId = null;
+          flowState.soloEventMode = false;
+          flowState.activeProposalsTab = 'proposed';
+          window.location.hash = '#proposals';
+        }
         addLog(`Submitted proposal: "${data.title}"`);
-        flowState.currentDraftId = null;
-        flowState.activeProposalsTab = 'proposed';
-        window.location.hash = '#proposals';
       } catch (err) {
         showToast('Failed to submit proposal.', 'error');
       }

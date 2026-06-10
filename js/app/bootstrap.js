@@ -1,6 +1,7 @@
 import { AuthManager } from '../auth.js';
 import { CalendarSync } from '../calendar.js';
 import { isPartnerPassive, LEGACY_PROFILE_KEY, SEED_REFRESH_NOTICE_KEY } from '../helpers.js';
+import { resolveSyncBootstrapMode } from '../gcal-sync.js';
 import {
   state,
 } from './state.js';
@@ -12,7 +13,8 @@ import {
   establishSession,
   logoutUser,
   showLoginView,
-  LOCAL_SESSION_KEY
+  LOCAL_SESSION_KEY,
+  bindImpersonationBanner
 } from './context.js';
 import {
   openNotificationsModal,
@@ -39,6 +41,7 @@ export async function bootstrapData(mode) {
 
     state.events = CalendarSync.events;
     state.config = CalendarSync.config;
+    state.isOffline = mode !== 'sync';
     router();
   } catch (err) {
     addLog(`Error initializing sync: ${err.message}`, 'error');
@@ -47,6 +50,45 @@ export async function bootstrapData(mode) {
     state.isOffline = true;
     localStorage.setItem('polyschedule_mode', 'offline');
     bootstrapData('offline');
+  }
+}
+
+function updateGoogleLoginButton(authState) {
+  const loginBtnEl = document.getElementById('btn-google-login');
+  if (!loginBtnEl) return;
+
+  const syncConfigured = localStorage.getItem('polyschedule_mode') === 'sync'
+    && AuthManager.clientId
+    && AuthManager.apiKey;
+
+  if (authState.loggedIn && authState.user?.email) {
+    loginBtnEl.style.display = 'none';
+  } else if (syncConfigured) {
+    loginBtnEl.style.display = 'inline-flex';
+  } else {
+    loginBtnEl.style.display = 'none';
+  }
+}
+
+export async function handleGoogleAuthState(authState) {
+  updateGoogleLoginButton(authState);
+
+  if (authState.loggedIn && authState.mode === 'sync') {
+    state.isOffline = false;
+    localStorage.setItem('polyschedule_mode', 'sync');
+    try {
+      await bootstrapData('sync');
+      showToast('Connected to Google Calendar.', 'success');
+    } catch (err) {
+      addLog(`Google sync handoff failed: ${err.message}`, 'error');
+    }
+    return;
+  }
+
+  if (!authState.loggedIn && CalendarSync.mode === 'sync') {
+    state.isOffline = true;
+    localStorage.setItem('polyschedule_mode', 'offline');
+    await bootstrapData('offline');
   }
 }
 
@@ -116,7 +158,13 @@ export function init() {
 
     migrateLegacySession();
 
-    await bootstrapData('offline');
+    bindImpersonationBanner();
+
+    AuthManager.init((authState) => {
+      updateGoogleLoginButton(authState);
+    });
+
+    await bootstrapData(resolveSyncBootstrapMode());
 
     if (sessionStorage.getItem(SEED_REFRESH_NOTICE_KEY)) {
       sessionStorage.removeItem(SEED_REFRESH_NOTICE_KEY);
@@ -137,12 +185,9 @@ export function init() {
       showLoginView();
     }
 
-    AuthManager.init((authState) => {
-      if (authState.loggedIn && authState.user?.email) {
-        const loginBtnEl = document.getElementById('btn-google-login');
-        if (loginBtnEl) loginBtnEl.style.display = 'none';
-      }
-    });
+    AuthManager.onAuthStateChange = (authState) => {
+      handleGoogleAuthState(authState);
+    };
   };
 
   if (document.readyState === 'loading') {

@@ -10,6 +10,7 @@ import {
   removePartnerReferences,
   removeHomeReferences,
   normalizeConfigPartners,
+  syncAllHomeAssociationDefaults,
   SEED_REFRESH_NOTICE_KEY
 } from './helpers.js';
 import {
@@ -25,6 +26,11 @@ import {
   getWorkflowState,
   isCalendarEvent
 } from './proposal-workflow.js';
+import {
+  GCAL_CONFIG_SUMMARY,
+  parseGCalEventItem,
+  formatGCalResource as buildGCalResource
+} from './gcal-sync.js';
 
 // Local Storage Keys
 const LOCAL_EVENTS_KEY = 'polyschedule_local_events';
@@ -336,6 +342,12 @@ export const CalendarSync = {
         this.config = DEFAULT_CONFIG;
       }
     }
+
+    if (syncAllHomeAssociationDefaults(this.config)) {
+      if (this.mode === 'offline') {
+        localStorage.setItem(LOCAL_CONFIG_KEY, JSON.stringify(this.config));
+      }
+    }
   },
 
   async saveConfig(newConfig) {
@@ -372,17 +384,23 @@ export const CalendarSync = {
       }
       this.migrateAndNormalizeEvents();
     } else {
-      // Load actual events from Google Calendar
       try {
         this.events = await this.fetchGCalEvents();
+        this.migrateAndNormalizeEvents();
       } catch (e) {
         console.error('Failed to fetch events from GCal, falling back to local storage', e);
         this.events = JSON.parse(localStorage.getItem(LOCAL_EVENTS_KEY) || '[]');
+        this.migrateAndNormalizeEvents();
       }
     }
 
-    this.syncProposalStatuses();
-    this.processAutoArchive();
+    if (this.mode === 'offline') {
+      this.syncProposalStatuses();
+      this.processAutoArchive();
+    } else {
+      await this.syncProposalStatusesAsync();
+      await this.processAutoArchiveAsync();
+    }
     
     if (this.onStateUpdate) {
       this.onStateUpdate();
@@ -390,14 +408,28 @@ export const CalendarSync = {
   },
 
   migrateAndNormalizeEvents() {
+    const before = JSON.stringify(this.events);
     this.events = migrateEvents(this.events, this.config);
-    this.persistEvents();
+    if (before !== JSON.stringify(this.events)) {
+      this.persistEvents();
+    }
   },
 
-  persistEvents() {
+  persistEvents(eventIds = null) {
     if (this.mode === 'offline') {
       localStorage.setItem(LOCAL_EVENTS_KEY, JSON.stringify(this.events));
+      return;
     }
+    const ids = eventIds || this.events.map(e => e.id);
+    this.syncEventsToGCal(ids);
+  },
+
+  syncEventsToGCal(eventIds) {
+    Promise.all((eventIds || []).map(async (id) => {
+      const event = this.events.find(e => e.id === id);
+      if (!event) return;
+      await this.updateGCalEvent(id, event);
+    })).catch(err => console.error('Failed to sync events to Google Calendar', err));
   },
 
   applyWorkflowEvaluation(event) {
@@ -422,21 +454,40 @@ export const CalendarSync = {
   },
 
   syncProposalStatuses() {
-    let changed = false;
+    const changedIds = [];
     this.events.forEach(event => {
       if (getWorkflowState(event) !== WORKFLOW.PROPOSED) return;
       const before = event.workflowState;
       this.applyWorkflowEvaluation(event);
-      if (event.workflowState !== before) changed = true;
+      if (event.workflowState !== before) changedIds.push(event.id);
     });
-    if (changed) this.persistEvents();
+    if (changedIds.length) this.persistEvents(changedIds);
+  },
+
+  async syncProposalStatusesAsync() {
+    const changedIds = [];
+    this.events.forEach(event => {
+      if (getWorkflowState(event) !== WORKFLOW.PROPOSED) return;
+      const before = event.workflowState;
+      this.applyWorkflowEvaluation(event);
+      if (event.workflowState !== before) changedIds.push(event.id);
+    });
+    if (!changedIds.length) return;
+    if (this.mode === 'offline') {
+      this.persistEvents(changedIds);
+      return;
+    }
+    for (const id of changedIds) {
+      const event = this.events.find(e => e.id === id);
+      if (event) await this.updateGCalEvent(id, event);
+    }
   },
 
   processAutoArchive() {
     const days = getAutoArchiveDays();
     if (days <= 0) return;
     const now = Date.now();
-    let changed = false;
+    const changedIds = [];
     this.events.forEach(event => {
       if (getWorkflowState(event) !== WORKFLOW.APPROVED) return;
       const archiveAt = event.autoArchiveAt
@@ -447,10 +498,39 @@ export const CalendarSync = {
       if (archiveAt && now >= archiveAt) {
         event.workflowState = WORKFLOW.ARCHIVED;
         event.archivedAt = new Date().toISOString();
-        changed = true;
+        changedIds.push(event.id);
       }
     });
-    if (changed) this.persistEvents();
+    if (changedIds.length) this.persistEvents(changedIds);
+  },
+
+  async processAutoArchiveAsync() {
+    const days = getAutoArchiveDays();
+    if (days <= 0) return;
+    const now = Date.now();
+    const changedIds = [];
+    this.events.forEach(event => {
+      if (getWorkflowState(event) !== WORKFLOW.APPROVED) return;
+      const archiveAt = event.autoArchiveAt
+        ? new Date(event.autoArchiveAt).getTime()
+        : computeAutoArchiveAt(event.approvedAt, days)
+          ? new Date(computeAutoArchiveAt(event.approvedAt, days)).getTime()
+          : null;
+      if (archiveAt && now >= archiveAt) {
+        event.workflowState = WORKFLOW.ARCHIVED;
+        event.archivedAt = new Date().toISOString();
+        changedIds.push(event.id);
+      }
+    });
+    if (!changedIds.length) return;
+    if (this.mode === 'offline') {
+      this.persistEvents(changedIds);
+      return;
+    }
+    for (const id of changedIds) {
+      const event = this.events.find(e => e.id === id);
+      if (event) await this.updateGCalEvent(id, event);
+    }
   },
 
   async createDraft(proposalData) {
@@ -567,8 +647,13 @@ export const CalendarSync = {
   renamePartnerInEvents(oldName, newName) {
     if (!oldName || !newName || oldName === newName) return;
     renamePartnerReferences(this.config, this.events, oldName, newName);
-    this.persistEvents();
-    localStorage.setItem(LOCAL_CONFIG_KEY, JSON.stringify(this.config));
+    if (this.mode === 'sync') {
+      this.saveConfig(this.config).catch(err => console.error('Failed to save config to GCal', err));
+      this.syncEventsToGCal(this.events.map(e => e.id));
+    } else {
+      this.persistEvents();
+      localStorage.setItem(LOCAL_CONFIG_KEY, JSON.stringify(this.config));
+    }
   },
 
   removePartner(partnerId) {
@@ -576,8 +661,13 @@ export const CalendarSync = {
     if (!partner) return false;
     removePartnerReferences(this.config, this.events, partnerId, partner.name);
     this.config.partners = this.config.partners.filter(p => p.id !== partnerId);
-    this.persistEvents();
-    localStorage.setItem(LOCAL_CONFIG_KEY, JSON.stringify(this.config));
+    if (this.mode === 'sync') {
+      this.saveConfig(this.config).catch(err => console.error('Failed to save config to GCal', err));
+      this.syncEventsToGCal(this.events.map(e => e.id));
+    } else {
+      this.persistEvents();
+      localStorage.setItem(LOCAL_CONFIG_KEY, JSON.stringify(this.config));
+    }
     if (this.onStateUpdate) this.onStateUpdate();
     return true;
   },
@@ -587,7 +677,12 @@ export const CalendarSync = {
     if (!home) return false;
     removeHomeReferences(this.config, this.events, homeId);
     this.config.residences = this.config.residences.filter(h => h.id !== homeId);
-    localStorage.setItem(LOCAL_CONFIG_KEY, JSON.stringify(this.config));
+    if (this.mode === 'sync') {
+      this.saveConfig(this.config).catch(err => console.error('Failed to save config to GCal', err));
+      this.syncEventsToGCal(this.events.map(e => e.id));
+    } else {
+      localStorage.setItem(LOCAL_CONFIG_KEY, JSON.stringify(this.config));
+    }
     if (this.onStateUpdate) this.onStateUpdate();
     return true;
   },
@@ -634,11 +729,33 @@ export const CalendarSync = {
         e.status = 'confirmed';
         e.workflowState = WORKFLOW.APPROVED;
       });
-      updated.expandedEventIds = expanded.map(e => e.id);
       updated.status = 'confirmed';
-      this.events[idx] = updated;
-      this.events.push(...expanded);
-      this.persistEvents();
+      updated.expandedEventIds = [];
+
+      if (this.mode === 'sync') {
+        try {
+          await this.updateGCalEvent(eventId, updated);
+          for (const child of expanded) {
+            const created = await this.createGCalEvent(child);
+            child.id = created.id;
+            updated.expandedEventIds.push(created.id);
+            this.events.push(child);
+          }
+          if (updated.expandedEventIds.length) {
+            await this.updateGCalEvent(eventId, updated);
+          }
+          this.events[idx] = updated;
+        } catch (e) {
+          console.error('Failed to sync batch sleeping expansion to Google Calendar', e);
+          throw e;
+        }
+      } else {
+        updated.expandedEventIds = expanded.map(e => e.id);
+        this.events[idx] = updated;
+        this.events.push(...expanded);
+        this.persistEvents();
+      }
+
       if (this.onStateUpdate) this.onStateUpdate();
       return { parent: updated, expanded };
     }
@@ -697,77 +814,11 @@ export const CalendarSync = {
     if (!res.ok) throw new Error('Failed to fetch calendar events from Google Calendar API');
     
     const data = await res.json();
-    
-    // Parse Google events back into PolySchedule objects
     const parsedEvents = [];
-    
+
     for (const item of data.items || []) {
-      // Skip config event
-      if (item.summary === '[CONFIG] PolySchedule Core Settings') continue;
-
-      let type = 'event';
-      let status = 'confirmed';
-      let roomName = '';
-      let homeName = '';
-      let roomId = '';
-      let homeId = '';
-      let proposer = '';
-      let responses = {};
-      let participants = [];
-
-      // Check for proposal prefix or extended JSON in description
-      let title = item.summary || 'Untitled Event';
-      
-      if (item.description) {
-        try {
-          // Check if description starts with PolySchedule JSON
-          if (item.description.trim().startsWith('{')) {
-            const meta = JSON.parse(item.description);
-            type = meta.type || type;
-            status = meta.status || status;
-            roomName = meta.roomName || roomName;
-            homeName = meta.homeName || homeName;
-            roomId = meta.roomId || roomId;
-            homeId = meta.homeId || homeId;
-            proposer = meta.proposer || proposer;
-            responses = meta.responses || responses;
-            participants = meta.participants || participants;
-          }
-        } catch (e) {
-          // Description is plain text, fallback parsing
-        }
-      }
-
-      // Fallback participant extraction from attendees if JSON parsing failed
-      if (participants.length === 0) {
-        participants = (item.attendees || []).map(a => a.displayName || a.email.split('@')[0]);
-      }
-
-      // Detect sleeping types based on summary
-      if (title.toUpperCase().includes('SLEEP') || title.toUpperCase().startsWith('[PROPOSAL-SLEEP]')) {
-        type = 'sleeping';
-      }
-
-      if (title.startsWith('[PROPOSAL] ') || title.startsWith('[PROPOSAL-SLEEP] ')) {
-        status = 'pending';
-      }
-
-      parsedEvents.push({
-        id: item.id,
-        title: title,
-        type: type,
-        start: item.start.dateTime || item.start.date,
-        end: item.end.dateTime || item.end.date,
-        location: item.location || '',
-        roomId,
-        homeId,
-        roomName,
-        homeName,
-        participants,
-        proposer,
-        status,
-        responses
-      });
+      const parsed = parseGCalEventItem(item);
+      if (parsed) parsedEvents.push(parsed);
     }
 
     return parsedEvents;
@@ -819,63 +870,26 @@ export const CalendarSync = {
   },
 
   formatGCalResource(event) {
-    // Pack our custom metadata into the event description block as a JSON string
-    const meta = {
-      type: event.type,
-      status: event.status,
-      roomName: event.roomName || '',
-      homeName: event.homeName || '',
-      roomId: event.roomId || '',
-      homeId: event.homeId || '',
-      proposer: event.proposer || '',
-      responses: event.responses || {},
-      participants: event.participants || [],
-      batchNights: event.batchNights || undefined
-    };
-
-    let title = event.title;
-    if (event.status === 'pending') {
-      let prefix = '[PROPOSAL] ';
-      if (event.type === 'sleeping') prefix = '[PROPOSAL-SLEEP] ';
-      if (event.type === 'batch_sleeping') prefix = '[PROPOSAL-BATCH] ';
-      if (!title.startsWith(prefix)) {
-        title = prefix + title;
-      }
-    }
-
-    return {
-      summary: title,
-      location: event.location || '',
-      description: JSON.stringify(meta, null, 2),
-      start: {
-        dateTime: new Date(event.start).toISOString(),
-        timeZone: 'America/New_York'
-      },
-      end: {
-        dateTime: new Date(event.end).toISOString(),
-        timeZone: 'America/New_York'
-      },
-      // Optional: Add attendees email mapping here if desired
-    };
+    return buildGCalResource(event);
   },
 
   // --- Configuration Sync Event Helpers ---
 
   async findGCalConfigEvent() {
-    const url = `https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(this.calendarId)}/events?q=${encodeURIComponent('[CONFIG] PolySchedule Core Settings')}&key=${this.apiKey}`;
+    const url = `https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(this.calendarId)}/events?q=${encodeURIComponent(GCAL_CONFIG_SUMMARY)}&key=${this.apiKey}`;
     const res = await fetch(url, {
       headers: { Authorization: `Bearer ${this.accessToken}` }
     });
     if (!res.ok) return null;
     const data = await res.json();
-    return (data.items || []).find(item => item.summary === '[CONFIG] PolySchedule Core Settings');
+    return (data.items || []).find(item => item.summary === GCAL_CONFIG_SUMMARY);
   },
 
   async saveGCalConfigEvent(configData) {
     const configEvent = await this.findGCalConfigEvent();
-    
+
     const resource = {
-      summary: '[CONFIG] PolySchedule Core Settings',
+      summary: GCAL_CONFIG_SUMMARY,
       description: JSON.stringify(configData, null, 2),
       start: {
         date: '2026-01-01' // Far past date

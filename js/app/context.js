@@ -7,6 +7,7 @@ import { CalendarSync } from '../calendar.js';
 import { Views, DEFAULT_AVATARS } from '../views.js';
 import {
   LOGS_STORAGE_KEY,
+  CHANGE_LOG_STORAGE_KEY,
   CREATE_NEW_HOME,
   RETURN_ADD_PARTNER_KEY,
   SELECT_HOME_KEY,
@@ -15,6 +16,13 @@ import {
   LEGACY_PROFILE_KEY,
   isPartnerPassive
 } from '../helpers.js';
+import {
+  getWorkflowState,
+  getRequiredVoters,
+  userNeedsProposalVote,
+  WORKFLOW,
+  isProposalType
+} from '../proposal-workflow.js';
 import { state, flowState } from './state.js';
 
 export { LOCAL_SESSION_KEY };
@@ -42,6 +50,70 @@ export function addLog(message, type = 'info') {
     p.innerHTML = `<span class="console-time">[${time}]</span> <span style="color: ${color};">${message}</span>`;
     consoleBody.appendChild(p);
     consoleBody.scrollTop = consoleBody.scrollHeight;
+  });
+}
+
+export function addChangeLog(action, detail = '') {
+  const actor = getCurrentUserName();
+  const time = new Date().toLocaleString();
+  const entry = { time, actor, action, detail, timestamp: Date.now() };
+  state.changeLog.unshift(entry);
+  if (state.changeLog.length > 200) state.changeLog.pop();
+  localStorage.setItem(CHANGE_LOG_STORAGE_KEY, JSON.stringify(state.changeLog));
+
+  const changeBodies = document.querySelectorAll('#change-log-body');
+  changeBodies.forEach(body => {
+    const p = document.createElement('p');
+    p.className = 'console-line';
+    p.innerHTML = `<span class="console-time">[${time}]</span> <strong>${actor}</strong>: ${action}${detail ? ` — ${detail}` : ''}`;
+    body.prepend(p);
+  });
+}
+
+export function pushAppNotification({ title, description, dedupeKey }) {
+  if (dedupeKey && state.notifications.some(n => n.dedupeKey === dedupeKey)) {
+    return false;
+  }
+  const notification = {
+    id: `notif_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
+    title,
+    description,
+    timestamp: new Date().toLocaleTimeString('en-GB', { hour12: false }),
+    read: false,
+    dedupeKey: dedupeKey || null
+  };
+  state.notifications.unshift(notification);
+  if (state.notifications.length > 50) state.notifications.pop();
+  localStorage.setItem('polyschedule_notifications', JSON.stringify(state.notifications));
+  updateNotificationsBadge();
+  return true;
+}
+
+export function notifyProposalReviewers(proposal, config) {
+  if (getWorkflowState(proposal) !== WORKFLOW.PROPOSED) return;
+  getRequiredVoters(proposal.participantRoles || [], config).forEach(name => {
+    if (proposal.responses?.[name]?.status !== 'pending') return;
+    pushAppNotification({
+      title: 'Proposal needs your review',
+      description: `"${proposal.title}" from ${proposal.proposer} is waiting for your response.`,
+      dedupeKey: `pending_${proposal.id}_${name}`
+    });
+  });
+}
+
+export function syncPendingProposalAlertsForUser() {
+  if (!state.currentUser || !state.config) return;
+  const userName = getCurrentUserName();
+  const userRef = state.currentUser.id || userName;
+
+  (state.events || []).forEach(proposal => {
+    if (!isProposalType(proposal.type)) return;
+    if (!userNeedsProposalVote(proposal, userRef, state.config)) return;
+    pushAppNotification({
+      title: 'Proposal needs your review',
+      description: `"${proposal.title}" from ${proposal.proposer} is waiting for your response.`,
+      dedupeKey: `pending_${proposal.id}_${userName}`
+    });
   });
 }
 
@@ -121,8 +193,47 @@ export function getCurrentUserName() {
   return state.currentUser?.name || 'User';
 }
 
-export function saveConfig() {
+export function saveConfig(auditAction = null, auditDetail = '') {
   CalendarSync.saveConfig(state.config);
+  if (auditAction) addChangeLog(auditAction, auditDetail);
+}
+
+export function updateImpersonationBanner() {
+  const banner = document.getElementById('impersonation-banner');
+  const select = document.getElementById('impersonation-select');
+  if (!banner || !select) return;
+
+  if (!isLoggedIn() || !isAdmin()) {
+    banner.style.display = 'none';
+    return;
+  }
+
+  const activePartners = (state.config?.partners || []).filter(p => !isPartnerPassive(p));
+  select.innerHTML = activePartners.map(p =>
+    `<option value="${p.id}" ${p.id === state.currentUser.id ? 'selected' : ''}>${p.name}</option>`
+  ).join('');
+  banner.style.display = 'flex';
+}
+
+export function impersonatePartner(partnerId) {
+  const partner = state.config?.partners?.find(p => p.id === partnerId && !isPartnerPassive(p));
+  if (!partner) return;
+  if (partner.id === state.currentUser?.id) return;
+
+  establishSession(partner);
+  addLog(`Admin: Impersonating user "${partner.name}".`, 'warning');
+  addChangeLog('Impersonated user', partner.name);
+  showToast(`Viewing as ${partner.name.split(' ')[0]}`, 'info');
+  import('./router.js').then(({ router }) => router());
+}
+
+export function bindImpersonationBanner() {
+  const select = document.getElementById('impersonation-select');
+  if (!select || select.dataset.bound) return;
+  select.dataset.bound = '1';
+  select.addEventListener('change', () => {
+    impersonatePartner(select.value);
+  });
 }
 
 export function updateUIForAuthState(loggedIn) {
@@ -145,6 +256,7 @@ export function updateUIForAuthState(loggedIn) {
   if (notifBtn) notifBtn.style.display = loggedIn ? '' : 'none';
   if (avatarContainer) avatarContainer.style.display = loggedIn ? 'block' : 'none';
   if (sideLogout) sideLogout.style.display = loggedIn ? 'flex' : 'none';
+  updateImpersonationBanner();
 }
 
 export function showLoginView() {
@@ -172,6 +284,7 @@ export function establishSession(partner) {
   if (avatarImg) avatarImg.src = state.currentUser.picture;
   updateUIForAuthState(true);
   updateAdminNavVisibility();
+  syncPendingProposalAlertsForUser();
 }
 
 export function attemptLogin(username, password) {

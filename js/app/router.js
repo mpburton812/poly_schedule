@@ -17,7 +17,8 @@ import {
 import {
   isAdmin,
   isLoggedIn,
-  showLoginView
+  showLoginView,
+  syncPendingProposalAlertsForUser
 } from './context.js';
 import { bindScheduleEvents } from './bindings/schedule.js';
 import { bindProposalsEvents } from './bindings/proposals.js';
@@ -45,6 +46,7 @@ export function router() {
   CalendarSync.syncProposalStatuses();
   CalendarSync.processAutoArchive();
   state.events = CalendarSync.events;
+  syncPendingProposalAlertsForUser();
 
   const view = getRouteBase();
   const params = parseHashParams();
@@ -122,7 +124,10 @@ export function renderView() {
       ensureBatchAssignments(newProposalState.batchNightCount);
     }
     ensureCreateDraftSync();
-    container.innerHTML = Views.createProposal(state, flowState.currentCreateType, newProposalState);
+    container.innerHTML = Views.createProposal(state, flowState.currentCreateType, {
+      ...newProposalState,
+      soloEventMode: flowState.soloEventMode
+    });
     bindCreateEvents();
   } else if (state.currentView === 'logistics') {
     container.innerHTML = Views.logistics(state);

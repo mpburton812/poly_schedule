@@ -85,7 +85,7 @@ export const AuthManager = {
     
     this.tokenClient = window.google.accounts.oauth2.initTokenClient({
       client_id: this.clientId,
-      scope: 'https://www.googleapis.com/auth/calendar',
+      scope: 'https://www.googleapis.com/auth/calendar openid email profile',
       callback: (tokenResponse) => {
         if (tokenResponse.error !== undefined) {
           console.error('Google Auth Error:', tokenResponse);

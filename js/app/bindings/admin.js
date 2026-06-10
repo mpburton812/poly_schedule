@@ -4,7 +4,8 @@ import {
   RETURN_ADD_PARTNER_KEY,
   SELECT_HOME_KEY,
   ADD_PARTNER_DRAFT_KEY,
-  isPartnerPassive
+  isPartnerPassive,
+  applyHomeAssociationDefaults
 } from '../../helpers.js';
 import {
   setAutoArchiveDays,
@@ -18,6 +19,7 @@ import {
   addLog,
   showToast,
   saveConfig,
+  addChangeLog,
   attemptLogin,
   bindHomeSelectCreateNew,
   saveAddPartnerDraft,
@@ -37,6 +39,7 @@ export function bindAdminEvents() {
       const name = familyInput.value.trim() || 'The Poly Circle';
       localStorage.setItem('polyschedule_poly_family_name', name);
       addLog(`Admin: Group name updated to "${name}".`, 'info');
+      addChangeLog('Updated group name', name);
       showToast('Group name saved.', 'success');
     });
   }
@@ -48,6 +51,7 @@ export function bindAdminEvents() {
       const days = parseInt(archiveInput.value, 10);
       setAutoArchiveDays(Number.isFinite(days) ? days : 7);
       addLog(`Admin: Auto-archive set to ${getAutoArchiveDays()} day(s).`, 'info');
+      addChangeLog('Updated auto-archive setting', `${getAutoArchiveDays()} day(s)`);
       showToast('Archive setting saved.', 'success');
     });
   }
@@ -177,7 +181,7 @@ export function bindAddPartnerEvents() {
         : { id: newId, name, username, password, role, defaultHome, avatar: selectedAvatar, rules };
 
       state.config.partners.push(newPartner);
-      saveConfig();
+      saveConfig(isPassive ? 'Added passive partner' : 'Added partner', name);
       addLog(`Logistics: ${isPassive ? 'Passive' : 'Active'} partner "${name}" added.`, 'info');
       showToast(`Partner "${name}" added successfully!`, 'success');
       window.location.hash = '#logistics';
@@ -257,10 +261,11 @@ export function bindAddHomeEvents() {
       };
 
       state.config.residences.push(newHome);
+      applyHomeAssociationDefaults(state.config, newHomeId, associatedPeople);
       if (sessionStorage.getItem(RETURN_ADD_PARTNER_KEY) === '1') {
         sessionStorage.setItem(SELECT_HOME_KEY, newHomeId);
       }
-      saveConfig();
+      saveConfig('Added home', name);
       addLog(`Logistics: Home "${name}" added.`, 'info');
       showToast(`Home "${name}" added successfully!`, 'success');
 
@@ -330,7 +335,7 @@ export function bindEditPartnerEvents() {
       partner.rules.partnerLimits = nextLimits;
     }
 
-    saveConfig();
+    saveConfig('Updated partner', name);
     addLog(`Admin: Partner "${name}" updated.`, 'info');
     showToast(`Partner "${name}" updated.`, 'success');
     window.location.hash = '#logistics';
@@ -416,8 +421,9 @@ export function bindEditHomeEvents() {
     home.bedrooms = bedroomsCount;
     home.bedroomDetails = bedroomsList;
     home.associatedPeople = associatedPeople;
+    applyHomeAssociationDefaults(state.config, homeId, associatedPeople);
 
-    saveConfig();
+    saveConfig('Updated home', name);
     addLog(`Admin: Home "${name}" updated.`, 'info');
     showToast(`Home "${name}" updated.`, 'success');
     window.location.hash = '#logistics';
@@ -492,8 +498,7 @@ export function bindActivatePartnerEvents() {
     }
     partner.rules = rules;
 
-    saveConfig();
-    addLog(`Logistics: Passive partner "${partner.name}" activated as ${role}.`, 'info');
+    saveConfig('Activated partner', partner.name);
     showToast(`"${partner.name}" is now an active user!`, 'success');
     window.location.hash = '#logistics';
   });

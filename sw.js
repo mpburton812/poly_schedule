@@ -22,6 +22,7 @@ const ASSETS_TO_CACHE = [
   './js/views/index.js',
   './js/auth.js',
   './js/calendar.js',
+  './js/gcal-sync.js',
   './js/helpers.js',
   './js/proposal-workflow.js',
   './js/rules.js',
