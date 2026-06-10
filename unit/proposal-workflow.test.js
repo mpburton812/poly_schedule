@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  buildInitialResponses,
   evaluateProposedProposal,
   getProposalOutcome,
   getRequiredVoters,
@@ -153,5 +154,48 @@ describe('userNeedsProposalVote', () => {
       }
     };
     expect(userNeedsProposalVote(proposal, 'p2', config)).toBe(true);
+  });
+
+  it('returns false for the user who submitted on someone else\'s behalf', () => {
+    const proposal = {
+      type: 'event',
+      workflowState: WORKFLOW.PROPOSED,
+      proposer: 'Michael Burton',
+      submittedBy: 'Katie Thompson',
+      participantRoles: [
+        { name: 'Michael Burton', role: 'required' },
+        { name: 'Katie Thompson', role: 'required' }
+      ],
+      responses: {
+        'Michael Burton': { status: 'accept' },
+        'Katie Thompson': { status: 'accept', comment: 'Submitted on behalf' }
+      }
+    };
+    expect(userNeedsProposalVote(proposal, 'p2', config)).toBe(false);
+    expect(userNeedsProposalVote(proposal, 'Katie Thompson', config)).toBe(false);
+  });
+});
+
+describe('buildInitialResponses', () => {
+  const config = {
+    partners: [
+      { id: 'p1', name: 'Michael Burton', username: 'mpburton' },
+      { id: 'p2', name: 'Katie Thompson', username: 'katie' }
+    ]
+  };
+
+  it('auto-accepts the submitter when they submit on someone else\'s behalf', () => {
+    const responses = buildInitialResponses(
+      'Michael Burton',
+      [
+        { name: 'Michael Burton', role: 'required' },
+        { name: 'Katie Thompson', role: 'required' }
+      ],
+      config,
+      'Katie Thompson'
+    );
+    expect(responses['Michael Burton'].status).toBe('accept');
+    expect(responses['Katie Thompson'].status).toBe('accept');
+    expect(responses['Katie Thompson'].comment).toBe('Submitted on behalf');
   });
 });

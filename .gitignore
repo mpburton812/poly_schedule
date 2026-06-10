@@ -5,3 +5,6 @@ playwright-report/
 .gemini/
 .env
 *.log
+notify-service/.env
+notify-service/node_modules/
+notify-service/data/*.json

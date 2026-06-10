@@ -169,6 +169,12 @@ export function openUserProfileModal() {
           <input class="form-input" id="setting-display-name" type="text" value="${state.currentUser?.name || ''}" style="padding: 6px 12px; font-size: 0.85rem;"/>
         </div>
 
+        <div class="form-group" style="margin-bottom: 0;">
+          <label class="form-label" for="setting-notification-email" style="font-size: 0.8rem;">Notification email (optional)</label>
+          <input class="form-input" id="setting-notification-email" type="email" placeholder="you@example.com" value="${profilePartner?.notificationEmail || ''}" style="padding: 6px 12px; font-size: 0.85rem;"/>
+          <p class="font-label-sm" style="color: var(--on-surface-variant); margin-top: 4px;">Used for email backup when push cannot reach your devices.</p>
+        </div>
+
         <div class="grid grid-cols-2 gap-md" style="display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-md);">
           <div class="form-group" style="margin-bottom: 0;">
             <label class="form-label" for="setting-username" style="font-size: 0.8rem;">Username</label>
@@ -287,7 +293,8 @@ export function openUserProfileModal() {
         username: userName,
         password: pwd,
         avatar: selectedAvatar,
-        pronouns
+        pronouns,
+        notificationEmail: box.querySelector('#setting-notification-email')?.value.trim() || ''
       });
 
       const modalHeading = box.querySelector('h3.font-title-lg');

@@ -738,7 +738,7 @@ export const CalendarSync = {
     return this.updateEvent(eventId, updated, { skipWorkflow: true });
   },
 
-  async submitProposal(eventId) {
+  async submitProposal(eventId, options = {}) {
     const idx = this.events.findIndex(e => e.id === eventId);
     if (idx === -1) throw new Error('Proposal not found');
     const event = this.events[idx];
@@ -747,8 +747,9 @@ export const CalendarSync = {
       throw new Error('Only drafts can be submitted');
     }
 
+    const submittedBy = options.submittedBy || null;
     const participantRoles = event.participantRoles || normalizeParticipantRoles(event.participants, this.config, event.type);
-    const responses = buildInitialResponses(event.proposer, participantRoles, this.config);
+    const responses = buildInitialResponses(event.proposer, participantRoles, this.config, submittedBy);
 
     return this.updateEvent(eventId, {
       workflowState: WORKFLOW.PROPOSED,
@@ -756,6 +757,7 @@ export const CalendarSync = {
       participantRoles,
       participants: participantNames(participantRoles),
       responses,
+      submittedBy,
       submittedAt: new Date().toISOString()
     });
   },

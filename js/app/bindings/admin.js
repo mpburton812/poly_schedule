@@ -32,7 +32,7 @@ import {
   updatePartnerProfile
 } from '../context.js';
 import { renderView } from '../router.js';
-import { bindLogisticsEvents, bindGoogleCredentialsEvents } from './logistics.js';
+import { bindLogisticsEvents, bindGoogleCredentialsEvents, bindNotifyCredentialsEvents, bindAdminDevicesEvents } from './logistics.js';
 
 export function bindAdminEvents() {
   const btnSave = document.getElementById('btn-save-group-name');
@@ -61,6 +61,8 @@ export function bindAdminEvents() {
 
   bindLogisticsEvents(document);
   bindGoogleCredentialsEvents(document);
+  bindNotifyCredentialsEvents(document);
+  bindAdminDevicesEvents(document);
 }
 
 export function bindLoginEvents() {
@@ -320,7 +322,8 @@ export function bindEditPartnerEvents() {
 
     const profileUpdates = {
       name,
-      avatar: getSelectedAvatar()
+      avatar: getSelectedAvatar(),
+      notificationEmail: document.getElementById('edit-partner-notification-email')?.value.trim() || ''
     };
 
     if (!isPartnerPassive(partner)) {

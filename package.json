@@ -14,7 +14,9 @@
     "test:unit": "vitest run",
     "generate:avatars": "node scripts/generate-avatar-icons.js",
     "test:e2e": "playwright test",
-    "test": "npm run test:unit && npm run test:e2e"
+    "test": "npm run test:unit && npm run test:e2e",
+    "notify": "npm --prefix notify-service start",
+    "notify:install": "npm --prefix notify-service install"
   },
   "keywords": [
     "pwa",

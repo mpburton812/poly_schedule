@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { LEGACY_PRESET_AVATARS } from '../js/avatar.js';
-import { dedupeDuplicateSleepingEvents, normalizeConfigPartners, renderBatchNightsReviewHtml } from '../js/helpers.js';
+import { dedupeDuplicateSleepingEvents, normalizeConfigPartners, parseLocalDateString, renderBatchNightsReviewHtml } from '../js/helpers.js';
 import { DEFAULT_AVATARS } from '../js/helpers.js';
 
 describe('normalizeConfigPartners', () => {
@@ -54,6 +54,16 @@ describe('normalizeConfigPartners', () => {
     const changed = normalizeConfigPartners(config, defaults);
     expect(changed).toBe(true);
     expect(config.partners[0].avatar).toBe(DEFAULT_AVATARS[2]);
+  });
+});
+
+describe('parseLocalDateString', () => {
+  it('parses YYYY-MM-DD in local time without shifting to the previous day', () => {
+    const date = parseLocalDateString('2026-06-10', 19, 0, 0, 0);
+    expect(date.getFullYear()).toBe(2026);
+    expect(date.getMonth()).toBe(5);
+    expect(date.getDate()).toBe(10);
+    expect(date.getHours()).toBe(19);
   });
 });
 

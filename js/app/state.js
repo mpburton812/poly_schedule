@@ -59,3 +59,11 @@ export function resetCreateFlowForNavigation() {
   flowState.soloEventMode = false;
   resetNewProposalFormState();
 }
+
+/** Clear in-progress create state when switching impersonation / signed-in user. */
+export function resetCreateFlowForUserSwitch() {
+  resetCreateFlowForNavigation();
+  if (typeof window !== 'undefined' && window.location.hash.includes('#create')) {
+    window.history.replaceState({}, '', '#create');
+  }
+}

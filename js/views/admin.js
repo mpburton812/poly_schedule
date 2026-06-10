@@ -31,6 +31,8 @@ export function adminView(state) {
     const clientId = localStorage.getItem('polyschedule_client_id') || '';
     const apiKey = localStorage.getItem('polyschedule_api_key') || '';
     const calendarId = localStorage.getItem('polyschedule_calendar_id') || 'primary';
+    const notifyUrl = localStorage.getItem('polyschedule_notify_url') || '';
+    const notifySecret = localStorage.getItem('polyschedule_notify_secret') || '';
     const credentialsConfigured = !!(clientId && apiKey);
     const changeLogHtml = renderChangeLogHtml(state.changeLog || []);
 
@@ -85,6 +87,43 @@ export function adminView(state) {
             <div style="display: flex; gap: var(--space-sm); flex-wrap: wrap;">
               <button class="btn btn-filled" id="btn-save-google-credentials" type="button">Save Google Credentials</button>
               <button class="btn btn-outline" id="btn-disconnect-google" type="button">Disconnect Google Sync</button>
+            </div>
+          </div>
+        </div>
+
+        <div class="bento-card" style="padding: var(--space-lg); border: 1px solid var(--outline-variant);">
+          <h3 class="font-title-lg" style="font-weight: 700; margin-bottom: var(--space-xs); display: flex; align-items: center; gap: var(--space-sm);">
+            <span class="material-symbols-outlined text-primary">notifications_active</span> Mobile Push Notifications
+          </h3>
+          <p class="font-body-md" style="color: var(--on-surface-variant); margin-bottom: var(--space-md);">
+            One-time setup for the notify service that delivers Web Push alerts to Android and iPhone PWAs when proposals need review.
+          </p>
+          ${notifyUrl && notifySecret
+            ? '<p class="font-label-sm" style="color: var(--secondary); margin-bottom: var(--space-md);">Notify service is configured.</p>'
+            : '<p class="font-label-sm" style="color: var(--tertiary); margin-bottom: var(--space-md);">Not configured yet — deploy <code>notify-service</code> and enter its URL and secret below.</p>'}
+
+          <div style="display: flex; flex-direction: column; gap: var(--space-md);">
+            <div class="form-group" style="margin-bottom: 0;">
+              <label class="form-label" for="admin-notify-url">Notify Service URL</label>
+              <input class="form-input" id="admin-notify-url" placeholder="https://polyschedule-notify.onrender.com" type="url" value="${notifyUrl}"/>
+            </div>
+            <div class="form-group" style="margin-bottom: 0;">
+              <label class="form-label" for="admin-notify-secret">Notify Secret</label>
+              <input class="form-input" id="admin-notify-secret" placeholder="long random secret" type="password" value="${notifySecret}"/>
+              <p class="font-label-sm" style="color: var(--on-surface-variant); margin-top: var(--space-xs);">Must match <code>NOTIFY_SECRET</code> on the notify service. See <code>notify-service/README.md</code>.</p>
+            </div>
+            <button class="btn btn-filled" id="btn-save-notify-credentials" type="button">Save Notify Settings</button>
+          </div>
+          <div style="margin-top: var(--space-lg); padding-top: var(--space-lg); border-top: 1px solid var(--outline-variant);">
+            <div style="display: flex; justify-content: space-between; align-items: center; gap: var(--space-sm); margin-bottom: var(--space-md);">
+              <h4 class="font-title-md" style="font-weight: 700; margin: 0;">Registered push devices</h4>
+              <button class="btn btn-outline" id="btn-refresh-notify-devices" type="button">Refresh</button>
+            </div>
+            <p class="font-body-sm" style="color: var(--on-surface-variant); margin-bottom: var(--space-md);">
+              Devices that have enabled push notifications. Partner names come from your household config.
+            </p>
+            <div id="notify-devices-panel" class="font-body-sm" style="color: var(--on-surface-variant);">
+              ${notifyUrl && notifySecret ? 'Click Refresh to load devices.' : 'Configure the notify service first.'}
             </div>
           </div>
         </div>

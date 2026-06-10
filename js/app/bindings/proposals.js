@@ -4,10 +4,15 @@ import {
   addLog,
   showToast,
   getCurrentUserName,
+  getCurrentUserId,
   logOperationError,
-  persistCurrentUserNotifications
+  persistCurrentUserNotifications,
+  notifyProposerOfProposalVote,
+  notifyProposalOutcome,
+  notifyProposalWithdrawn
 } from '../context.js';
 import { getWorkflowState, WORKFLOW } from '../../proposal-workflow.js';
+import { parseHashParams } from '../../helpers.js';
 import { renderView } from '../router.js';
 import { loadDraftIntoForm } from './create.js';
 
@@ -30,15 +35,28 @@ export function bindProposalsEvents() {
   if (flowState.highlightProposalId) {
     const highlightId = flowState.highlightProposalId;
     flowState.highlightProposalId = null;
-    requestAnimationFrame(() => {
-      const card = document.getElementById(`prop-${highlightId}`);
-      if (!card) return;
-      card.scrollIntoView({ behavior: 'smooth', block: 'center' });
-      card.classList.add('proposal-card-highlight');
-      setTimeout(() => card.classList.remove('proposal-card-highlight'), 2400);
-    });
+    scrollToProposalCard(highlightId);
   }
 
+  const params = parseHashParams();
+  if (params.highlight) {
+    scrollToProposalCard(params.highlight);
+  }
+
+  bindProposalActionHandlers();
+}
+
+function scrollToProposalCard(highlightId) {
+  requestAnimationFrame(() => {
+    const card = document.getElementById(`prop-${highlightId}`);
+    if (!card) return;
+    card.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    card.classList.add('proposal-card-highlight');
+    setTimeout(() => card.classList.remove('proposal-card-highlight'), 2400);
+  });
+}
+
+function bindProposalActionHandlers() {
   document.querySelectorAll('.vote-btn').forEach(btn => {
     btn.addEventListener('click', async () => {
       const id = btn.dataset.id;
@@ -52,6 +70,8 @@ export function bindProposalsEvents() {
       if (!proposal) return;
 
       const voterRef = state.currentUser?.id || getCurrentUserName();
+      const voterName = getCurrentUserName();
+      const beforeWs = getWorkflowState(proposal);
 
       try {
         const updated = await CalendarSync.submitProposalVote(id, voterRef, vote, commentInput);
@@ -63,7 +83,24 @@ export function bindProposalsEvents() {
         persistCurrentUserNotifications();
 
         const finalEvent = state.events.find(e => e.id === id) || updated;
-        if (finalEvent && getWorkflowState(finalEvent) === WORKFLOW.APPROVED) {
+        const afterWs = getWorkflowState(finalEvent);
+
+        if (afterWs === WORKFLOW.APPROVED && beforeWs === WORKFLOW.PROPOSED) {
+          notifyProposalOutcome(finalEvent, state.config, { outcome: 'approved' });
+        } else if (afterWs === WORKFLOW.DECLINED && beforeWs === WORKFLOW.PROPOSED) {
+          notifyProposalOutcome(finalEvent, state.config, {
+            outcome: 'declined',
+            declinedBy: finalEvent.declinedBy
+          });
+        } else if (afterWs === WORKFLOW.PROPOSED) {
+          notifyProposerOfProposalVote(finalEvent, state.config, {
+            voterName,
+            vote,
+            actingUserId: getCurrentUserId()
+          });
+        }
+
+        if (finalEvent && afterWs === WORKFLOW.APPROVED) {
           flowState.activeProposalsTab = 'approved';
           showToast('Proposal approved!', 'success');
         } else {
@@ -91,6 +128,12 @@ export function bindProposalsEvents() {
       if (confirm(`Cancel proposal "${proposal.title}"? This permanently removes it.`)) {
         const reason = prompt('Optional reason for cancelling:') ?? '';
         try {
+          notifyProposalWithdrawn(proposal, state.config, {
+            kind: 'cancelled',
+            reason,
+            actingUserId: getCurrentUserId(),
+            actorName: getCurrentUserName()
+          });
           await CalendarSync.cancelProposal(id, reason);
           addLog(`Proposal cancelled: "${proposal.title}"${reason ? ` — ${reason}` : ''}`, 'warning');
           showToast('Proposal cancelled.', 'success');
@@ -113,6 +156,11 @@ export function bindProposalsEvents() {
 
       if (confirm(`Retract "${proposal.title}" back to draft? All votes will be cleared.`)) {
         try {
+          notifyProposalWithdrawn(proposal, state.config, {
+            kind: 'retracted',
+            actingUserId: getCurrentUserId(),
+            actorName: getCurrentUserName()
+          });
           await CalendarSync.retractProposal(id);
           addLog(`Proposal retracted to draft: "${proposal.title}"`, 'info');
           showToast('Proposal retracted to draft.', 'success');

@@ -20,6 +20,7 @@ import {
   mergeGCalWithLocalEvents,
   GCAL_CONFIG_SUMMARY
 } from '../js/gcal-sync.js';
+import { parseLocalDateString } from '../js/helpers.js';
 
 const storage = vi.hoisted(() => {
   const local = {};
@@ -170,21 +171,26 @@ describe('formatGCalResource colors and status', () => {
 describe('isPastScheduledEvent', () => {
   it('detects past timed events and sleeping nights', () => {
     vi.useFakeTimers();
-    vi.setSystemTime(new Date('2026-06-10T12:00:00.000Z'));
+    vi.setSystemTime(new Date(2026, 5, 9, 12, 0, 0));
     expect(isPastScheduledEvent({
       type: 'event',
-      start: '2026-06-10T11:00:00.000Z',
-      end: '2026-06-10T12:00:00.000Z'
+      start: new Date(2026, 5, 9, 11, 0, 0).toISOString(),
+      end: new Date(2026, 5, 9, 12, 0, 0).toISOString()
     })).toBe(true);
     expect(isPastScheduledEvent({
       type: 'event',
-      start: '2026-06-10T13:00:00.000Z',
-      end: '2026-06-10T14:00:00.000Z'
+      start: new Date(2026, 5, 9, 13, 0, 0).toISOString(),
+      end: new Date(2026, 5, 9, 14, 0, 0).toISOString()
+    })).toBe(false);
+    expect(isPastScheduledEvent({
+      type: 'event',
+      start: parseLocalDateString('2026-06-10', 19, 0, 0, 0).toISOString(),
+      end: parseLocalDateString('2026-06-10', 21, 0, 0, 0).toISOString()
     })).toBe(false);
     expect(isPastScheduledEvent({
       type: 'sleeping',
-      start: '2026-06-09T22:00:00.000Z',
-      end: '2026-06-10T08:00:00.000Z'
+      start: new Date(2026, 5, 8, 22, 0, 0).toISOString(),
+      end: new Date(2026, 5, 9, 8, 0, 0).toISOString()
     })).toBe(true);
     vi.useRealTimers();
   });

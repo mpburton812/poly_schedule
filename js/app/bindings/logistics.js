@@ -1,6 +1,17 @@
 import { AuthManager } from '../../auth.js';
 import { state } from '../state.js';
-import { logUserAction, showToast, logoutGoogleSync, addChangeLog } from '../context.js';
+import { logUserAction, showToast, logoutGoogleSync, addChangeLog, getCurrentUserId } from '../context.js';
+import {
+  NOTIFY_URL_KEY,
+  NOTIFY_SECRET_KEY,
+  enablePushOnThisDevice,
+  disablePushOnThisDevice,
+  sendTestPush,
+  saveQuietHoursSettings,
+  savePushTypePrefs,
+  getPushTypePrefs,
+  fetchRegisteredDevices
+} from '../../push-notifications.js';
 
 export function bindLogisticsEvents(container = document) {
   const exportBtn = container.querySelector('#btn-export-logs');
@@ -134,4 +145,135 @@ export function bindSettingsEvents(container = document) {
       }, 1000);
     });
   }
+
+  bindPushSettingsEvents(container);
+}
+
+export function bindNotifyCredentialsEvents(container = document) {
+  const btnSave = container.querySelector('#btn-save-notify-credentials');
+  if (btnSave) {
+    btnSave.addEventListener('click', () => {
+      const url = container.querySelector('#admin-notify-url')?.value.trim().replace(/\/$/, '');
+      const secret = container.querySelector('#admin-notify-secret')?.value.trim();
+      if (!url || !secret) {
+        showToast('Notify service URL and secret are required.', 'warning');
+        return;
+      }
+      localStorage.setItem(NOTIFY_URL_KEY, url);
+      localStorage.setItem(NOTIFY_SECRET_KEY, secret);
+      showToast('Notify service settings saved.', 'success');
+      logUserAction('Mobile notify service settings updated.', 'info');
+      addChangeLog('Updated notify service settings', url);
+    });
+  }
+}
+
+export function bindPushSettingsEvents(container = document) {
+  const partnerId = getCurrentUserId();
+  const btnEnable = container.querySelector('#btn-enable-push');
+  const btnDisable = container.querySelector('#btn-disable-push');
+  const btnTest = container.querySelector('#btn-test-push');
+
+  if (btnEnable) {
+    btnEnable.addEventListener('click', async () => {
+      try {
+        await enablePushOnThisDevice(partnerId);
+        showToast('Push notifications enabled on this device.', 'success');
+        logUserAction('Enabled push notifications on this device.', 'info');
+        import('../router.js').then(({ router }) => router());
+      } catch (err) {
+        showToast(err?.message || 'Could not enable push notifications.', 'error');
+      }
+    });
+  }
+
+  if (btnDisable) {
+    btnDisable.addEventListener('click', async () => {
+      try {
+        await disablePushOnThisDevice(partnerId);
+        showToast('Push notifications disabled on this device.', 'success');
+        logUserAction('Disabled push notifications on this device.', 'info');
+        import('../router.js').then(({ router }) => router());
+      } catch (err) {
+        showToast(err?.message || 'Could not disable push notifications.', 'error');
+      }
+    });
+  }
+
+  if (btnTest) {
+    btnTest.addEventListener('click', async () => {
+      try {
+        await sendTestPush(partnerId);
+        showToast('Test notification sent.', 'success');
+      } catch (err) {
+        showToast(err?.message || 'Test notification failed.', 'error');
+      }
+    });
+  }
+
+  const quietCheckbox = container.querySelector('#push-quiet-hours');
+  const quietStart = container.querySelector('#push-quiet-start');
+  const quietEnd = container.querySelector('#push-quiet-end');
+  const persistQuietHours = () => {
+    saveQuietHoursSettings({
+      enabled: !!quietCheckbox?.checked,
+      startHour: parseInt(quietStart?.value || '22', 10),
+      endHour: parseInt(quietEnd?.value || '8', 10)
+    });
+  };
+  quietCheckbox?.addEventListener('change', persistQuietHours);
+  quietStart?.addEventListener('change', persistQuietHours);
+  quietEnd?.addEventListener('change', persistQuietHours);
+
+  const persistPushTypePrefs = () => {
+    const prefs = { ...getPushTypePrefs() };
+    container.querySelectorAll('.push-type-toggle').forEach(input => {
+      const type = input.dataset.pushType;
+      if (!type) return;
+      prefs[type] = input.checked;
+    });
+    savePushTypePrefs(prefs);
+  };
+  container.querySelectorAll('.push-type-toggle').forEach(input => {
+    input.addEventListener('change', persistPushTypePrefs);
+  });
+}
+
+export function bindAdminDevicesEvents(container = document) {
+  const panel = container.querySelector('#notify-devices-panel');
+  const btnRefresh = container.querySelector('#btn-refresh-notify-devices');
+  if (!panel || !btnRefresh) return;
+
+  const renderDevices = async () => {
+    panel.textContent = 'Loading…';
+    try {
+      const data = await fetchRegisteredDevices();
+      const rows = data.devices || [];
+      if (!rows.length) {
+        panel.textContent = 'No devices registered yet.';
+        return;
+      }
+      panel.innerHTML = rows.map(row => {
+        const partner = state.config?.partners?.find(p => p.id === row.partnerId);
+        const name = partner?.name || row.partnerId;
+        const deviceLines = (row.devices || []).map(device => `
+          <li style="margin-bottom: 4px;">
+            <span style="color: var(--on-surface);">${device.userAgent}</span>
+            <span style="display: block; font-size: 0.75rem; opacity: 0.8;">Updated ${device.updatedAt || 'unknown'}</span>
+          </li>
+        `).join('');
+        return `
+          <div style="border: 1px solid var(--outline-variant); border-radius: var(--radius-md); padding: var(--space-sm); margin-bottom: var(--space-sm);">
+            <strong>${name}</strong>
+            <span class="font-label-sm" style="color: var(--on-surface-variant);"> · ${row.devices?.length || 0} device(s)</span>
+            <ul style="margin: var(--space-xs) 0 0; padding-left: 1.2rem;">${deviceLines}</ul>
+          </div>
+        `;
+      }).join('');
+    } catch (err) {
+      panel.textContent = err?.message || 'Could not load devices.';
+    }
+  };
+
+  btnRefresh.addEventListener('click', renderDevices);
 }

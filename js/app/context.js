@@ -5,6 +5,14 @@
 import { AuthManager } from '../auth.js';
 import { CalendarSync } from '../calendar.js';
 import { isPastScheduledEvent } from '../gcal-sync.js';
+import {
+  dispatchProposalReviewPush,
+  dispatchProposalVotePush,
+  dispatchProposalApprovedPush,
+  dispatchProposalDeclinedPush,
+  dispatchProposalWithdrawnPush,
+  buildProposalReviewRecipients
+} from '../push-notifications.js';
 import { Views, DEFAULT_AVATARS } from '../views.js';
 import {
   LOGS_STORAGE_KEY,
@@ -40,7 +48,7 @@ import {
   WORKFLOW,
   isProposalType
 } from '../proposal-workflow.js';
-import { state, flowState } from './state.js';
+import { state, flowState, resetCreateFlowForUserSwitch } from './state.js';
 
 export { LOCAL_SESSION_KEY };
 
@@ -235,14 +243,17 @@ export function pushAppNotification({ title, description, dedupeKey, recipientId
   return true;
 }
 
-export function notifyProposalReviewers(proposal, config) {
+export function notifyProposalReviewers(proposal, config, options = {}) {
   if (getWorkflowState(proposal) !== WORKFLOW.PROPOSED) return;
+  const actingUserId = options.actingUserId || getCurrentUserId();
   getRequiredVoters(proposal.participantRoles || [], config).forEach(name => {
     if (partnerRefsMatch(config, name, proposal.proposer)) return;
+    if (proposal.submittedBy && partnerRefsMatch(config, name, proposal.submittedBy)) return;
     const response = getResponseForParticipant(proposal, name, config);
     if (response?.status !== 'pending') return;
     const recipient = findPartnerByRef(config, name);
     if (!recipient || isPartnerPassive(recipient)) return;
+    if (actingUserId && recipient.id === actingUserId) return;
     pushAppNotification({
       title: 'Proposal needs your review',
       description: `"${proposal.title}" from ${proposal.proposer} is waiting for your response.${isPastScheduledEvent(proposal) ? ' This proposal is scheduled in the past.' : ''}`,
@@ -250,6 +261,71 @@ export function notifyProposalReviewers(proposal, config) {
       recipientId: recipient.id
     });
   });
+  dispatchProposalReviewPush(proposal, config);
+}
+
+export function notifyProposerOfProposalVote(proposal, config, { voterName, vote, actingUserId = null }) {
+  if (!proposal || !voterName || !vote) return;
+  const proposer = findPartnerByRef(config, proposal.proposer);
+  if (!proposer || isPartnerPassive(proposer)) return;
+  if (partnerRefsMatch(config, voterName, proposal.proposer)) return;
+  if (actingUserId && proposer.id === actingUserId) return;
+
+  const voterFirst = voterName.split(' ')[0];
+  pushAppNotification({
+    title: 'New response on your proposal',
+    description: `${voterFirst} ${vote === 'accept' ? 'accepted' : vote === 'reject' ? 'rejected' : 'abstained on'} "${proposal.title}".`,
+    dedupeKey: `vote_${proposal.id}_${voterName}_${vote}`,
+    recipientId: proposer.id
+  });
+  dispatchProposalVotePush(proposal, config, voterName, vote);
+}
+
+export function notifyProposalOutcome(proposal, config, { outcome, declinedBy = null }) {
+  if (!proposal) return;
+  const proposer = findPartnerByRef(config, proposal.proposer);
+  if (!proposer || isPartnerPassive(proposer)) return;
+
+  if (outcome === 'approved') {
+    pushAppNotification({
+      title: 'Proposal approved',
+      description: `"${proposal.title}" was approved and added to the calendar.`,
+      dedupeKey: `approved_${proposal.id}`,
+      recipientId: proposer.id
+    });
+    dispatchProposalApprovedPush(proposal, config);
+    return;
+  }
+
+  if (outcome === 'declined') {
+    const byLine = declinedBy ? ` by ${declinedBy.split(' ')[0]}` : '';
+    pushAppNotification({
+      title: 'Proposal declined',
+      description: `"${proposal.title}" was declined${byLine}.`,
+      dedupeKey: `declined_${proposal.id}_${declinedBy || 'unknown'}`,
+      recipientId: proposer.id
+    });
+    dispatchProposalDeclinedPush(proposal, config, declinedBy);
+  }
+}
+
+export function notifyProposalWithdrawn(proposal, config, { kind = 'retracted', reason = '', actingUserId = null, actorName = null }) {
+  if (!proposal || getWorkflowState(proposal) !== WORKFLOW.PROPOSED) return;
+  const actor = actorName || getCurrentUserName();
+  const actorFirst = actor.split(' ')[0];
+  const reasonNote = reason ? ` Reason: ${reason}` : '';
+
+  buildProposalReviewRecipients(proposal, config).forEach(recipient => {
+    if (actingUserId && recipient.id === actingUserId) return;
+    pushAppNotification({
+      title: kind === 'cancelled' ? 'Proposal cancelled' : 'Proposal retracted',
+      description: `${actorFirst} ${kind === 'cancelled' ? 'cancelled' : 'retracted'} "${proposal.title}".${reasonNote}`,
+      dedupeKey: `${kind}_${proposal.id}_${recipient.id}`,
+      recipientId: recipient.id
+    });
+  });
+
+  dispatchProposalWithdrawnPush(proposal, config, { kind, reason, actingUserId, actorName: actor });
 }
 
 export function syncPendingProposalAlertsForUser() {
@@ -366,6 +442,9 @@ export function updatePartnerProfile(partnerId, updates) {
   if (updates.username !== undefined) partner.username = updates.username;
   if (updates.password !== undefined) partner.password = updates.password;
   if (updates.pronouns !== undefined) partner.pronouns = normalizePronouns(updates.pronouns);
+  if (updates.notificationEmail !== undefined) {
+    partner.notificationEmail = String(updates.notificationEmail || '').trim();
+  }
 
   saveConfig('Updated profile', partner.name);
 
@@ -401,6 +480,7 @@ export function impersonatePartner(partnerId) {
   if (partner.id === state.currentUser?.id) return;
 
   const actorName = getCurrentUserName();
+  resetCreateFlowForUserSwitch();
   establishSession(partner);
   addLog(`${actorName}: Impersonating user "${partner.name}".`, 'warning');
   addChangeLog('Impersonated user', partner.name);
@@ -467,6 +547,9 @@ export function establishSession(partner) {
   updateAdminNavVisibility();
   refreshCurrentUserNotifications();
   syncPendingProposalAlertsForUser();
+  import('../push-notifications.js').then(({ syncPushSubscriptionIfEnabled }) => {
+    syncPushSubscriptionIfEnabled(partner.id);
+  });
 }
 
 export function attemptLogin(username, password) {

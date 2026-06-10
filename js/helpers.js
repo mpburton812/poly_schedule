@@ -45,6 +45,23 @@ export function formatAppDateTime(date = new Date()) {
   return new Date(date).toLocaleString(undefined, APP_DATETIME_OPTS);
 }
 
+/** Parse YYYY-MM-DD as a local calendar date (avoids UTC midnight shifting the day). */
+export function parseLocalDateString(dateStr, hours = 12, minutes = 0, seconds = 0, ms = 0) {
+  if (!dateStr) return new Date(NaN);
+  const match = String(dateStr).match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (!match) return new Date(dateStr);
+  const [, y, m, d] = match.map(Number);
+  return new Date(y, m - 1, d, hours, minutes, seconds, ms);
+}
+
+/** Format a Date as YYYY-MM-DD in local time. */
+export function formatLocalDateString(date) {
+  const y = date.getFullYear();
+  const m = String(date.getMonth() + 1).padStart(2, '0');
+  const d = String(date.getDate()).padStart(2, '0');
+  return `${y}-${m}-${d}`;
+}
+
 /**
  * Resolve a partner by stable id or legacy display-name reference.
  */
@@ -435,8 +452,7 @@ export function getBedroomOptionsForHome(home) {
 }
 
 export function nightAssignmentToSleepingEvent(nightDate, assign, id = 'temp') {
-  const start = new Date(nightDate);
-  start.setHours(22, 0, 0, 0);
+  const start = parseLocalDateString(nightDate, 22, 0, 0, 0);
   const end = new Date(start);
   end.setDate(end.getDate() + 1);
   end.setHours(8, 0, 0, 0);
@@ -557,12 +573,12 @@ export function renderBatchNightsReviewHtml(batchNights = []) {
 }
 
 export function buildBatchNightsPayload(startDateStr, nightCount, nightAssignments, config = {}) {
-  const start = new Date(startDateStr);
+  const start = parseLocalDateString(startDateStr, 22, 0, 0, 0);
   const batchNights = [];
   for (let i = 0; i < nightCount; i++) {
     const d = new Date(start);
     d.setDate(start.getDate() + i);
-    const dateStr = d.toISOString().split('T')[0];
+    const dateStr = formatLocalDateString(d);
     const night = normalizeBatchNight(nightAssignments[i], config);
     const assignments = (night.assignments || [])
       .filter(a => (a.participants || []).length > 0)
@@ -578,7 +594,6 @@ export function buildBatchNightsPayload(startDateStr, nightCount, nightAssignmen
   const end = new Date(start);
   end.setDate(start.getDate() + nightCount);
   end.setHours(8, 0, 0, 0);
-  start.setHours(22, 0, 0, 0);
   return { batchNights, start: start.toISOString(), end: end.toISOString() };
 }
 

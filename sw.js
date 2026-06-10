@@ -28,6 +28,7 @@ const ASSETS_TO_CACHE = [
   './js/change-log.js',
   './js/proposal-workflow.js',
   './js/rules.js',
+  './js/push-notifications.js',
   './js/views.js',
   './version.json',
   './release-notes.json',
@@ -118,28 +119,32 @@ self.addEventListener('fetch', event => {
 
 // Push Notification Event Listener
 self.addEventListener('push', event => {
-  let data = { title: 'PolySchedule Update', body: 'You have a new proposal review.' };
-  
+  let payload = {
+    title: 'PolySchedule Update',
+    body: 'You have a new proposal review.',
+    url: './index.html#proposals'
+  };
+
   if (event.data) {
     try {
-      data = event.data.json();
+      payload = { ...payload, ...event.data.json() };
     } catch (e) {
-      data = { title: 'PolySchedule Update', body: event.data.text() };
+      payload.body = event.data.text();
     }
   }
 
   const options = {
-    body: data.body,
+    body: payload.body,
     icon: 'icons/icon-192.png',
     badge: 'icons/icon-192.png',
     vibrate: [100, 50, 100],
     data: {
-      url: './index.html#proposals'
+      url: payload.url || './index.html#proposals'
     }
   };
 
   event.waitUntil(
-    self.registration.showNotification(data.title, options)
+    self.registration.showNotification(payload.title, options)
   );
 });
 

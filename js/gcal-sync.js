@@ -2,6 +2,7 @@
  * Google Calendar ↔ PolySchedule event serialization helpers.
  */
 
+import { formatAppDateTime } from './helpers.js';
 import { WORKFLOW, getWorkflowState } from './proposal-workflow.js';
 
 export const GCAL_CONFIG_SUMMARY = '[CONFIG] PolySchedule Core Settings';
@@ -45,6 +46,7 @@ export function serializeEventMeta(event) {
     participantRoles: event.participantRoles,
     revision: event.revision,
     proposer: event.proposer || '',
+    submittedBy: event.submittedBy || '',
     responses: event.responses || {},
     participants: event.participants || [],
     roomName: event.roomName || '',
@@ -87,6 +89,7 @@ export function parseGCalEventItem(item) {
   let archivedAt;
   let autoArchiveAt;
   let submittedAt;
+  let submittedBy;
   let declinedBy;
   let declinedAt;
   let expandedEventIds;
@@ -117,6 +120,7 @@ export function parseGCalEventItem(item) {
       archivedAt = meta.archivedAt;
       autoArchiveAt = meta.autoArchiveAt;
       submittedAt = meta.submittedAt;
+      submittedBy = meta.submittedBy;
       declinedBy = meta.declinedBy;
       declinedAt = meta.declinedAt;
       expandedEventIds = meta.expandedEventIds;
@@ -170,6 +174,7 @@ export function parseGCalEventItem(item) {
   if (archivedAt) event.archivedAt = archivedAt;
   if (autoArchiveAt) event.autoArchiveAt = autoArchiveAt;
   if (submittedAt) event.submittedAt = submittedAt;
+  if (submittedBy) event.submittedBy = submittedBy;
   if (declinedBy) event.declinedBy = declinedBy;
   if (declinedAt) event.declinedAt = declinedAt;
   if (expandedEventIds) event.expandedEventIds = expandedEventIds;
@@ -249,8 +254,8 @@ export function pastScheduleWarning(event) {
   if (!isPastScheduledEvent(event)) return null;
   const start = new Date(event.start);
   const when = event.type === 'sleeping'
-    ? start.toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' })
-    : start.toLocaleString(undefined, { weekday: 'short', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit', hour12: true });
+    ? formatAppDateTime(start).split(',')[0].trim()
+    : formatAppDateTime(start);
   return {
     type: 'PAST_SCHEDULE',
     message: `This proposal is scheduled in the past (${when}). Reviewers will be alerted.`

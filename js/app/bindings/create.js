@@ -5,6 +5,7 @@ import {
   isPartnerPassive,
   findPartnerByRef,
   read12HourTime,
+  parseLocalDateString,
   defaultBatchAssignment,
   defaultBatchNight,
   cloneBatchNight,
@@ -30,6 +31,7 @@ import {
   logUserAction,
   showToast,
   getCurrentUserName,
+  getCurrentUserId,
   notifyProposalReviewers,
   addChangeLog,
   logOperationError
@@ -257,7 +259,7 @@ export function updateMicroCalendarConflicts(warnings) {
   const startInput = document.getElementById('prop-start-date');
   if (!startInput) return;
 
-  const start = new Date(startInput.value + 'T12:00:00');
+  const start = parseLocalDateString(startInput.value, 12, 0, 0, 0);
   warnings.filter(w => w.type === 'CAPACITY_CONFLICT' && w.nightIndex !== undefined).forEach(w => {
     const d = new Date(start);
     d.setDate(start.getDate() + w.nightIndex);
@@ -343,9 +345,10 @@ export function collectProposalFormData() {
     };
   }
 
-  const startD = new Date(startInput?.value || newProposalState.batchStartDate || Date.now());
+  const dateStr = startInput?.value || newProposalState.batchStartDate;
+  let startD = parseLocalDateString(dateStr, 0, 0, 0, 0);
   if (Number.isNaN(startD.getTime())) {
-    startD.setTime(Date.now());
+    startD = new Date();
   }
   let endD = new Date(startD);
   if (flowState.currentCreateType === 'sleeping') {
@@ -355,8 +358,8 @@ export function collectProposalFormData() {
   } else {
     const startTime = read12HourTime('prop-start');
     const endTime = read12HourTime('prop-end');
-    startD.setHours(startTime.hours, startTime.minutes, 0, 0);
-    endD.setHours(endTime.hours, endTime.minutes, 0, 0);
+    startD = parseLocalDateString(dateStr, startTime.hours, startTime.minutes, 0, 0);
+    endD = parseLocalDateString(dateStr, endTime.hours, endTime.minutes, 0, 0);
     if (endD <= startD) endD = new Date(startD.getTime() + 3600000);
   }
 
@@ -480,12 +483,11 @@ export async function submitCurrentProposal() {
       return;
     }
   } else if (flowState.currentCreateType === 'event') {
-    const startD = new Date(document.getElementById('prop-start-date').value);
-    const endD = new Date(startD);
+    const dateStr = document.getElementById('prop-start-date').value;
     const startTime = read12HourTime('prop-start');
     const endTime = read12HourTime('prop-end');
-    startD.setHours(startTime.hours, startTime.minutes, 0, 0);
-    endD.setHours(endTime.hours, endTime.minutes, 0, 0);
+    const startD = parseLocalDateString(dateStr, startTime.hours, startTime.minutes, 0, 0);
+    const endD = parseLocalDateString(dateStr, endTime.hours, endTime.minutes, 0, 0);
     if (endD <= startD) {
       showToast('End time must be after start time.', 'warning');
       return;
@@ -545,7 +547,7 @@ export async function submitCurrentProposal() {
     draftId = saved?.id || draftId;
     flowState.currentDraftId = draftId;
 
-    await CalendarSync.submitProposal(draftId);
+    await CalendarSync.submitProposal(draftId, { submittedBy: getCurrentUserName() });
     state.events = CalendarSync.events;
 
     const finalEvent = state.events.find(e => e.id === draftId);
@@ -561,7 +563,7 @@ export async function submitCurrentProposal() {
       flowState.soloEventMode = false;
       window.location.hash = '#schedule';
     } else {
-      if (finalEvent) notifyProposalReviewers(finalEvent, state.config);
+      if (finalEvent) notifyProposalReviewers(finalEvent, state.config, { actingUserId: getCurrentUserId() });
       showToast('Proposal submitted successfully!', 'success');
       addChangeLog('Proposal submitted', finalEvent?.title || data.title);
       flowState.currentDraftId = null;
@@ -615,8 +617,8 @@ export function runRulesChecks() {
       warnings = evaluateCurrentBatchProposalWarnings();
     } else {
       const currentUserName = getCurrentUserName();
-      const startD = new Date(startInput.value);
-      const endD = new Date(startD);
+      const startD = parseLocalDateString(startInput.value, 22, 0, 0, 0);
+      const endD = parseLocalDateString(startInput.value, 0, 0, 0, 0);
       endD.setDate(startD.getDate() + (parseInt(durationVal, 10) || 1));
       const participants = [...newProposalState.participants];
       if (!participants.includes(currentUserName)) participants.push(currentUserName);

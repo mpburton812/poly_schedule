@@ -119,6 +119,7 @@ export function resolveParticipantRoleName(config, userRef, participantRoles = [
 export function userNeedsProposalVote(proposal, userRef, config) {
   if (getWorkflowState(proposal) !== WORKFLOW.PROPOSED) return false;
   if (partnerRefsMatch(config, proposal.proposer, userRef)) return false;
+  if (proposal.submittedBy && partnerRefsMatch(config, proposal.submittedBy, userRef)) return false;
   const required = getRequiredVoters(proposal.participantRoles || [], config);
   return required.some(name => {
     if (partnerRefsMatch(config, name, proposal.proposer)) return false;
@@ -139,12 +140,14 @@ export function canUserSeeProposal(proposal, userName, config = null) {
     || proposal.proposer === userName;
 }
 
-export function buildInitialResponses(proposerName, participantRoles, config) {
+export function buildInitialResponses(proposerName, participantRoles, config, submittedByName = null) {
   const responses = {};
   (participantRoles || []).forEach(({ name }) => {
     if (isPassivePerson(name, config)) return;
     if (name === proposerName || partnerRefsMatch(config, name, proposerName)) {
       responses[name] = { status: 'accept', comment: 'Organizer' };
+    } else if (submittedByName && partnerRefsMatch(config, name, submittedByName)) {
+      responses[name] = { status: 'accept', comment: 'Submitted on behalf' };
     } else {
       responses[name] = { status: 'pending', comment: '' };
     }

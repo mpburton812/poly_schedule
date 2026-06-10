@@ -104,6 +104,11 @@ export function editPartnerView(state, partnerId) {
         <div class="bento-card" style="padding: var(--space-lg); display: flex; flex-direction: column; gap: var(--space-md);">
           <div class="form-group"><label class="form-label" for="edit-partner-name">Display Name</label>
             <input class="form-input" id="edit-partner-name" type="text" value="${partner.name}"/></div>
+          <div class="form-group">
+            <label class="form-label" for="edit-partner-notification-email">Notification email (optional)</label>
+            <input class="form-input" id="edit-partner-notification-email" type="email" placeholder="partner@example.com" value="${partner.notificationEmail || ''}"/>
+            <p class="font-label-sm" style="color: var(--on-surface-variant); margin-top: var(--space-xs);">Email backup when push is unavailable.</p>
+          </div>
           ${activeFields}
           <div class="form-group">
             <label class="form-label" for="edit-partner-home">Default Home</label>
