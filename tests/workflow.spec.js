@@ -166,7 +166,7 @@ test.describe('Proposal Workflow UI', () => {
     await page.goto('/');
     await page.waitForSelector('#login-form, .week-grid', { timeout: 10000 });
     if (await page.locator('#login-form').isVisible()) {
-      await loginAs(page, 'alex', 'password123');
+      await loginAs(page, 'mpburton', 'password');
     }
   });
 
@@ -185,7 +185,7 @@ test.describe('Proposal Workflow UI', () => {
     await page.waitForSelector('#prop-title');
     await expect(page.url()).toContain('draft=');
     await page.fill('#prop-title', 'Workflow Draft Dinner');
-    await page.locator('.circle-partner-option[data-name="Sam Davis"]').click();
+    await page.locator('.circle-partner-option[data-name="Katie Thompson"]').click();
     await page.selectOption('#prop-start-hour', '6');
     await page.selectOption('#prop-start-minute', '00');
     await page.selectOption('#prop-start-ampm', 'PM');

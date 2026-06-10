@@ -1219,7 +1219,7 @@ export const Views = {
             <input class="form-input" id="login-password" type="password" autocomplete="current-password" placeholder="Enter password"/>
           </div>
           <button class="btn btn-filled" id="btn-login" style="width: 100%; margin-top: var(--space-sm);">Log In</button>
-          <p class="font-label-sm" style="color: var(--on-surface-variant); text-align: center; margin-top: var(--space-md);">Demo: alex / password123</p>
+          <p class="font-label-sm" style="color: var(--on-surface-variant); text-align: center; margin-top: var(--space-md);">Demo: mpburton / password</p>
         </div>
       </div>
     `;

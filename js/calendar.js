@@ -28,72 +28,120 @@ import {
 // Local Storage Keys
 const LOCAL_EVENTS_KEY = 'polyschedule_local_events';
 const LOCAL_CONFIG_KEY = 'polyschedule_local_config';
+const LOCAL_SEED_VERSION_KEY = 'polyschedule_seed_version';
+const CURRENT_SEED_VERSION = 2;
 
 // Default Fallback Mock Data
 const DEFAULT_CONFIG = {
   residences: [
-    { 
-      id: 'h1', 
-      name: 'The Sanctuary', 
-      address: '420 Willow Ave, Portland OR', 
-      bedrooms: 3,
-      bedroomDetails: [
-        { id: 'r1', name: 'North Bedroom' },
-        { id: 'r2', name: 'Loft' },
-        { id: 'r3', name: 'Guest Suite' }
-      ]
-    },
-    { 
-      id: 'h2', 
-      name: 'Urban Loft', 
-      address: '1580 N Pearl St, Ste 402', 
+    {
+      id: 'h1',
+      name: "Michael's Place",
+      address: '',
       bedrooms: 1,
       bedroomDetails: [
-        { id: 'r2', name: 'Loft' }
-      ]
+        { id: 'r1', name: "Michael's Bedroom" }
+      ],
+      associatedPeople: ['Michael Burton']
+    },
+    {
+      id: 'h2',
+      name: "Katie's Place",
+      address: '',
+      bedrooms: 1,
+      bedroomDetails: [
+        { id: 'r1', name: "Katie's Bedroom" }
+      ],
+      associatedPeople: ['Katie Thompson']
+    },
+    {
+      id: 'h3',
+      name: 'The Lake House',
+      address: '',
+      bedrooms: 1,
+      bedroomDetails: [
+        { id: 'r1', name: 'The Lakehouse Bedroom' }
+      ],
+      associatedPeople: ['Katie Thompson']
     }
   ],
   partners: [
     {
       id: 'p1',
-      name: 'Alex Rivera',
-      username: 'alex',
-      password: 'password123',
+      name: 'Michael Burton',
+      username: 'mpburton',
+      password: 'password',
       role: 'Admin',
       defaultHome: 'h1',
       avatar: DEFAULT_AVATARS[0],
-      rules: { minSoloNights: 2, partnerLimits: { 'Sam': { min: 3, max: 3 }, 'Jordan': { max: 3 } } }
+      rules: {
+        minSoloNights: 2,
+        partnerLimits: {
+          'Katie Thompson': { min: 1, max: 4 }
+        }
+      }
     },
     {
       id: 'p2',
-      name: 'Sam Davis',
-      username: 'sam',
-      password: 'password123',
-      role: 'User',
-      defaultHome: 'h1',
+      name: 'Katie Thompson',
+      username: 'kthompson',
+      password: 'password',
+      role: 'Admin',
+      defaultHome: 'h2',
       avatar: DEFAULT_AVATARS[1],
-      rules: { minSoloNights: 3, partnerLimits: { 'Alex': { min: 3, max: 3 } } }
+      rules: {
+        minSoloNights: 2,
+        partnerLimits: {
+          'Michael Burton': { min: 1, max: 4 }
+        }
+      }
     },
     {
       id: 'p3',
-      name: 'Jordan Smith',
-      username: 'jordan',
-      password: 'password123',
-      role: 'User',
-      defaultHome: 'h2',
-      avatar: DEFAULT_AVATARS[2],
-      rules: { minSoloNights: 4 }
+      name: 'Zachery',
+      passive: true,
+      defaultHome: 'h3',
+      avatar: DEFAULT_AVATARS[3],
+      rules: {}
     },
     {
       id: 'p4',
-      name: 'Casey Chen',
+      name: 'Bailey',
       passive: true,
-      defaultHome: 'h2',
-      avatar: DEFAULT_AVATARS[3],
+      defaultHome: '',
+      avatar: DEFAULT_AVATARS[2],
       rules: {}
+    },
+    {
+      id: 'p5',
+      name: 'Guest User',
+      username: 'guest',
+      password: 'password',
+      role: 'User',
+      defaultHome: 'h3',
+      avatar: DEFAULT_AVATARS[2],
+      rules: { minSoloNights: 2 }
     }
   ]
 };
+
+function cloneDefaultConfig() {
+  return JSON.parse(JSON.stringify(DEFAULT_CONFIG));
+}
+
+function applyDefaultSeed() {
+  const config = cloneDefaultConfig();
+  const events = generateMockEvents();
+  localStorage.setItem(LOCAL_CONFIG_KEY, JSON.stringify(config));
+  localStorage.setItem(LOCAL_EVENTS_KEY, JSON.stringify(events));
+  localStorage.setItem(LOCAL_SEED_VERSION_KEY, String(CURRENT_SEED_VERSION));
+  localStorage.removeItem('polyschedule_user_profile');
+  return { config, events };
+}
+
+function needsSeedRefresh() {
+  return localStorage.getItem(LOCAL_SEED_VERSION_KEY) !== String(CURRENT_SEED_VERSION);
+}
 
 // Generates some mock events relative to current date (ensures demo calendar is always populated)
 function generateMockEvents() {
@@ -108,101 +156,115 @@ function generateMockEvents() {
   };
 
   return [
-    // Confirmed Events
     {
       id: 'e1',
-      title: 'Dinner at Sol\'s',
+      title: 'Date Night',
       type: 'event',
-      start: getRelDate(0, 19, 0), // Tonight 7pm
+      start: getRelDate(0, 19, 0),
       end: getRelDate(0, 21, 30),
-      location: 'Sol\'s House',
-      participants: ['Alex', 'Sam', 'Jordan'],
-      status: 'confirmed'
+      location: "Michael's Place",
+      participants: ['Michael Burton', 'Katie Thompson'],
+      participantRoles: [
+        { name: 'Michael Burton', role: 'required' },
+        { name: 'Katie Thompson', role: 'required' }
+      ],
+      workflowState: WORKFLOW.APPROVED,
+      status: 'confirmed',
+      revision: 1
     },
     {
       id: 'e2',
-      title: 'Game Night',
+      title: 'Lake House Game Night',
       type: 'event',
-      start: getRelDate(2, 20, 0), // 2 days later 8pm
+      start: getRelDate(2, 20, 0),
       end: getRelDate(2, 23, 0),
-      location: 'The Sanctuary',
-      participants: ['Alex', 'Sam', 'Jordan', 'Casey'],
-      status: 'confirmed'
+      location: 'The Lake House',
+      participants: ['Michael Burton', 'Katie Thompson', 'Zachery'],
+      participantRoles: [
+        { name: 'Michael Burton', role: 'required' },
+        { name: 'Katie Thompson', role: 'required' },
+        { name: 'Zachery', role: 'optional' }
+      ],
+      workflowState: WORKFLOW.APPROVED,
+      status: 'confirmed',
+      revision: 1
     },
-    // Confirmed Sleep Arrangements
     {
       id: 's1',
-      title: 'SLEEP: North Bedroom: Sam & Alex',
+      title: "SLEEP: Michael's Bedroom: Michael Burton",
       type: 'sleeping',
-      start: getRelDate(0, 22, 0), // Tonight
+      start: getRelDate(0, 22, 0),
       end: getRelDate(1, 8, 0),
       homeId: 'h1',
       roomId: 'r1',
-      roomName: 'North Bedroom',
-      homeName: 'The Sanctuary',
-      participants: ['Alex', 'Sam'],
-      status: 'confirmed'
+      roomName: "Michael's Bedroom",
+      homeName: "Michael's Place",
+      participants: ['Michael Burton'],
+      participantRoles: [{ name: 'Michael Burton', role: 'required' }],
+      workflowState: WORKFLOW.APPROVED,
+      status: 'confirmed',
+      revision: 1
     },
     {
       id: 's2',
-      title: 'SLEEP: Main House: Alex',
+      title: "SLEEP: Katie's Bedroom: Katie Thompson",
       type: 'sleeping',
-      start: getRelDate(1, 22, 0), // Tomorrow
+      start: getRelDate(1, 22, 0),
       end: getRelDate(2, 8, 0),
-      homeId: 'h1',
-      roomId: 'r2',
-      roomName: 'Main House',
-      homeName: 'The Sanctuary',
-      participants: ['Alex'],
-      status: 'confirmed'
+      homeId: 'h2',
+      roomId: 'r1',
+      roomName: "Katie's Bedroom",
+      homeName: "Katie's Place",
+      participants: ['Katie Thompson'],
+      participantRoles: [{ name: 'Katie Thompson', role: 'required' }],
+      workflowState: WORKFLOW.APPROVED,
+      status: 'confirmed',
+      revision: 1
     },
-    // Active Proposals (Pending Approval)
     {
       id: 'p_e1',
-      title: 'Thanksgiving Split',
+      title: 'Weekend at The Lake House',
       type: 'event',
       start: getRelDate(5, 12, 0),
       end: getRelDate(5, 18, 0),
-      location: 'Cabin',
-      participants: ['Alex Rivera', 'Sam Davis', 'Jordan Smith'],
+      location: 'The Lake House',
+      participants: ['Michael Burton', 'Katie Thompson'],
       participantRoles: [
-        { name: 'Alex Rivera', role: 'required' },
-        { name: 'Sam Davis', role: 'required' },
-        { name: 'Jordan Smith', role: 'required' }
+        { name: 'Michael Burton', role: 'required' },
+        { name: 'Katie Thompson', role: 'required' }
       ],
-      proposer: 'Alex Rivera',
+      proposer: 'Michael Burton',
       workflowState: WORKFLOW.PROPOSED,
       status: 'pending',
       revision: 1,
       responses: {
-        'Alex Rivera': { status: 'accept', comment: 'Ready to cook!' },
-        'Sam Davis': { status: 'accept', comment: 'I\'ll bring the games.' },
-        'Jordan Smith': { status: 'pending', comment: '' }
+        'Michael Burton': { status: 'accept', comment: 'Already packing the cooler.' },
+        'Katie Thompson': { status: 'pending', comment: '' }
       }
     },
     {
       id: 'p_s1',
-      title: 'Weekend at Lake Cabin',
+      title: "Sleeping : Katie : The Lake House The Lakehouse Bedroom",
       type: 'sleeping',
       start: getRelDate(4, 22, 0),
       end: getRelDate(6, 8, 0),
-      homeId: 'h1',
+      homeId: 'h3',
       roomId: 'r1',
-      roomName: 'North Bedroom',
-      homeName: 'The Sanctuary',
-      participants: ['Alex Rivera', 'Sam Davis', 'Casey Chen'],
+      roomName: 'The Lakehouse Bedroom',
+      homeName: 'The Lake House',
+      participants: ['Michael Burton', 'Katie Thompson', 'Zachery'],
       participantRoles: [
-        { name: 'Alex Rivera', role: 'required' },
-        { name: 'Sam Davis', role: 'required' },
-        { name: 'Casey Chen', role: 'optional' }
+        { name: 'Michael Burton', role: 'required' },
+        { name: 'Katie Thompson', role: 'required' },
+        { name: 'Zachery', role: 'optional' }
       ],
-      proposer: 'Alex Rivera',
+      proposer: 'Michael Burton',
       workflowState: WORKFLOW.PROPOSED,
       status: 'pending',
       revision: 1,
       responses: {
-        'Alex Rivera': { status: 'accept', comment: '' },
-        'Sam Davis': { status: 'accept', comment: 'Sounds cozy!' }
+        'Michael Burton': { status: 'accept', comment: '' },
+        'Katie Thompson': { status: 'accept', comment: 'Sounds cozy!' }
       }
     }
   ];
@@ -236,6 +298,13 @@ export const CalendarSync = {
 
   async loadConfig() {
     if (this.mode === 'offline') {
+      if (needsSeedRefresh()) {
+        const seeded = applyDefaultSeed();
+        this.config = seeded.config;
+        this.events = seeded.events;
+        return;
+      }
+
       const saved = localStorage.getItem(LOCAL_CONFIG_KEY);
       if (saved) {
         this.config = JSON.parse(saved);
@@ -243,8 +312,9 @@ export const CalendarSync = {
           localStorage.setItem(LOCAL_CONFIG_KEY, JSON.stringify(this.config));
         }
       } else {
-        this.config = DEFAULT_CONFIG;
-        localStorage.setItem(LOCAL_CONFIG_KEY, JSON.stringify(DEFAULT_CONFIG));
+        const seeded = applyDefaultSeed();
+        this.config = seeded.config;
+        this.events = seeded.events;
       }
     } else {
       // Fetch Config from Google Calendar configuration event description
@@ -284,6 +354,11 @@ export const CalendarSync = {
 
   async loadEvents() {
     if (this.mode === 'offline') {
+      if (this.events?.length) {
+        this.migrateAndNormalizeEvents();
+        return;
+      }
+
       const saved = localStorage.getItem(LOCAL_EVENTS_KEY);
       if (saved) {
         this.events = JSON.parse(saved);

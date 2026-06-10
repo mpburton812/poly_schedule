@@ -8,7 +8,7 @@ async function loginAs(page, username, password) {
 }
 
 async function loginAsAdmin(page) {
-  await loginAs(page, 'alex', 'password123');
+  await loginAs(page, 'mpburton', 'password');
 }
 
 async function clickNav(page, href) {
@@ -84,7 +84,7 @@ test.describe('PolySchedule UI E2E Flow Tests', () => {
     await page.waitForSelector('#prop-title');
     await expect(page.locator('#btn-create-back')).toHaveCount(0);
     await page.fill('#prop-title', 'Weekly Family Dinner');
-    await page.locator('.circle-partner-option[data-name="Sam Davis"]').click();
+    await page.locator('.circle-partner-option[data-name="Katie Thompson"]').click();
     await page.selectOption('#prop-start-hour', '6');
     await page.selectOption('#prop-start-minute', '00');
     await page.selectOption('#prop-start-ampm', 'PM');
@@ -110,8 +110,8 @@ test.describe('PolySchedule UI E2E Flow Tests', () => {
     const rows = page.locator('.batch-night-row');
     await expect(rows).toHaveCount(3);
     for (let i = 0; i < 3; i++) {
-      await rows.nth(i).locator('.batch-partner-cb[data-partner="Alex Rivera"]').check();
-      await rows.nth(i).locator('.batch-partner-cb[data-partner="Sam Davis"]').check();
+      await rows.nth(i).locator('.batch-partner-cb[data-partner="Michael Burton"]').check();
+      await rows.nth(i).locator('.batch-partner-cb[data-partner="Katie Thompson"]').check();
     }
     await page.click('#btn-submit-proposal');
     await expect(page.url()).toContain('#proposals');
@@ -122,13 +122,13 @@ test.describe('PolySchedule UI E2E Flow Tests', () => {
   test('should warn on batch sleeping when partner max nights exceeded', async ({ page }) => {
     await page.click('#fab-quick-add');
     await page.click('#btn-toggle-batch-sleeping');
-    await page.fill('#prop-duration', '4');
+    await page.fill('#prop-duration', '5');
     await page.waitForSelector('.batch-night-row');
     const rows = page.locator('.batch-night-row');
     const count = await rows.count();
     for (let i = 0; i < count; i++) {
-      await rows.nth(i).locator('.batch-partner-cb[data-partner="Alex Rivera"]').check();
-      await rows.nth(i).locator('.batch-partner-cb[data-partner="Sam Davis"]').check();
+      await rows.nth(i).locator('.batch-partner-cb[data-partner="Michael Burton"]').check();
+      await rows.nth(i).locator('.batch-partner-cb[data-partner="Katie Thompson"]').check();
     }
     const warningBanner = page.locator('#proposal-rules-banner');
     await expect(warningBanner).not.toHaveClass(/hidden/);
@@ -138,9 +138,9 @@ test.describe('PolySchedule UI E2E Flow Tests', () => {
   test('should trigger rules warning banner on sleep limits', async ({ page }) => {
     await page.click('#fab-quick-add');
     await page.click('#btn-toggle-sleeping');
-    await page.fill('#prop-title', 'Extended Cabin Trip');
-    await page.locator('.circle-partner-option[data-name="Sam Davis"]').click();
-    await page.fill('#prop-duration', '4');
+    await page.fill('#prop-title', 'Extended Lake Trip');
+    await page.locator('.circle-partner-option[data-name="Katie Thompson"]').click();
+    await page.fill('#prop-duration', '5');
     const warningBanner = page.locator('#proposal-rules-banner');
     await expect(warningBanner).not.toHaveClass(/hidden/);
     await expect(warningBanner).toContainText('Extended Stay Alert');
@@ -149,7 +149,7 @@ test.describe('PolySchedule UI E2E Flow Tests', () => {
   test('should handle voting on a proposal', async ({ page }) => {
     await page.evaluate(() => localStorage.clear());
     await page.goto('/');
-    await loginAs(page, 'jordan', 'password123');
+    await loginAs(page, 'kthompson', 'password');
     await clickNav(page, '#proposals');
     const firstProposalCard = page.locator('.proposal-card').first();
     await expect(firstProposalCard).toBeVisible();
@@ -166,19 +166,18 @@ test.describe('PolySchedule UI E2E Flow Tests', () => {
   test('should show Abstain option on proposal responses', async ({ page }) => {
     await page.evaluate(() => localStorage.clear());
     await page.goto('/');
-    await loginAs(page, 'jordan', 'password123');
+    await loginAs(page, 'kthompson', 'password');
     await clickNav(page, '#proposals');
     await expect(page.locator('.vote-btn[data-vote="abstain"]').first()).toBeVisible();
   });
 
   test('should confirm proposal when all votes are accept or abstain', async ({ page }) => {
     const confirmed = await page.evaluate(async () => {
-      const { CalendarSync } = await import('./js/calendar.js');
       const { getProposalOutcome } = await import('./js/helpers.js');
       const responses = {
-        'Alex Rivera': { status: 'accept', comment: '' },
-        'Sam Davis': { status: 'accept', comment: '' },
-        'Jordan Smith': { status: 'abstain', comment: 'Maybe next time' }
+        'Michael Burton': { status: 'accept', comment: '' },
+        'Katie Thompson': { status: 'accept', comment: '' },
+        'Guest User': { status: 'abstain', comment: 'Maybe next time' }
       };
       return getProposalOutcome(responses) === 'confirmed';
     });
@@ -187,18 +186,18 @@ test.describe('PolySchedule UI E2E Flow Tests', () => {
 
   test('should update proposer name when display name changes', async ({ page }) => {
     await page.click('#avatar-container');
-    await page.fill('#setting-display-name', 'Alex R. Rivera');
-    await page.fill('#setting-username', 'alexrr');
+    await page.fill('#setting-display-name', 'Michael M. Burton');
+    await page.fill('#setting-username', 'mpburton2');
     await page.fill('#setting-password', 'newsecretpwd');
     await page.click('#btn-save-profile');
     await clickNav(page, '#proposals');
-    await expect(page.locator('.proposal-card').first()).toContainText('Alex R. Rivera');
+    await expect(page.locator('.proposal-card').first()).toContainText('Michael M. Burton');
   });
 
   test('should redirect non-admins away from #admin', async ({ page }) => {
     await page.evaluate(() => localStorage.clear());
     await page.goto('/');
-    await loginAs(page, 'sam', 'password123');
+    await loginAs(page, 'guest', 'password');
     await page.goto('/#admin');
     await page.waitForTimeout(500);
     expect(page.url()).not.toContain('#admin');
@@ -210,31 +209,31 @@ test.describe('PolySchedule UI E2E Flow Tests', () => {
 
     await page.evaluate(() => localStorage.clear());
     await page.goto('/');
-    await loginAs(page, 'sam', 'password123');
+    await loginAs(page, 'guest', 'password');
     await expect(page.locator('#side-nav-admin')).toBeHidden();
     await expect(page.locator('#mobile-nav-admin')).toBeHidden();
   });
 
   test('should support editing profile settings', async ({ page }) => {
     await page.click('#avatar-container');
-    await page.fill('#setting-display-name', 'Alex R. Rivera');
-    await page.fill('#setting-username', 'alexrr');
+    await page.fill('#setting-display-name', 'Michael M. Burton');
+    await page.fill('#setting-username', 'mpburton2');
     await page.fill('#setting-password', 'newsecretpwd');
     await page.locator('#setting-avatar-options .avatar-option').nth(2).click();
     await page.click('#btn-save-profile');
     await expect(page.locator('#toast-container')).toContainText('Profile updated');
-    await expect(page.locator('h3:has-text("Alex R. Rivera")')).toBeVisible();
+    await expect(page.locator('h3:has-text("Michael M. Burton")')).toBeVisible();
   });
 
   test('should support modifying group name in admin panel', async ({ page }) => {
     await clickAdminNav(page);
     await expect(page.url()).toContain('#admin');
     await expect(page.locator('text=Group Settings')).toBeVisible();
-    await page.fill('#admin-poly-family-name', 'Rivera Poly Circle');
+    await page.fill('#admin-poly-family-name', 'Burton Poly Circle');
     await page.click('#btn-save-group-name');
     await expect(page.locator('#toast-container')).toContainText('Group name saved');
     await page.click('#fab-quick-add');
-    await expect(page.locator('text=Rivera Poly Circle (Invitees)')).toBeVisible();
+    await expect(page.locator('text=Burton Poly Circle (Invitees)')).toBeVisible();
   });
 
   test('should support adding an active partner with sleeping rules', async ({ page }) => {
@@ -246,10 +245,10 @@ test.describe('PolySchedule UI E2E Flow Tests', () => {
     await page.fill('#new-partner-password', 'password123');
     await page.selectOption('#new-partner-role', 'User');
     await page.locator('#new-partner-avatar-options .avatar-option').nth(1).click();
-    await page.locator('.sleeping-partner-checkbox[data-partner-name="Sam Davis"]').check();
-    const samDetails = page.locator('.sleeping-partner-checkbox[data-partner-name="Sam Davis"]').locator('xpath=ancestor::div[contains(@style,"border")]').locator('.partner-min-nights');
-    await samDetails.fill('2');
-    await page.locator('.sleeping-partner-checkbox[data-partner-name="Sam Davis"]').locator('xpath=ancestor::div[contains(@style,"border")]').locator('.partner-max-nights').fill('5');
+    await page.locator('.sleeping-partner-checkbox[data-partner-name="Katie Thompson"]').check();
+    const katieDetails = page.locator('.sleeping-partner-checkbox[data-partner-name="Katie Thompson"]').locator('xpath=ancestor::div[contains(@style,"border")]').locator('.partner-min-nights');
+    await katieDetails.fill('2');
+    await page.locator('.sleeping-partner-checkbox[data-partner-name="Katie Thompson"]').locator('xpath=ancestor::div[contains(@style,"border")]').locator('.partner-max-nights').fill('5');
     await page.fill('#new-partner-solo-nights', '3');
     await page.click('#btn-submit-partner');
     await expect(page.url()).toContain('#logistics');
@@ -270,7 +269,7 @@ test.describe('PolySchedule UI E2E Flow Tests', () => {
   test('should block batch sleeping option if user has no sleeping partners', async ({ page }) => {
     await page.evaluate(() => localStorage.clear());
     await page.goto('/');
-    await loginAs(page, 'jordan', 'password123');
+    await loginAs(page, 'guest', 'password');
     await page.click('#fab-quick-add');
     await page.waitForSelector('#prop-title');
     await expect(page.locator('#btn-toggle-batch-sleeping')).toHaveCount(0);
@@ -279,7 +278,7 @@ test.describe('PolySchedule UI E2E Flow Tests', () => {
   test('should block sleeping proposal option if user has no sleeping partners', async ({ page }) => {
     await page.evaluate(() => localStorage.clear());
     await page.goto('/');
-    await loginAs(page, 'jordan', 'password123');
+    await loginAs(page, 'guest', 'password');
     await page.click('#fab-quick-add');
     await page.waitForSelector('#prop-title');
     const sleepingBtn = page.locator('button:has-text("Sleeping (Disabled)")');
@@ -294,7 +293,7 @@ test.describe('PolySchedule UI E2E Flow Tests', () => {
     await page.fill('#new-home-bedrooms-count', '2');
     await page.locator('.bedroom-name-input[data-index="0"]').fill('Red Room');
     await page.locator('.bedroom-name-input[data-index="1"]').fill('Blue Room');
-    await page.locator('.home-associated-partner[data-partner-name="Alex Rivera"]').check();
+    await page.locator('.home-associated-partner[data-partner-name="Michael Burton"]').check();
     await page.click('#btn-submit-home');
     await page.waitForURL(/#logistics/, { timeout: 10000 });
     await expect(page.getByRole('heading', { name: 'Mountain Cabin' })).toBeVisible();
@@ -323,10 +322,11 @@ test.describe('PolySchedule UI E2E Flow Tests', () => {
     await clickNav(page, '#logistics');
     await page.locator('.btn-edit-home').first().click();
     await expect(page.url()).toContain('#edit-home');
-    await page.fill('#edit-home-name', 'The Sanctuary Updated');
+    await page.fill('#edit-home-name', "Michael's Place Updated");
+    await page.fill('#edit-home-address', '123 Main St');
     await page.click('#btn-save-edit-home');
     await expect(page.url()).toContain('#logistics');
-    await expect(page.getByRole('heading', { name: 'The Sanctuary Updated' })).toBeVisible();
+    await expect(page.getByRole('heading', { name: "Michael's Place Updated" })).toBeVisible();
   });
 
   test('should support activating a passive partner', async ({ page }) => {
@@ -358,7 +358,7 @@ test.describe('PolySchedule UI E2E Flow Tests', () => {
     page.once('dialog', dialog => dialog.accept());
     await page.click('#btn-delete-edit-partner');
     await expect(page.url()).toContain('#logistics');
-    await expect(page.getByRole('heading', { name: 'Casey Chen' })).toHaveCount(0);
+    await expect(page.getByRole('heading', { name: 'Bailey' })).toHaveCount(0);
   });
 
   test('should allow admin to delete a home', async ({ page }) => {
@@ -368,7 +368,7 @@ test.describe('PolySchedule UI E2E Flow Tests', () => {
     page.once('dialog', dialog => dialog.accept());
     await page.click('#btn-delete-edit-home');
     await expect(page.url()).toContain('#logistics');
-    await expect(page.getByRole('heading', { name: 'Urban Loft' })).toHaveCount(0);
+    await expect(page.getByRole('heading', { name: "Katie's Place" })).toHaveCount(0);
   });
 
   test('should support batch sleeping copy previous and add room', async ({ page }) => {
@@ -378,9 +378,9 @@ test.describe('PolySchedule UI E2E Flow Tests', () => {
     await page.fill('#prop-duration', '2');
     await page.waitForSelector('.batch-night-row');
     const night1 = page.locator('.batch-night-row').nth(0);
-    await night1.locator('.batch-partner-cb[data-partner="Alex Rivera"]').check();
+    await night1.locator('.batch-partner-cb[data-partner="Michael Burton"]').check();
     await page.locator('.btn-batch-copy').click();
-    await expect(page.locator('.batch-night-row').nth(1).locator('.batch-partner-cb[data-partner="Alex Rivera"]')).toBeChecked();
+    await expect(page.locator('.batch-night-row').nth(1).locator('.batch-partner-cb[data-partner="Michael Burton"]')).toBeChecked();
     await page.locator('.btn-batch-add-room').first().click();
     await expect(page.locator('.batch-assignment-block')).toHaveCount(3);
   });
