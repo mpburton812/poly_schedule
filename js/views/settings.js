@@ -88,6 +88,7 @@ export function settingsView(state) {
           </div>
 
           <button class="btn btn-filled" id="btn-save-credentials" style="align-self: flex-start; margin-top: var(--space-sm);">Save Credentials</button>
+          <button class="btn btn-outline" id="btn-disconnect-google" type="button" style="align-self: flex-start;">Disconnect Google Sync</button>
         </div>
 
         <!-- App Reset Details -->

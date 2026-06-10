@@ -19,6 +19,35 @@ export const ADD_PARTNER_DRAFT_KEY = 'polyschedule_add_partner_draft';
 export const LOCAL_SESSION_KEY = 'polyschedule_local_session';
 export const GOOGLE_PROFILE_KEY = 'polyschedule_google_profile';
 export const LEGACY_PROFILE_KEY = 'polyschedule_user_profile';
+export const SEED_REFRESH_NOTICE_KEY = 'polyschedule_seed_refreshed';
+
+export function partnerDisplayFirstName(name) {
+  if (!name) return '';
+  return String(name).split(' ')[0];
+}
+
+/**
+ * Resolve a partner by stable id or legacy display-name reference.
+ */
+export function findPartnerByRef(config, ref) {
+  if (!ref || !config?.partners) return null;
+  const byId = getPartnerById(config, ref);
+  if (byId) return byId;
+  const text = String(ref);
+  return config.partners.find(p => p.name === text)
+    || config.partners.find(p => partnerDisplayFirstName(p.name) === partnerDisplayFirstName(text))
+    || null;
+}
+
+/** True when two partner references point at the same config partner. */
+export function partnerRefsMatch(config, refA, refB) {
+  if (!refA || !refB) return false;
+  if (refA === refB) return true;
+  const a = findPartnerByRef(config, refA);
+  const b = findPartnerByRef(config, refB);
+  if (a && b) return a.id === b.id;
+  return partnerDisplayFirstName(refA) === partnerDisplayFirstName(refB);
+}
 
 export function isPartnerPassive(partner) {
   return partner?.passive === true || !partner?.username;

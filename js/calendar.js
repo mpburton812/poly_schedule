@@ -9,7 +9,8 @@ import {
   expandBatchSleepingToEvents,
   removePartnerReferences,
   removeHomeReferences,
-  normalizeConfigPartners
+  normalizeConfigPartners,
+  SEED_REFRESH_NOTICE_KEY
 } from './helpers.js';
 import {
   WORKFLOW,
@@ -138,6 +139,7 @@ function applyDefaultSeed() {
   localStorage.removeItem('polyschedule_local_session');
   localStorage.removeItem('polyschedule_google_profile');
   localStorage.removeItem('polyschedule_user_profile');
+  sessionStorage.setItem(SEED_REFRESH_NOTICE_KEY, '1');
   return { config, events };
 }
 

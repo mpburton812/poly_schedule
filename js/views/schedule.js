@@ -11,7 +11,8 @@ import {
   normalizeBatchNight,
   getBedroomOptionsForHome,
   getCurrentUserPartner,
-  hasSleepingPartnerConnections
+  hasSleepingPartnerConnections,
+  partnerRefsMatch
 } from '../helpers.js';
 import {
   WORKFLOW,
@@ -82,7 +83,7 @@ export function scheduleView(state) {
     const pendingProposals = state.events.filter(e =>
       getWorkflowState(e) === WORKFLOW.PROPOSED &&
       (e.proposer === state.currentUser?.name ||
-        (e.participantRoles || []).some(p => p.name === state.currentUser?.name))
+        (e.participantRoles || []).some(p => partnerRefsMatch(state.config, p.name, state.currentUser?.id || state.currentUser?.name)))
     );
 
     let daysHtml = '';

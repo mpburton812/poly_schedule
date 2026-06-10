@@ -109,11 +109,11 @@
   </a>
 
   <!-- Notification Overlay Toast -->
-  <div id="toast-container" style="position: fixed; bottom: 96px; left: 16px; right: 16px; pointer-events: none; z-index: 200; display: flex; flex-direction: column; gap: 8px; align-items: center;"></div>
+  <div id="toast-container" class="toast-container" aria-live="polite" aria-atomic="true"></div>
 
   <!-- Modal Overlay (Shared for Popups) -->
   <div class="modal-overlay" id="app-modal">
-    <div class="modal-box" id="app-modal-content">
+    <div class="modal-box" id="app-modal-content" role="dialog" aria-modal="true">
       <!-- Modal contents dynamically injected -->
     </div>
   </div>

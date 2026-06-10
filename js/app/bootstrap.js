@@ -1,6 +1,6 @@
 import { AuthManager } from '../auth.js';
 import { CalendarSync } from '../calendar.js';
-import { isPartnerPassive, LEGACY_PROFILE_KEY } from '../helpers.js';
+import { isPartnerPassive, LEGACY_PROFILE_KEY, SEED_REFRESH_NOTICE_KEY } from '../helpers.js';
 import {
   state,
 } from './state.js';
@@ -117,6 +117,11 @@ export function init() {
     migrateLegacySession();
 
     await bootstrapData('offline');
+
+    if (sessionStorage.getItem(SEED_REFRESH_NOTICE_KEY)) {
+      sessionStorage.removeItem(SEED_REFRESH_NOTICE_KEY);
+      showToast('Demo database updated to the latest defaults. Please log in again.', 'warning');
+    }
 
     const savedProfile = JSON.parse(localStorage.getItem(LOCAL_SESSION_KEY) || 'null');
     if (savedProfile?.sessionActive) {

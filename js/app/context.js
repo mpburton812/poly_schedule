@@ -51,6 +51,7 @@ export function showToast(message, type = 'info') {
 
   const toast = document.createElement('div');
   toast.className = 'bento-card';
+  toast.setAttribute('role', 'status');
   toast.style.cssText = `
     padding: var(--space-sm) var(--space-lg);
     background-color: var(--inverse-surface);
@@ -191,11 +192,17 @@ export function attemptLogin(username, password) {
 }
 
 export function logoutUser() {
-  AuthManager.logout();
   state.currentUser = null;
   localStorage.removeItem(LOCAL_SESSION_KEY);
-  addLog('Auth: User logged out.', 'info');
+  addLog('Auth: Local session ended.', 'info');
   showLoginView();
+}
+
+/** Disconnect Google Calendar sync without ending the local partner session. */
+export function logoutGoogleSync() {
+  AuthManager.logout();
+  addLog('Auth: Google sync disconnected.', 'info');
+  showToast('Google Calendar sync disconnected.', 'info');
 }
 
 export function bindHomeSelectCreateNew(selectEl) {

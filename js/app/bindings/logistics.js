@@ -1,6 +1,6 @@
 import { AuthManager } from '../../auth.js';
 import { state } from '../state.js';
-import { addLog, showToast } from '../context.js';
+import { addLog, showToast, logoutGoogleSync } from '../context.js';
 
 export function bindLogisticsEvents(container = document) {
   const exportBtn = container.querySelector('#btn-export-logs');
@@ -71,6 +71,15 @@ export function bindSettingsEvents(container = document) {
       showToast('API Credentials saved. Please click "Sync Google" to log in.', 'success');
       addLog('Auth: New API credentials entered. Requesting auth.');
 
+      const loginBtn = document.getElementById('btn-google-login');
+      if (loginBtn) loginBtn.style.display = 'inline-flex';
+    });
+  }
+
+  const btnDisconnect = container.querySelector('#btn-disconnect-google');
+  if (btnDisconnect) {
+    btnDisconnect.addEventListener('click', () => {
+      logoutGoogleSync();
       const loginBtn = document.getElementById('btn-google-login');
       if (loginBtn) loginBtn.style.display = 'inline-flex';
     });

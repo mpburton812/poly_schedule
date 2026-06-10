@@ -37,15 +37,15 @@ export function createProposalView(state, type = 'event', formState = {}) {
       const roleEntry = (formState.participantRoles || []).find(r => r.name === partner.name);
       const role = passive ? 'optional' : (roleEntry?.role || 'required');
       circleHtml += `
-        <div class="circle-partner-option" data-name="${partner.name}" data-passive="${passive ? '1' : '0'}" style="display: flex; flex-direction: column; align-items: center; gap: var(--space-xs); cursor: pointer; transition: opacity var(--transition-speed); opacity: ${selected ? '1' : '0.6'};">
-          <div class="profile-avatar partner-avatar-picker" style="width: 56px; height: 56px; border: 2px solid ${selected ? 'var(--primary)' : 'var(--outline-variant)'}; border-radius: var(--radius-full); overflow: hidden; position: relative;">
+        <div class="circle-partner-option${selected ? ' selected' : ''}" data-partner-id="${partner.id}" data-name="${partner.name}" data-passive="${passive ? '1' : '0'}">
+          <div class="profile-avatar partner-avatar-picker">
             <img src="${partner.avatar}" alt="${partner.name}"/>
             ${passive ? '<span class="passive-dot" title="Passive participant"></span>' : ''}
           </div>
           <span class="font-label-md">${partner.name.split(' ')[0]}</span>
           ${passive ? '<span class="font-label-sm passive-label">Passive</span>' : ''}
           ${selected && !passive ? `
-            <button type="button" class="btn-text role-toggle-btn" data-name="${partner.name}" style="font-size: 0.65rem; padding: 2px 6px; color: var(--primary);">
+            <button type="button" class="btn-text role-toggle-btn" data-partner-id="${partner.id}" data-name="${partner.name}">
               ${role === 'required' ? 'Required' : 'Optional'}
             </button>
           ` : ''}

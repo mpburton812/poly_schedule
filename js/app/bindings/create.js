@@ -3,6 +3,7 @@ import { RulesEngine } from '../../rules.js';
 import {
   parseHashParams,
   isPartnerPassive,
+  findPartnerByRef,
   read12HourTime,
   defaultBatchAssignment,
   defaultBatchNight,
@@ -258,7 +259,7 @@ export function loadDraftIntoForm(draftId) {
 export function syncParticipantRolesFromParticipants() {
   const existing = Object.fromEntries((newProposalState.participantRoles || []).map(p => [p.name, p.role]));
   newProposalState.participantRoles = newProposalState.participants.map(name => {
-    const partner = state.config?.partners?.find(p => p.name === name);
+    const partner = findPartnerByRef(state.config, name);
     if (partner && isPartnerPassive(partner)) {
       return { name, role: 'optional' };
     }
@@ -503,13 +504,11 @@ export function bindCreateEvents() {
 
       if (idx === -1) {
         newProposalState.participants.push(name);
-        opt.style.opacity = '1';
-        opt.querySelector('.profile-avatar').style.borderColor = 'var(--primary)';
+        opt.classList.add('selected');
       } else {
         newProposalState.participants.splice(idx, 1);
         newProposalState.participantRoles = newProposalState.participantRoles.filter(p => p.name !== name);
-        opt.style.opacity = '0.6';
-        opt.querySelector('.profile-avatar').style.borderColor = 'var(--outline-variant)';
+        opt.classList.remove('selected');
       }
 
       syncParticipantRolesFromParticipants();

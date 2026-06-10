@@ -3,7 +3,7 @@
  * Evaluates scheduling proposals against capacity constraints and partner sleeping limits.
  */
 
-import { batchProposalToSleepingEvents } from './helpers.js';
+import { batchProposalToSleepingEvents, findPartnerByRef } from './helpers.js';
 
 const getStartOfWeek = (date) => {
   const d = new Date(date);
@@ -45,7 +45,7 @@ const evaluatePartnerAndSoloRules = (eventsToCheck, daysOfWeek, partners, propos
   const warnings = [];
 
   for (const pA of proposalParticipants) {
-    const partnerConfig = partners.find(p => p.name === pA || p.name.split(' ')[0] === pA);
+    const partnerConfig = findPartnerByRef({ partners }, pA);
     if (!partnerConfig || !partnerConfig.rules) continue;
 
     const rules = partnerConfig.rules;
@@ -238,7 +238,7 @@ export const RulesEngine = {
     const proposalParticipants = proposal.participants || [];
     
     for (const pA of proposalParticipants) {
-      const partnerConfig = partners.find(p => p.name === pA || p.name.split(' ')[0] === pA);
+      const partnerConfig = findPartnerByRef({ partners }, pA);
       if (!partnerConfig || !partnerConfig.rules) continue;
 
       const rules = partnerConfig.rules;

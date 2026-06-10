@@ -197,4 +197,60 @@ test.describe('Proposal Workflow UI', () => {
     await expect(page.locator('#btn-tab-proposed')).toHaveClass(/active/);
     await expect(page.locator('text=Workflow Draft Dinner')).toBeVisible();
   });
+
+  test('retracts proposed proposal back to drafts', async ({ page }) => {
+    await page.click('#fab-quick-add');
+    await page.waitForSelector('#prop-title');
+    await page.fill('#prop-title', 'Retract Test Dinner');
+    await page.locator('.circle-partner-option[data-name="Katie Thompson"]').click();
+    await page.selectOption('#prop-start-hour', '6');
+    await page.selectOption('#prop-start-minute', '00');
+    await page.selectOption('#prop-start-ampm', 'PM');
+    await page.selectOption('#prop-end-hour', '9');
+    await page.selectOption('#prop-end-minute', '00');
+    await page.selectOption('#prop-end-ampm', 'PM');
+    await page.click('#btn-submit-proposal');
+    await expect(page.locator('text=Retract Test Dinner')).toBeVisible();
+
+    page.once('dialog', dialog => dialog.accept());
+    await page.locator('.proposal-card', { hasText: 'Retract Test Dinner' }).locator('.retract-proposal-btn').click();
+    await expect(page.locator('#btn-tab-drafts')).toHaveClass(/active/, { timeout: 10000 });
+    await expect(page.locator('text=Retract Test Dinner')).toBeVisible();
+  });
+
+  test('archives approved proposal from approved tab', async ({ page }) => {
+    await page.evaluate(async () => {
+      const { CalendarSync } = await import('./js/calendar.js');
+      const { state } = await import('./js/app/state.js');
+      const { WORKFLOW } = await import('./js/proposal-workflow.js');
+      CalendarSync.events.push({
+        id: 'ui_archive_test',
+        title: 'Archive UI Test',
+        type: 'event',
+        start: new Date().toISOString(),
+        end: new Date(Date.now() + 3600000).toISOString(),
+        proposer: 'Michael Burton',
+        workflowState: WORKFLOW.APPROVED,
+        status: 'confirmed',
+        participantRoles: [
+          { name: 'Michael Burton', role: 'required' },
+          { name: 'Katie Thompson', role: 'required' }
+        ],
+        participants: ['Michael Burton', 'Katie Thompson'],
+        responses: {
+          'Michael Burton': { status: 'accept' },
+          'Katie Thompson': { status: 'accept' }
+        }
+      });
+      localStorage.setItem('polyschedule_local_events', JSON.stringify(CalendarSync.events));
+      state.events = CalendarSync.events;
+    });
+
+    await page.locator('.sidebar-nav a[href="#proposals"], .bottom-nav a[href="#proposals"]').first().click();
+    await page.click('#btn-tab-approved');
+    await expect(page.locator('text=Archive UI Test')).toBeVisible();
+    await page.locator('.archive-proposal-btn[data-id="ui_archive_test"]').click();
+    await expect(page.locator('#btn-tab-archived')).toHaveClass(/active/);
+    await expect(page.locator('text=Archive UI Test')).toBeVisible();
+  });
 });

@@ -2,7 +2,7 @@
  * Proposal workflow state machine and participant/voting helpers.
  */
 
-import { isPartnerPassive } from './helpers.js';
+import { isPartnerPassive, findPartnerByRef, partnerRefsMatch, partnerDisplayFirstName } from './helpers.js';
 
 export const WORKFLOW = {
   DRAFT: 'draft',
@@ -51,9 +51,7 @@ export function isActiveProposalRecord(event) {
 }
 
 export function findPartnerByName(config, name) {
-  if (!name || !config?.partners) return null;
-  return config.partners.find(p => p.name === name)
-    || config.partners.find(p => p.name.split(' ')[0] === name.split(' ')[0]);
+  return findPartnerByRef(config, name);
 }
 
 export function isPassivePerson(name, config) {
@@ -93,11 +91,16 @@ export function getRequiredVoters(participantRoles, config) {
     .map(p => p.name);
 }
 
-export function canUserSeeProposal(proposal, userName) {
+export function canUserSeeProposal(proposal, userName, config = null) {
   if (!userName || !proposal) return false;
   if (proposal.proposer === userName) return true;
   const names = participantNames(proposal.participantRoles || []);
-  return names.some(n => n === userName || n.split(' ')[0] === userName.split(' ')[0]);
+  if (config) {
+    return names.some(n => partnerRefsMatch(config, n, userName))
+      || partnerRefsMatch(config, proposal.proposer, userName);
+  }
+  return names.some(n => n === userName || partnerDisplayFirstName(n) === partnerDisplayFirstName(userName))
+    || proposal.proposer === userName;
 }
 
 export function buildInitialResponses(proposerName, participantRoles, config) {
@@ -207,7 +210,7 @@ export function computeAutoArchiveAt(approvedAt, days = getAutoArchiveDays()) {
 export function filterProposalsForTab(events, tab, userName, config) {
   return (events || []).filter(e => {
     if (!isProposalType(e.type)) return false;
-    if (!canUserSeeProposal(e, userName)) return false;
+    if (!canUserSeeProposal(e, userName, config)) return false;
     const ws = getWorkflowState(e);
     if (tab === 'drafts') return ws === WORKFLOW.DRAFT && e.proposer === userName;
     if (tab === 'proposed') return ws === WORKFLOW.PROPOSED;

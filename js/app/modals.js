@@ -16,6 +16,14 @@ import {
   saveConfig,
   LOCAL_SESSION_KEY
 } from './context.js';
+
+function openModalOverlay(box, ariaLabel) {
+  const modal = document.getElementById('app-modal');
+  if (!modal || !box) return null;
+  if (ariaLabel) box.setAttribute('aria-label', ariaLabel);
+  modal.classList.add('open');
+  return modal;
+}
 import { bindSettingsEvents, bindLogisticsEvents } from './bindings/logistics.js';
 
 export function handleBookingDeletion(event, reason) {
@@ -76,7 +84,7 @@ export function openNotificationsModal() {
     <button class="btn btn-outline" id="btn-clear-notifications" style="width: 100%;">Clear All Notifications</button>
   `;
 
-  modal.classList.add('open');
+  openModalOverlay(box, 'Notifications');
 
   document.getElementById('modal-close-btn').addEventListener('click', () => {
     modal.classList.remove('open');
@@ -239,7 +247,7 @@ export function openUserProfileModal() {
     </div>
   `;
 
-  modal.classList.add('open');
+  openModalOverlay(box, 'User profile');
 
   document.getElementById('modal-close-btn').addEventListener('click', () => {
     modal.classList.remove('open');
@@ -385,7 +393,7 @@ export function openEventDetailsModal(event) {
     <button class="btn btn-error" id="modal-delete-btn" style="width: 100%;">Cancel / Delete Booking</button>
   `;
 
-  modal.classList.add('open');
+  openModalOverlay(box, `Booking: ${event.title}`);
 
   document.getElementById('modal-close-btn').addEventListener('click', () => {
     modal.classList.remove('open');
