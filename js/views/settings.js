@@ -26,15 +26,13 @@ import {
 
 export function settingsView(state) {
     const isOffline = state.isOffline;
-    const clientId = localStorage.getItem('polyschedule_client_id') || '';
-    const apiKey = localStorage.getItem('polyschedule_api_key') || '';
-    const calendarId = localStorage.getItem('polyschedule_calendar_id') || 'primary';
+    const credentialsConfigured = !!(localStorage.getItem('polyschedule_client_id') && localStorage.getItem('polyschedule_api_key'));
     
     return `
       <div class="mb-xl" style="margin-bottom: var(--space-xl);">
         <h2 class="font-headline-lg">Settings & Integrations</h2>
         <p class="font-body-lg" style="color: var(--on-surface-variant); margin-top: 4px;">
-          Configure API credentials, choose synchronization profiles, and verify local storage states.
+          Choose how the app stores data and verify local storage options.
         </p>
       </div>
 
@@ -58,37 +56,16 @@ export function settingsView(state) {
               <input type="radio" name="mode-select" value="sync" ${!isOffline ? 'checked' : ''} style="accent-color: var(--primary);"/>
               <div>
                 <strong style="display: block; font-size: 0.95rem;">Google Calendar API Sync Mode</strong>
-                <span class="font-body-md" style="color: var(--on-surface-variant);">Syncs schedule and proposals directly to a Google Calendar. Requires client API keys.</span>
+                <span class="font-body-md" style="color: var(--on-surface-variant);">Syncs schedule and proposals to a shared Google Calendar after an admin configures credentials.</span>
               </div>
             </label>
           </div>
-        </div>
 
-        <!-- Google Calendar API Setup (Conditional) -->
-        <div class="bento-card" id="api-keys-section" style="padding: var(--space-lg); border: 1px solid var(--outline-variant); display: ${isOffline ? 'none' : 'flex'}; flex-direction: column; gap: var(--space-md);">
-          <h3 class="font-title-lg" style="font-weight: 700;">Google API Credentials</h3>
-          <p class="font-body-md" style="color: var(--on-surface-variant);">
-            To connect, enter your Google OAuth 2.0 Client ID and API Key from the Google Cloud Console.
+          <p class="font-label-sm" style="color: var(--on-surface-variant); margin-top: var(--space-md);">
+            ${credentialsConfigured
+              ? 'Google Calendar credentials are configured. Use <strong>Sync Google</strong> in the top bar to connect your account.'
+              : 'An administrator must configure OAuth Client ID, API Key, and Calendar ID once on the <a href="#admin">Admin</a> page before sync mode is available.'}
           </p>
-
-          <div class="form-group" style="margin-bottom: 0;">
-            <label class="form-label" for="setting-client-id">OAuth 2.0 Client ID</label>
-            <input class="form-input" id="setting-client-id" placeholder="xxxxxx.apps.googleusercontent.com" type="text" value="${clientId}"/>
-          </div>
-
-          <div class="form-group" style="margin-bottom: 0;">
-            <label class="form-label" for="setting-api-key">API Key</label>
-            <input class="form-input" id="setting-api-key" placeholder="AIzaSy..." type="password" value="${apiKey}"/>
-          </div>
-
-          <div class="form-group" style="margin-bottom: 0;">
-            <label class="form-label" for="setting-calendar-id">Calendar ID (Optional)</label>
-            <input class="form-input" id="setting-calendar-id" placeholder="primary" type="text" value="${calendarId}"/>
-            <span class="font-label-sm" style="color: var(--on-surface-variant); margin-top: 4px;">defaults to 'primary' (your main login calendar)</span>
-          </div>
-
-          <button class="btn btn-filled" id="btn-save-credentials" style="align-self: flex-start; margin-top: var(--space-sm);">Save Credentials</button>
-          <button class="btn btn-outline" id="btn-disconnect-google" type="button" style="align-self: flex-start;">Disconnect Google Sync</button>
         </div>
 
         <!-- App Reset Details -->

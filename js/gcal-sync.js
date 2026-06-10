@@ -178,11 +178,45 @@ export function isLocalEventId(eventId) {
   return typeof eventId === 'string' && (/^prop_/.test(eventId) || /^e_/.test(eventId));
 }
 
-export function formatGCalResource(event) {
+/** Whether an event should be written to Google Calendar. Approved batches sync only as individual nights. */
+export function shouldSyncEventToGCal(event) {
+  if (event?.type !== 'batch_sleeping') return true;
+  if (Array.isArray(event.expandedEventIds) && event.expandedEventIds.length > 0) return false;
+  if (event.workflowState === 'approved' || event.status === 'confirmed') return false;
+  return true;
+}
+
+/** All-day date range for a sleeping night (GCal end date is exclusive). */
+export function formatSleepingAllDayDates(event) {
+  const startSource = typeof event.start === 'string' && !event.start.includes('T')
+    ? new Date(`${event.start}T12:00:00`)
+    : new Date(event.start);
+  const y = startSource.getFullYear();
+  const m = String(startSource.getMonth() + 1).padStart(2, '0');
+  const d = String(startSource.getDate()).padStart(2, '0');
+  const dateStr = `${y}-${m}-${d}`;
+  const endDay = new Date(startSource);
+  endDay.setDate(endDay.getDate() + 1);
+  const endStr = `${endDay.getFullYear()}-${String(endDay.getMonth() + 1).padStart(2, '0')}-${String(endDay.getDate()).padStart(2, '0')}`;
   return {
+    start: { date: dateStr },
+    end: { date: endStr }
+  };
+}
+
+export function formatGCalResource(event) {
+  const base = {
     summary: formatGCalSummary(event),
     location: event.location || '',
-    description: JSON.stringify(serializeEventMeta(event), null, 2),
+    description: JSON.stringify(serializeEventMeta(event), null, 2)
+  };
+
+  if (event.type === 'sleeping') {
+    return { ...base, ...formatSleepingAllDayDates(event) };
+  }
+
+  return {
+    ...base,
     start: {
       dateTime: new Date(event.start).toISOString(),
       timeZone: 'America/New_York'

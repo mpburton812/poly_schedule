@@ -34,8 +34,16 @@ import {
   GCAL_CONFIG_SUMMARY,
   parseGCalEventItem,
   formatGCalResource as buildGCalResource,
-  isLocalEventId
+  isLocalEventId,
+  shouldSyncEventToGCal
 } from './gcal-sync.js';
+import {
+  needsGCalAlignment,
+  markGCalAligned,
+  collectEventsToSync,
+  collectOrphanGCalIds,
+  findMatchingSleepingEvent
+} from './gcal-align.js';
 
 import { flowState } from './app/state.js';
 
@@ -311,6 +319,11 @@ export const CalendarSync = {
     
     // Load Events
     await this.loadEvents();
+
+    if (this.mode === 'sync' && needsGCalAlignment()) {
+      return this.alignGoogleCalendarOnce();
+    }
+    return null;
   },
 
   async loadConfig() {
@@ -432,6 +445,75 @@ export const CalendarSync = {
     }
   },
 
+  async materializeApprovedBatchChildren(stats = null) {
+    for (const batch of this.events.filter(e => e.type === 'batch_sleeping' && getWorkflowState(e) === WORKFLOW.APPROVED)) {
+      if ((batch.expandedEventIds || []).length > 0) continue;
+      if (!batch.batchNights?.length) continue;
+
+      const expanded = expandBatchSleepingToEvents(batch);
+      expanded.forEach(e => {
+        e.status = 'confirmed';
+        e.workflowState = WORKFLOW.APPROVED;
+      });
+      batch.status = 'confirmed';
+      batch.expandedEventIds = [];
+
+      for (const child of expanded) {
+        const existing = findMatchingSleepingEvent(this.events, child);
+        if (existing) {
+          batch.expandedEventIds.push(existing.id);
+          continue;
+        }
+
+        if (this.mode === 'sync') {
+          const created = await this.createGCalEvent(child);
+          child.id = created.id;
+        }
+        batch.expandedEventIds.push(child.id);
+        this.events.push(child);
+        if (stats) stats.materialized += 1;
+      }
+    }
+    reconcileBatchExpandedIds(this.events);
+  },
+
+  async alignGoogleCalendarOnce() {
+    const stats = { deleted: 0, upserted: 0, materialized: 0 };
+
+    try {
+      const rawItems = await this.fetchGCalEventItems({ daysBack: 180, daysForward: 365 });
+      await this.materializeApprovedBatchChildren(stats);
+
+      const keepMap = collectEventsToSync(this.events);
+      const keepIds = new Set(keepMap.keys());
+      const deleteIds = collectOrphanGCalIds(rawItems, keepIds);
+
+      for (const id of deleteIds) {
+        await this.deleteGCalEvent(id);
+        stats.deleted += 1;
+      }
+
+      for (const [eventId, event] of keepMap) {
+        const result = await this.upsertGCalEvent(eventId, event);
+        stats.upserted += 1;
+        if (result.id !== eventId) {
+          this.remapEventId(eventId, result.id, { ...event, id: result.id });
+        }
+      }
+
+      reconcileBatchExpandedIds(this.events);
+      localStorage.setItem(LOCAL_EVENTS_KEY, JSON.stringify(this.events));
+      markGCalAligned();
+
+      if (this.onStateUpdate) this.onStateUpdate();
+    } catch (err) {
+      console.error('Google Calendar alignment failed', err);
+      throw err;
+    }
+
+    return stats;
+  },
+
   persistEvents(eventIds = null) {
     if (this.mode === 'offline') {
       localStorage.setItem(LOCAL_EVENTS_KEY, JSON.stringify(this.events));
@@ -444,13 +526,17 @@ export const CalendarSync = {
   syncEventsToGCal(eventIds) {
     Promise.all((eventIds || []).map(async (id) => {
       const event = this.events.find(e => e.id === id);
-      if (!event) return;
+      if (!event || !shouldSyncEventToGCal(event)) return;
       await this.upsertGCalEvent(id, event);
     })).catch(err => console.error('Failed to sync events to Google Calendar', err));
   },
 
   /** Create or update a GCal event; remaps local prop_/e_ ids to Google ids. */
   async upsertGCalEvent(eventId, event) {
+    if (!shouldSyncEventToGCal(event)) {
+      return { id: eventId, created: false, skipped: true };
+    }
+
     if (isLocalEventId(eventId)) {
       const created = await this.createGCalEvent(event);
       return { id: created.id, created: true };
@@ -770,6 +856,8 @@ export const CalendarSync = {
     if (this.mode === 'offline') {
       this.events.push(newEvent);
       localStorage.setItem(LOCAL_EVENTS_KEY, JSON.stringify(this.events));
+    } else if (!shouldSyncEventToGCal(newEvent)) {
+      this.events.push(newEvent);
     } else {
       try {
         const created = await this.createGCalEvent(newEvent);
@@ -810,15 +898,14 @@ export const CalendarSync = {
 
       if (this.mode === 'sync') {
         try {
-          await this.updateGCalEvent(eventId, updated);
+          if (!isLocalEventId(eventId)) {
+            await this.deleteGCalEvent(eventId);
+          }
           for (const child of expanded) {
             const created = await this.createGCalEvent(child);
             child.id = created.id;
             updated.expandedEventIds.push(created.id);
             this.events.push(child);
-          }
-          if (updated.expandedEventIds.length) {
-            await this.updateGCalEvent(eventId, updated);
           }
           this.events[idx] = updated;
         } catch (e) {
@@ -840,6 +927,8 @@ export const CalendarSync = {
     if (this.mode === 'offline') {
       this.events[idx] = updated;
       localStorage.setItem(LOCAL_EVENTS_KEY, JSON.stringify(this.events));
+    } else if (!shouldSyncEventToGCal(updated)) {
+      this.events[idx] = updated;
     } else {
       try {
         const { id: syncedId } = await this.upsertGCalEvent(eventId, updated);
@@ -862,13 +951,28 @@ export const CalendarSync = {
     const idx = this.events.findIndex(e => e.id === eventId);
     if (idx === -1) return;
 
+    const event = this.events[idx];
+    const childIds = new Set(event.expandedEventIds || []);
+    const gcalIdsToDelete = [];
+
+    if (event.type === 'batch_sleeping') {
+      for (const childId of childIds) {
+        if (!isLocalEventId(childId)) gcalIdsToDelete.push(childId);
+      }
+      if (!isLocalEventId(eventId)) gcalIdsToDelete.push(eventId);
+    } else if (!isLocalEventId(eventId) && shouldSyncEventToGCal(event)) {
+      gcalIdsToDelete.push(eventId);
+    }
+
     if (this.mode === 'offline') {
-      this.events.splice(idx, 1);
+      this.events = this.events.filter(e => e.id !== eventId && !childIds.has(e.id));
       localStorage.setItem(LOCAL_EVENTS_KEY, JSON.stringify(this.events));
     } else {
       try {
-        await this.deleteGCalEvent(eventId);
-        this.events.splice(idx, 1);
+        for (const id of gcalIdsToDelete) {
+          await this.deleteGCalEvent(id);
+        }
+        this.events = this.events.filter(e => e.id !== eventId && !childIds.has(e.id));
       } catch (e) {
         console.error('Failed to delete event from Google Calendar', e);
         throw e;
@@ -880,24 +984,45 @@ export const CalendarSync = {
 
   // --- Google Calendar REST API Calls ---
 
-  async fetchGCalEvents() {
+  async fetchGCalEventItems({ daysBack = 30, daysForward = 60 } = {}) {
     const timeMin = new Date();
-    timeMin.setDate(timeMin.getDate() - 30); // 30 days ago
+    timeMin.setDate(timeMin.getDate() - daysBack);
     const timeMax = new Date();
-    timeMax.setDate(timeMax.getDate() + 60); // 60 days in future
+    timeMax.setDate(timeMax.getDate() + daysForward);
 
-    const url = `https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(this.calendarId)}/events?timeMin=${timeMin.toISOString()}&timeMax=${timeMax.toISOString()}&singleEvents=true&key=${this.apiKey}`;
-    
-    const res = await fetch(url, {
-      headers: { Authorization: `Bearer ${this.accessToken}` }
-    });
-    
-    if (!res.ok) throw new Error('Failed to fetch calendar events from Google Calendar API');
-    
-    const data = await res.json();
+    const items = [];
+    let pageToken = null;
+
+    do {
+      const params = new URLSearchParams({
+        timeMin: timeMin.toISOString(),
+        timeMax: timeMax.toISOString(),
+        singleEvents: 'true',
+        key: this.apiKey
+      });
+      if (pageToken) params.set('pageToken', pageToken);
+
+      const url = `https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(this.calendarId)}/events?${params}`;
+      const res = await fetch(url, {
+        headers: { Authorization: `Bearer ${this.accessToken}` }
+      });
+
+      if (!res.ok) throw new Error('Failed to fetch calendar events from Google Calendar API');
+
+      const data = await res.json();
+      items.push(...(data.items || []));
+      pageToken = data.nextPageToken || null;
+    } while (pageToken);
+
+    return items;
+  },
+
+  async fetchGCalEvents() {
+    const items = await this.fetchGCalEventItems({ daysBack: 30, daysForward: 60 });
+    this.lastFetchedGCalItems = items;
     const parsedEvents = [];
 
-    for (const item of data.items || []) {
+    for (const item of items) {
       const parsed = parseGCalEventItem(item);
       if (parsed) parsedEvents.push(parsed);
     }
@@ -940,6 +1065,8 @@ export const CalendarSync = {
   },
 
   async deleteGCalEvent(eventId) {
+    if (isLocalEventId(eventId)) return;
+
     const url = `https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(this.calendarId)}/events/${eventId}?key=${this.apiKey}`;
     
     const res = await fetch(url, {
@@ -947,6 +1074,7 @@ export const CalendarSync = {
       headers: { Authorization: `Bearer ${this.accessToken}` }
     });
 
+    if (res.status === 404 || res.status === 410) return;
     if (!res.ok) throw new Error('Failed to delete calendar event from Google Calendar');
   },
 

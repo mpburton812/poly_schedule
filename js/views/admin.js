@@ -27,6 +27,10 @@ import {
 export function adminView(state) {
     const polyFamilyName = localStorage.getItem('polyschedule_poly_family_name') || 'The Poly Circle';
     const autoArchiveDays = getAutoArchiveDays();
+    const clientId = localStorage.getItem('polyschedule_client_id') || '';
+    const apiKey = localStorage.getItem('polyschedule_api_key') || '';
+    const calendarId = localStorage.getItem('polyschedule_calendar_id') || 'primary';
+    const credentialsConfigured = !!(clientId && apiKey);
     const changeLogHtml = (state.changeLog || []).map(entry => `
       <p class="console-line">
         <span class="console-time">[${entry.time}]</span>
@@ -55,6 +59,38 @@ export function adminView(state) {
             <input class="form-input" id="admin-poly-family-name" placeholder="The Poly Circle" type="text" value="${polyFamilyName}"/>
           </div>
           <button class="btn btn-filled" id="btn-save-group-name" style="align-self: flex-start;">Save Name</button>
+        </div>
+
+        <div class="bento-card" style="padding: var(--space-lg); border: 1px solid var(--outline-variant);">
+          <h3 class="font-title-lg" style="font-weight: 700; margin-bottom: var(--space-xs); display: flex; align-items: center; gap: var(--space-sm);">
+            <span class="material-symbols-outlined text-primary">cloud_sync</span> Google Calendar Integration
+          </h3>
+          <p class="font-body-md" style="color: var(--on-surface-variant); margin-bottom: var(--space-md);">
+            One-time setup for the whole household. After saving credentials, members can use <strong>Sync Google</strong> in the top bar to connect their account.
+          </p>
+          ${credentialsConfigured
+            ? '<p class="font-label-sm" style="color: var(--secondary); margin-bottom: var(--space-md);">Credentials are configured.</p>'
+            : '<p class="font-label-sm" style="color: var(--tertiary); margin-bottom: var(--space-md);">Not configured yet — enter credentials below.</p>'}
+
+          <div style="display: flex; flex-direction: column; gap: var(--space-md);">
+            <div class="form-group" style="margin-bottom: 0;">
+              <label class="form-label" for="admin-google-client-id">OAuth 2.0 Client ID</label>
+              <input class="form-input" id="admin-google-client-id" placeholder="xxxxxx.apps.googleusercontent.com" type="text" value="${clientId}"/>
+            </div>
+            <div class="form-group" style="margin-bottom: 0;">
+              <label class="form-label" for="admin-google-api-key">API Key</label>
+              <input class="form-input" id="admin-google-api-key" placeholder="AIzaSy..." type="password" value="${apiKey}"/>
+            </div>
+            <div class="form-group" style="margin-bottom: 0;">
+              <label class="form-label" for="admin-google-calendar-id">Calendar ID</label>
+              <input class="form-input" id="admin-google-calendar-id" placeholder="primary" type="text" value="${calendarId}"/>
+              <p class="font-label-sm" style="color: var(--on-surface-variant); margin-top: var(--space-xs);">Defaults to <code>primary</code>. Use a shared group calendar ID for the household schedule.</p>
+            </div>
+            <div style="display: flex; gap: var(--space-sm); flex-wrap: wrap;">
+              <button class="btn btn-filled" id="btn-save-google-credentials" type="button">Save Google Credentials</button>
+              <button class="btn btn-outline" id="btn-disconnect-google" type="button">Disconnect Google Sync</button>
+            </div>
+          </div>
         </div>
 
         <div class="bento-card" style="padding: var(--space-lg); border: 1px solid var(--outline-variant);">

@@ -35,7 +35,7 @@ export async function bootstrapData(mode) {
   }
 
   try {
-    await CalendarSync.init(mode, credentials, () => {
+    const alignStats = await CalendarSync.init(mode, credentials, () => {
       state.events = CalendarSync.events;
       state.config = CalendarSync.config;
     });
@@ -44,6 +44,17 @@ export async function bootstrapData(mode) {
     state.config = CalendarSync.config;
     state.isOffline = mode !== 'sync';
     router();
+
+    if (alignStats) {
+      addLog(
+        `GCal: Calendar aligned (${alignStats.deleted} removed, ${alignStats.upserted} updated, ${alignStats.materialized} batch nights added).`,
+        'info'
+      );
+      showToast(
+        `Google Calendar aligned (${alignStats.deleted} removed, ${alignStats.upserted} updated).`,
+        'success'
+      );
+    }
   } catch (err) {
     logOperationError('Google Calendar sync init', err);
     showToast('Failed to connect to Google Calendar. Operating in Offline Mode.', 'error');

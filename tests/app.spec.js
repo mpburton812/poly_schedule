@@ -214,6 +214,28 @@ test.describe('PolySchedule UI E2E Flow Tests', () => {
     await expect(page.locator('#mobile-nav-admin')).toBeHidden();
   });
 
+  test('should show Google Calendar credentials only on admin page', async ({ page }) => {
+    await clickAdminNav(page);
+    await expect(page.locator('text=Google Calendar Integration')).toBeVisible();
+    await expect(page.locator('#admin-google-client-id')).toBeVisible();
+    await expect(page.locator('#btn-save-google-credentials')).toBeVisible();
+
+    await page.click('#avatar-container');
+    const modal = page.locator('#app-modal.open');
+    await expect(modal.locator('#admin-google-client-id')).toHaveCount(0);
+    await expect(modal.locator('#setting-client-id')).toHaveCount(0);
+  });
+
+  test('non-admin profile should not expose Google credential fields', async ({ page }) => {
+    await page.evaluate(() => localStorage.clear());
+    await page.goto('/');
+    await loginAs(page, 'guest', 'password');
+    await page.click('#avatar-container');
+    await expect(page.locator('#setting-client-id')).toHaveCount(0);
+    await expect(page.locator('#admin-google-client-id')).toHaveCount(0);
+    await expect(page.locator('text=System Administration Log')).toHaveCount(0);
+  });
+
   test('should support editing profile settings', async ({ page }) => {
     await page.click('#avatar-container');
     await page.fill('#setting-display-name', 'Michael M. Burton');

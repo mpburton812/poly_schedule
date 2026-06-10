@@ -4,6 +4,9 @@ import {
   serializeEventMeta,
   parseGCalEventItem,
   formatGCalSummary,
+  formatGCalResource,
+  formatSleepingAllDayDates,
+  shouldSyncEventToGCal,
   resolveSyncBootstrapMode,
   isLocalEventId,
   GCAL_CONFIG_SUMMARY
@@ -69,6 +72,65 @@ describe('isLocalEventId', () => {
     expect(isLocalEventId('prop_123')).toBe(true);
     expect(isLocalEventId('e_456')).toBe(true);
     expect(isLocalEventId('abc123google')).toBe(false);
+  });
+});
+
+describe('shouldSyncEventToGCal', () => {
+  it('syncs regular events and open batch proposals', () => {
+    expect(shouldSyncEventToGCal({ type: 'event' })).toBe(true);
+    expect(shouldSyncEventToGCal({ type: 'sleeping', status: 'pending' })).toBe(true);
+    expect(shouldSyncEventToGCal({
+      type: 'batch_sleeping',
+      status: 'pending',
+      workflowState: 'proposed'
+    })).toBe(true);
+  });
+
+  it('skips approved batch parents once nights are expanded', () => {
+    expect(shouldSyncEventToGCal({
+      type: 'batch_sleeping',
+      status: 'confirmed',
+      workflowState: 'approved',
+      expandedEventIds: ['gcal_1']
+    })).toBe(false);
+  });
+});
+
+describe('formatGCalResource sleeping events', () => {
+  it('uses all-day dates for sleeping events', () => {
+    const resource = formatGCalResource({
+      title: 'SLEEP: Room A: Alex & Sam',
+      type: 'sleeping',
+      start: '2026-06-10T22:00:00.000Z',
+      end: '2026-06-11T08:00:00.000Z',
+      status: 'confirmed'
+    });
+    expect(resource.start).toEqual({ date: expect.stringMatching(/^\d{4}-\d{2}-\d{2}$/) });
+    expect(resource.end).toEqual({ date: expect.stringMatching(/^\d{4}-\d{2}-\d{2}$/) });
+    expect(resource.start.dateTime).toBeUndefined();
+  });
+
+  it('uses timed events for regular events', () => {
+    const resource = formatGCalResource({
+      title: 'Dinner',
+      type: 'event',
+      start: '2026-06-10T18:00:00.000Z',
+      end: '2026-06-10T21:00:00.000Z',
+      status: 'confirmed'
+    });
+    expect(resource.start.dateTime).toBeTruthy();
+    expect(resource.end.dateTime).toBeTruthy();
+  });
+});
+
+describe('formatSleepingAllDayDates', () => {
+  it('sets exclusive end date for one-night sleep', () => {
+    const { start, end } = formatSleepingAllDayDates({
+      start: '2026-06-10T22:00:00.000Z'
+    });
+    expect(start.date).toBeTruthy();
+    expect(end.date).toBeTruthy();
+    expect(end.date > start.date).toBe(true);
   });
 });
 

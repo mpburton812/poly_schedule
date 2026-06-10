@@ -276,6 +276,103 @@ body {
   transform: scale(0.95);
 }
 
+/* Avatar picker & inline crop */
+.avatar-picker-block {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-md);
+}
+
+.avatar-picker-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-sm);
+  align-items: center;
+}
+
+.avatar-option {
+  padding: 0;
+  background: var(--surface-container-high);
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.avatar-option img {
+  display: block;
+}
+
+.avatar-upload-tile {
+  color: var(--on-surface-variant);
+  border-style: dashed !important;
+  border-color: var(--outline-variant) !important;
+}
+
+.avatar-upload-tile .material-symbols-outlined {
+  font-size: 1.35rem;
+}
+
+.avatar-crop-panel {
+  padding: var(--space-md);
+  border: 1px solid var(--outline-variant);
+  border-radius: var(--radius-md);
+  background: var(--surface-container-low);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+}
+
+.avatar-crop-panel[hidden] {
+  display: none !important;
+}
+
+.avatar-crop-hint {
+  color: var(--on-surface-variant);
+  margin: 0;
+  line-height: 1.4;
+}
+
+.avatar-crop-stage {
+  position: relative;
+  width: min(100%, 220px);
+  margin: 0 auto;
+  aspect-ratio: 1;
+}
+
+.avatar-crop-canvas {
+  width: 100%;
+  height: 100%;
+  display: block;
+  border-radius: var(--radius-full);
+  background: var(--surface-container-highest);
+  touch-action: none;
+  cursor: grab;
+}
+
+.avatar-crop-canvas:active {
+  cursor: grabbing;
+}
+
+.avatar-crop-zoom-label {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-xs);
+  color: var(--on-surface-variant);
+}
+
+.avatar-crop-zoom {
+  width: 100%;
+  accent-color: var(--primary);
+}
+
+.avatar-crop-actions {
+  display: flex;
+  gap: var(--space-sm);
+  justify-content: flex-end;
+  flex-wrap: wrap;
+}
+
 /* Bottom Navigation Bar (Mobile) */
 .bottom-nav {
   position: fixed;

@@ -12,6 +12,7 @@
     "emulator:desktop": "node scripts/web-emulator.js --preset=desktop",
     "reset": "node generate-version.js && echo Open http://127.0.0.1:8080/?reset=1 to reset local app data",
     "test:unit": "vitest run",
+    "generate:avatars": "node scripts/generate-avatar-icons.js",
     "test:e2e": "playwright test",
     "test": "npm run test:unit && npm run test:e2e"
   },
@@ -27,6 +28,7 @@
     "@playwright/test": "^1.42.1",
     "http-server": "^14.1.1",
     "live-server": "^1.2.2",
+    "sharp": "^0.34.5",
     "vitest": "^3.2.4"
   }
 }

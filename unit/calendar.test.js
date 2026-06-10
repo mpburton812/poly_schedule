@@ -146,6 +146,28 @@ describe('CalendarSync offline workflow', () => {
     const batch = CalendarSync.events.find(e => e.id === 'prop_batch');
     expect(batch.responses['Sam Davis'].comment).toBe('Updated comment');
   });
+
+  it('removes expanded batch nights when deleting a batch parent', async () => {
+    CalendarSync.events.push({
+      id: 'prop_batch_del',
+      title: 'Batch Week',
+      type: 'batch_sleeping',
+      start: '2026-06-10T22:00:00.000Z',
+      end: '2026-06-12T08:00:00.000Z',
+      status: 'confirmed',
+      workflowState: WORKFLOW.APPROVED,
+      expandedEventIds: ['e_child_1', 'e_child_2']
+    });
+    CalendarSync.events.push(
+      { id: 'e_child_1', type: 'sleeping', title: 'Night 1', start: '2026-06-10T22:00:00.000Z', end: '2026-06-11T08:00:00.000Z', status: 'confirmed' },
+      { id: 'e_child_2', type: 'sleeping', title: 'Night 2', start: '2026-06-11T22:00:00.000Z', end: '2026-06-12T08:00:00.000Z', status: 'confirmed' }
+    );
+
+    await CalendarSync.deleteEvent('prop_batch_del');
+    expect(CalendarSync.events.find(e => e.id === 'prop_batch_del')).toBeUndefined();
+    expect(CalendarSync.events.find(e => e.id === 'e_child_1')).toBeUndefined();
+    expect(CalendarSync.events.find(e => e.id === 'e_child_2')).toBeUndefined();
+  });
 });
 
 describe('CalendarSync seed refresh', () => {

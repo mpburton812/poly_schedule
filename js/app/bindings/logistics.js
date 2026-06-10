@@ -1,6 +1,6 @@
 import { AuthManager } from '../../auth.js';
 import { state } from '../state.js';
-import { addLog, showToast, logoutGoogleSync } from '../context.js';
+import { addLog, showToast, logoutGoogleSync, addChangeLog } from '../context.js';
 
 export function bindLogisticsEvents(container = document) {
   const exportBtn = container.querySelector('#btn-export-logs');
@@ -32,40 +32,16 @@ export function bindLogisticsEvents(container = document) {
   });
 }
 
-export function bindSettingsEvents(container = document) {
-  const radios = container.querySelectorAll('input[name="mode-select"]');
-  radios.forEach(radio => {
-    radio.addEventListener('change', (e) => {
-      const selected = e.target.value;
-      const apiSection = container.querySelector('#api-keys-section');
-
-      if (selected === 'sync') {
-        if (apiSection) apiSection.style.display = 'flex';
-        state.isOffline = false;
-        localStorage.setItem('polyschedule_mode', 'sync');
-        const loginBtn = document.getElementById('btn-google-login');
-        if (loginBtn && AuthManager.clientId && AuthManager.apiKey) {
-          loginBtn.style.display = 'inline-flex';
-        }
-      } else {
-        if (apiSection) apiSection.style.display = 'none';
-
-        state.isOffline = true;
-        localStorage.setItem('polyschedule_mode', 'offline');
-        import('../bootstrap.js').then(({ bootstrapData }) => bootstrapData('offline'));
-      }
-    });
-  });
-
-  const btnSave = container.querySelector('#btn-save-credentials');
+export function bindGoogleCredentialsEvents(container = document) {
+  const btnSave = container.querySelector('#btn-save-google-credentials');
   if (btnSave) {
     btnSave.addEventListener('click', () => {
-      const cid = container.querySelector('#setting-client-id').value.trim();
-      const akey = container.querySelector('#setting-api-key').value.trim();
-      const calid = container.querySelector('#setting-calendar-id').value.trim();
+      const cid = container.querySelector('#admin-google-client-id')?.value.trim();
+      const akey = container.querySelector('#admin-google-api-key')?.value.trim();
+      const calid = container.querySelector('#admin-google-calendar-id')?.value.trim();
 
       if (!cid || !akey) {
-        showToast('OAuth Client ID and API Key are required for Sync.', 'warning');
+        showToast('OAuth Client ID and API Key are required.', 'warning');
         return;
       }
 
@@ -74,8 +50,9 @@ export function bindSettingsEvents(container = document) {
       localStorage.setItem('polyschedule_mode', 'sync');
       state.isOffline = false;
 
-      showToast('API Credentials saved. Please click "Sync Google" to log in.', 'success');
-      addLog('Auth: New API credentials entered. Requesting auth.');
+      showToast('Google credentials saved. Use Sync Google in the top bar to connect.', 'success');
+      addLog('Admin: Google Calendar API credentials updated.', 'info');
+      addChangeLog('Updated Google Calendar credentials', calid || 'primary');
 
       const loginBtn = document.getElementById('btn-google-login');
       if (loginBtn) loginBtn.style.display = 'inline-flex';
@@ -92,11 +69,37 @@ export function bindSettingsEvents(container = document) {
   if (btnDisconnect) {
     btnDisconnect.addEventListener('click', () => {
       logoutGoogleSync();
+      addChangeLog('Disconnected Google Calendar sync', '');
       const loginBtn = document.getElementById('btn-google-login');
       if (loginBtn) loginBtn.style.display = 'inline-flex';
     });
   }
+}
 
+export function bindSettingsEvents(container = document) {
+  const radios = container.querySelectorAll('input[name="mode-select"]');
+  radios.forEach(radio => {
+    radio.addEventListener('change', (e) => {
+      const selected = e.target.value;
+
+      if (selected === 'sync') {
+        if (!AuthManager.clientId || !AuthManager.apiKey) {
+          showToast('An administrator must configure Google credentials on the Admin page first.', 'warning');
+          const offlineRadio = container.querySelector('input[name="mode-select"][value="offline"]');
+          if (offlineRadio) offlineRadio.checked = true;
+          return;
+        }
+        state.isOffline = false;
+        localStorage.setItem('polyschedule_mode', 'sync');
+        const loginBtn = document.getElementById('btn-google-login');
+        if (loginBtn) loginBtn.style.display = 'inline-flex';
+      } else {
+        state.isOffline = true;
+        localStorage.setItem('polyschedule_mode', 'offline');
+        import('../bootstrap.js').then(({ bootstrapData }) => bootstrapData('offline'));
+      }
+    });
+  });
   const btnReset = container.querySelector('#btn-reset-app');
   if (btnReset) {
     btnReset.addEventListener('click', () => {

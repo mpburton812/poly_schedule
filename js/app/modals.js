@@ -4,7 +4,7 @@
 
 import { AuthManager } from '../auth.js';
 import { CalendarSync } from '../calendar.js';
-import { DEFAULT_AVATARS } from '../views.js';
+import { renderAvatarPickerHtml } from '../avatar.js';
 import { state } from './state.js';
 import {
   addLog,
@@ -28,6 +28,7 @@ function openModalOverlay(box, ariaLabel) {
   return modal;
 }
 import { bindSettingsEvents, bindLogisticsEvents } from './bindings/logistics.js';
+import { bindAvatarPicker } from '../avatar.js';
 
 export function handleBookingDeletion(event, reason) {
   const cancelledBy = getCurrentUserName();
@@ -100,9 +101,7 @@ export function openUserProfileModal() {
   if (!modal || !box) return;
 
   const isOffline = state.isOffline;
-  const clientId = localStorage.getItem('polyschedule_client_id') || '';
-  const apiKey = localStorage.getItem('polyschedule_api_key') || '';
-  const calendarId = localStorage.getItem('polyschedule_calendar_id') || 'primary';
+  const credentialsConfigured = !!(localStorage.getItem('polyschedule_client_id') && localStorage.getItem('polyschedule_api_key'));
 
   const logsHtml = state.logs.map(log => {
     const color = log.type === 'error' ? 'var(--error)' : log.type === 'warning' ? 'var(--tertiary)' : 'inherit';
@@ -179,15 +178,8 @@ export function openUserProfileModal() {
 
         <div class="form-group" style="margin-bottom: 0;">
           <label class="form-label" style="font-size: 0.8rem;">Select Avatar</label>
-          <div style="display: flex; gap: var(--space-sm); flex-wrap: wrap; margin-top: var(--space-xs);" id="setting-avatar-options">
-            ${DEFAULT_AVATARS.map((av, idx) => {
-              const isSelected = (state.currentUser?.picture === av || (!state.currentUser?.picture && idx === 0));
-              return `
-                <div class="avatar-option ${isSelected ? 'selected' : ''}" data-url="${av}" style="width: 44px; height: 44px; border-radius: var(--radius-full); overflow: hidden; border: 3px solid ${isSelected ? 'var(--primary)' : 'transparent'}; cursor: pointer; transition: all 0.2s;">
-                  <img src="${av}" alt="Avatar ${idx + 1}" style="width: 100%; height: 100%; object-fit: cover;"/>
-                </div>
-              `;
-            }).join('')}
+          <div style="margin-top: var(--space-xs);">
+            ${renderAvatarPickerHtml(state.currentUser?.picture, 'setting-avatar-options', { size: 44 })}
           </div>
         </div>
 
@@ -214,21 +206,11 @@ export function openUserProfileModal() {
           </label>
         </div>
 
-        <div id="api-keys-section" style="display: ${isOffline ? 'none' : 'flex'}; flex-direction: column; gap: var(--space-sm); border: 1px solid var(--outline-variant); padding: var(--space-md); border-radius: var(--radius-md);">
-          <div class="form-group" style="margin-bottom: 0;">
-            <label class="form-label" for="setting-client-id" style="font-size: 0.8rem;">Client ID</label>
-            <input class="form-input" id="setting-client-id" placeholder="xxxxxx.apps.googleusercontent.com" type="text" value="${clientId}" style="padding: 6px 12px; font-size: 0.85rem;"/>
-          </div>
-          <div class="form-group" style="margin-bottom: 0;">
-            <label class="form-label" for="setting-api-key" style="font-size: 0.8rem;">API Key</label>
-            <input class="form-input" id="setting-api-key" placeholder="AIzaSy..." type="password" value="${apiKey}" style="padding: 6px 12px; font-size: 0.85rem;"/>
-          </div>
-          <div class="form-group" style="margin-bottom: 0;">
-            <label class="form-label" for="setting-calendar-id" style="font-size: 0.8rem;">Calendar ID</label>
-            <input class="form-input" id="setting-calendar-id" placeholder="primary" type="text" value="${calendarId}" style="padding: 6px 12px; font-size: 0.85rem;"/>
-          </div>
-          <button class="btn btn-filled" id="btn-save-credentials" style="align-self: flex-start; padding: 6px 16px; font-size: 0.8rem; margin-top: var(--space-xs);">Save Credentials</button>
-        </div>
+        <p class="font-body-md" style="color: var(--on-surface-variant); font-size: 0.8rem; margin: 0;">
+          ${credentialsConfigured
+            ? 'Google Calendar credentials are configured by an administrator. Use <strong>Sync Google</strong> in the top bar to connect.'
+            : 'Ask an administrator to configure Google Calendar credentials on the Admin page before using sync mode.'}
+        </p>
 
         <div style="display: flex; gap: var(--space-sm); margin-top: var(--space-xs);">
           <button class="btn btn-outline" id="btn-force-update" style="border-color: var(--primary); color: var(--primary); padding: 6px 16px; font-size: 0.8rem; flex: 1;">
@@ -264,18 +246,10 @@ export function openUserProfileModal() {
     }
   });
 
-  let selectedAvatar = state.currentUser?.picture || DEFAULT_AVATARS[0];
-  const avatarOpts = box.querySelectorAll('#setting-avatar-options .avatar-option');
-  avatarOpts.forEach(opt => {
-    opt.addEventListener('click', () => {
-      avatarOpts.forEach(o => {
-        o.style.borderColor = 'transparent';
-        o.classList.remove('selected');
-      });
-      opt.style.borderColor = 'var(--primary)';
-      opt.classList.add('selected');
-      selectedAvatar = opt.dataset.url;
-    });
+  const getSelectedAvatar = bindAvatarPicker('#setting-avatar-options', {
+    initialUrl: state.currentUser?.picture,
+    size: 44,
+    onError: (msg) => showToast(msg, 'warning')
   });
 
   const btnSaveProfile = box.querySelector('#btn-save-profile');
@@ -284,6 +258,7 @@ export function openUserProfileModal() {
       const dispName = box.querySelector('#setting-display-name').value.trim();
       const userName = box.querySelector('#setting-username').value.trim();
       const pwd = box.querySelector('#setting-password').value.trim();
+      const selectedAvatar = getSelectedAvatar();
 
       if (!dispName || !userName) {
         showToast('Display Name and User Name are required.', 'warning');

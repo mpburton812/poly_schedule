@@ -483,24 +483,6 @@ export function selectNewHomeAfterReturn() {
   if (select) select.value = homeId;
 }
 
-export function bindAvatarPicker(containerSelector, onSelect) {
-  let selected = DEFAULT_AVATARS[0];
-  const container = document.querySelector(containerSelector);
-  if (!container) return () => selected;
-  const opts = container.querySelectorAll('.avatar-option');
-  opts.forEach(opt => {
-    if (opt.classList.contains('selected')) selected = opt.dataset.url;
-    opt.addEventListener('click', () => {
-      opts.forEach(o => { o.style.borderColor = 'transparent'; o.classList.remove('selected'); });
-      opt.style.borderColor = 'var(--primary)';
-      opt.classList.add('selected');
-      selected = opt.dataset.url;
-      if (onSelect) onSelect(selected);
-    });
-  });
-  return () => selected;
-}
-
 export function bindSleepingPartnerCheckboxes(container = document) {
   const checkboxes = container.querySelectorAll('.sleeping-partner-checkbox');
   const soloNightsGroup = container.querySelector('#solo-nights-group');
@@ -522,3 +504,5 @@ export function updateAdminNavVisibility() {
   if (sideNavAdmin) sideNavAdmin.style.display = showAdmin ? 'flex' : 'none';
   if (mobileNavAdmin) mobileNavAdmin.style.display = showAdmin ? 'inline-flex' : 'none';
 }
+
+export { bindAvatarPicker } from '../avatar.js';

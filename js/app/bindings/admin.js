@@ -29,7 +29,7 @@ import {
   bindSleepingPartnerCheckboxes
 } from '../context.js';
 import { renderView } from '../router.js';
-import { bindLogisticsEvents } from './logistics.js';
+import { bindLogisticsEvents, bindGoogleCredentialsEvents } from './logistics.js';
 
 export function bindAdminEvents() {
   const btnSave = document.getElementById('btn-save-group-name');
@@ -57,6 +57,7 @@ export function bindAdminEvents() {
   }
 
   bindLogisticsEvents(document);
+  bindGoogleCredentialsEvents(document);
 }
 
 export function bindLoginEvents() {
@@ -107,7 +108,9 @@ export function bindAddPartnerEvents() {
   }
 
   bindHomeSelectCreateNew(document.getElementById('new-partner-home'));
-  const getSelectedAvatar = bindAvatarPicker('#new-partner-avatar-options');
+  const getSelectedAvatar = bindAvatarPicker('#new-partner-avatar-options', {
+    onError: (msg) => showToast(msg, 'warning')
+  });
   bindSleepingPartnerCheckboxes();
 
   const btnSubmit = document.getElementById('btn-submit-partner');
@@ -285,7 +288,12 @@ export function bindEditPartnerEvents() {
   });
 
   bindHomeSelectCreateNew(document.getElementById('edit-partner-home'));
-  const getSelectedAvatar = bindAvatarPicker('#edit-partner-avatar-options');
+  const editPartnerId = document.getElementById('edit-partner-id')?.value;
+  const editPartner = state.config.partners.find(p => p.id === editPartnerId);
+  const getSelectedAvatar = bindAvatarPicker('#edit-partner-avatar-options', {
+    initialUrl: editPartner?.avatar,
+    onError: (msg) => showToast(msg, 'warning')
+  });
   bindSleepingPartnerCheckboxes();
 
   document.getElementById('btn-save-edit-partner')?.addEventListener('click', () => {

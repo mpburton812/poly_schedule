@@ -2,14 +2,7 @@
  * Shared PolySchedule helpers
  */
 
-export const DEFAULT_AVATARS = [
-  'https://images.unsplash.com/photo-1552728080-b9153f7f9f9?w=150&auto=format&fit=crop&q=80',
-  'https://images.unsplash.com/photo-1444464666168-49d633b86797?w=150&auto=format&fit=crop&q=80',
-  'https://images.unsplash.com/photo-1501704778740-628eb39a9257?w=150&auto=format&fit=crop&q=80',
-  'https://images.unsplash.com/photo-1518837695005-2083093ee35b?w=150&auto=format&fit=crop&q=80',
-  'https://images.unsplash.com/photo-1522926193345-9a711b0863f6?w=150&auto=format&fit=crop&q=80',
-  'https://images.unsplash.com/photo-1545249390-6bdfa286032f?w=150&auto=format&fit=crop&q=80'
-];
+export { DEFAULT_AVATARS } from './avatar.js';
 
 export const LOGS_STORAGE_KEY = 'polyschedule_system_logs';
 export const CREATE_NEW_HOME = '__create_new__';
@@ -443,19 +436,19 @@ export function expandBatchSleepingToEvents(batchProposal) {
 }
 
 /** Remove duplicate confirmed sleeping events created by repeated batch approvals. */
+export function sleepingEventFingerprint(event) {
+  if (event.type !== 'sleeping') return null;
+  const day = new Date(event.start).toISOString().slice(0, 10);
+  const participants = [...(event.participants || [])].sort().join('|');
+  return `${day}|${event.homeId || ''}|${event.roomId || ''}|${participants}|${event.title || ''}`;
+}
+
 export function dedupeDuplicateSleepingEvents(events) {
   const removeIds = new Set();
   const seen = new Map();
 
-  const fingerprint = (event) => {
-    if (event.type !== 'sleeping') return null;
-    const day = new Date(event.start).toISOString().slice(0, 10);
-    const participants = [...(event.participants || [])].sort().join('|');
-    return `${day}|${event.homeId || ''}|${event.roomId || ''}|${participants}|${event.title || ''}`;
-  };
-
   (events || []).forEach(event => {
-    const fp = fingerprint(event);
+    const fp = sleepingEventFingerprint(event);
     if (!fp) return;
     if (seen.has(fp)) {
       removeIds.add(event.id);
@@ -539,17 +532,7 @@ export function buildBatchNightsPayload(startDateStr, nightCount, nightAssignmen
   return { batchNights, start: start.toISOString(), end: end.toISOString() };
 }
 
-export function renderAvatarPickerHtml(selectedUrl, containerId) {
-  const items = DEFAULT_AVATARS.map((av, idx) => {
-    const isSelected = selectedUrl === av || (!selectedUrl && idx === 0);
-    return `
-      <div class="avatar-option ${isSelected ? 'selected' : ''}" data-url="${av}" style="width: 56px; height: 56px; border-radius: var(--radius-full); overflow: hidden; border: 3px solid ${isSelected ? 'var(--primary)' : 'transparent'}; cursor: pointer; transition: all 0.2s;">
-        <img src="${av}" alt="Bird avatar ${idx + 1}" style="width: 100%; height: 100%; object-fit: cover;"/>
-      </div>
-    `;
-  }).join('');
-  return `<div style="display: flex; gap: var(--space-md); flex-wrap: wrap;" id="${containerId}">${items}</div>`;
-}
+export { renderAvatarPickerHtml } from './avatar.js';
 
 export function parseHashParams() {
   const hash = window.location.hash || '';
