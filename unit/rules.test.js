@@ -55,3 +55,11 @@ describe('RulesEngine partner resolution', () => {
     expect(Array.isArray(warnings)).toBe(true);
   });
 });
+
+describe('RulesEngine.hasBatchRoomConflicts', () => {
+  it('returns true only when capacity conflicts are present', () => {
+    expect(RulesEngine.hasBatchRoomConflicts([])).toBe(false);
+    expect(RulesEngine.hasBatchRoomConflicts([{ type: 'SOLO_MIN_LIMIT' }])).toBe(false);
+    expect(RulesEngine.hasBatchRoomConflicts([{ type: 'CAPACITY_CONFLICT' }])).toBe(true);
+  });
+});

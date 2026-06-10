@@ -4,6 +4,7 @@ import {
   getProposalOutcome,
   getRequiredVoters,
   isSoloEventProposal,
+  userNeedsProposalVote,
   WORKFLOW
 } from '../js/proposal-workflow.js';
 
@@ -108,5 +109,49 @@ describe('getRequiredVoters', () => {
       partners: [{ name: 'Casey Chen', passive: true }]
     });
     expect(voters).toEqual(['Alex Rivera']);
+  });
+});
+
+describe('userNeedsProposalVote', () => {
+  const config = {
+    partners: [
+      { id: 'p1', name: 'Michael Burton', username: 'mpburton' },
+      { id: 'p2', name: 'Katie Thompson', username: 'katie' }
+    ]
+  };
+
+  it('returns false for the proposer even when they are a required participant', () => {
+    const proposal = {
+      type: 'event',
+      workflowState: WORKFLOW.PROPOSED,
+      proposer: 'Michael Burton',
+      participantRoles: [
+        { name: 'Michael Burton', role: 'required' },
+        { name: 'Katie Thompson', role: 'required' }
+      ],
+      responses: {
+        'Michael Burton': { status: 'accept' },
+        'Katie Thompson': { status: 'pending' }
+      }
+    };
+    expect(userNeedsProposalVote(proposal, 'p1', config)).toBe(false);
+    expect(userNeedsProposalVote(proposal, 'Michael Burton', config)).toBe(false);
+  });
+
+  it('returns true for other required voters with pending responses', () => {
+    const proposal = {
+      type: 'event',
+      workflowState: WORKFLOW.PROPOSED,
+      proposer: 'Michael Burton',
+      participantRoles: [
+        { name: 'Michael Burton', role: 'required' },
+        { name: 'Katie Thompson', role: 'required' }
+      ],
+      responses: {
+        'Michael Burton': { status: 'accept' },
+        'Katie Thompson': { status: 'pending' }
+      }
+    };
+    expect(userNeedsProposalVote(proposal, 'p2', config)).toBe(true);
   });
 });

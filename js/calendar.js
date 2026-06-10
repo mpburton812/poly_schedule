@@ -7,10 +7,13 @@ import {
   DEFAULT_AVATARS,
   renamePartnerReferences,
   expandBatchSleepingToEvents,
+  dedupeDuplicateSleepingEvents,
+  reconcileBatchExpandedIds,
   removePartnerReferences,
   removeHomeReferences,
   normalizeConfigPartners,
   syncAllHomeAssociationDefaults,
+  findPartnerByRef,
   SEED_REFRESH_NOTICE_KEY
 } from './helpers.js';
 import {
@@ -24,7 +27,8 @@ import {
   participantNames,
   cloneProposalAsDraft,
   getWorkflowState,
-  isCalendarEvent
+  isCalendarEvent,
+  resolveParticipantRoleName
 } from './proposal-workflow.js';
 import {
   GCAL_CONFIG_SUMMARY,
@@ -413,8 +417,18 @@ export const CalendarSync = {
   migrateAndNormalizeEvents() {
     const before = JSON.stringify(this.events);
     this.events = migrateEvents(this.events, this.config);
+    const { events: deduped, removedIds } = dedupeDuplicateSleepingEvents(this.events);
+    this.events = deduped;
+    reconcileBatchExpandedIds(this.events);
     if (before !== JSON.stringify(this.events)) {
       this.persistEvents();
+      if (this.mode === 'sync' && removedIds.length) {
+        removedIds.forEach(id => {
+          this.deleteGCalEvent(id).catch(err =>
+            console.error('Failed to delete duplicate calendar event', id, err)
+          );
+        });
+      }
     }
   },
 
@@ -686,6 +700,22 @@ export const CalendarSync = {
     return this.applyWorkflowEvaluation(event);
   },
 
+  async submitProposalVote(eventId, voterRef, vote, comment = '') {
+    const event = this.events.find(e => e.id === eventId);
+    if (!event) throw new Error('Proposal not found');
+
+    const responseKey = resolveParticipantRoleName(this.config, voterRef, event.participantRoles)
+      || findPartnerByRef(this.config, voterRef)?.name;
+    if (!responseKey) throw new Error('Voter is not a participant on this proposal');
+
+    const responses = { ...(event.responses || {}) };
+    responses[responseKey] = {
+      status: vote,
+      comment: (comment || '').trim()
+    };
+    return this.updateEvent(eventId, { responses });
+  },
+
   renamePartnerInEvents(oldName, newName) {
     if (!oldName || !newName || oldName === newName) return;
     renamePartnerReferences(this.config, this.events, oldName, newName);
@@ -766,6 +796,10 @@ export const CalendarSync = {
     }
 
     if (getWorkflowState(updated) === WORKFLOW.APPROVED && updated.type === 'batch_sleeping') {
+      const priorExpanded = this.events[idx].expandedEventIds || [];
+      if (priorExpanded.length > 0) {
+        updated.expandedEventIds = priorExpanded;
+      } else {
       const expanded = expandBatchSleepingToEvents(updated);
       expanded.forEach(e => {
         e.status = 'confirmed';
@@ -800,6 +834,7 @@ export const CalendarSync = {
 
       if (this.onStateUpdate) this.onStateUpdate();
       return { parent: updated, expanded };
+      }
     }
 
     if (this.mode === 'offline') {

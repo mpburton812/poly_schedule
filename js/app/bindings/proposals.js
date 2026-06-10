@@ -1,6 +1,13 @@
 import { CalendarSync } from '../../calendar.js';
 import { state, flowState } from '../state.js';
-import { addLog, showToast, getCurrentUserName, logOperationError } from '../context.js';
+import {
+  addLog,
+  showToast,
+  getCurrentUserName,
+  logOperationError,
+  persistCurrentUserNotifications
+} from '../context.js';
+import { getWorkflowState, WORKFLOW } from '../../proposal-workflow.js';
 import { renderView } from '../router.js';
 import { loadDraftIntoForm } from './create.js';
 
@@ -32,17 +39,26 @@ export function bindProposalsEvents() {
       const proposal = state.events.find(ev => ev.id === id);
       if (!proposal) return;
 
-      const voterName = getCurrentUserName();
-      const responses = { ...proposal.responses };
-      responses[voterName] = {
-        status: vote,
-        comment: commentInput.trim()
-      };
+      const voterRef = state.currentUser?.id || getCurrentUserName();
 
       try {
-        await CalendarSync.updateEvent(id, { responses });
-        showToast('Vote submitted successfully!', 'success');
+        const updated = await CalendarSync.submitProposalVote(id, voterRef, vote, commentInput);
+        state.events = CalendarSync.events;
+
+        state.notifications = state.notifications.filter(
+          n => n.dedupeKey !== `pending_${id}_${state.currentUser?.id}`
+        );
+        persistCurrentUserNotifications();
+
+        const finalEvent = state.events.find(e => e.id === id) || updated;
+        if (finalEvent && getWorkflowState(finalEvent) === WORKFLOW.APPROVED) {
+          flowState.activeProposalsTab = 'approved';
+          showToast('Proposal approved!', 'success');
+        } else {
+          showToast('Vote submitted successfully!', 'success');
+        }
         addLog(`User voted ${vote} on proposal "${proposal.title}"`);
+        renderView();
       } catch (err) {
         logOperationError('Proposal vote submit', err, {
           proposalId: id,

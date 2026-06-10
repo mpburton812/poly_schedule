@@ -159,7 +159,7 @@ test.describe('PolySchedule UI E2E Flow Tests', () => {
     });
     if (await acceptBtn.isVisible()) {
       await acceptBtn.click();
-      await expect(page.locator('#toast-container')).toContainText('Vote submitted');
+      await expect(page.locator('#toast-container')).toContainText(/Vote submitted|Proposal approved/);
     }
   });
 

@@ -11,9 +11,7 @@ export const state = {
   selectedDate: new Date(),
   filterPartner: 'all',
   filterResidence: 'all',
-  notifications: typeof localStorage !== 'undefined'
-    ? JSON.parse(localStorage.getItem('polyschedule_notifications') || '[]')
-    : [],
+  notifications: [],
   logs: [],
   changeLog: typeof localStorage !== 'undefined'
     ? JSON.parse(localStorage.getItem('polyschedule_change_log') || '[]')

@@ -8,17 +8,22 @@ import { Views, DEFAULT_AVATARS } from '../views.js';
 import {
   LOGS_STORAGE_KEY,
   CHANGE_LOG_STORAGE_KEY,
+  NOTIFICATIONS_BY_USER_KEY,
+  LEGACY_NOTIFICATIONS_KEY,
   CREATE_NEW_HOME,
   RETURN_ADD_PARTNER_KEY,
   SELECT_HOME_KEY,
   ADD_PARTNER_DRAFT_KEY,
   LOCAL_SESSION_KEY,
   LEGACY_PROFILE_KEY,
-  isPartnerPassive
+  isPartnerPassive,
+  findPartnerByRef,
+  partnerRefsMatch
 } from '../helpers.js';
 import {
   getWorkflowState,
   getRequiredVoters,
+  getResponseForParticipant,
   userNeedsProposalVote,
   WORKFLOW,
   isProposalType
@@ -116,41 +121,105 @@ export function addChangeLog(action, detail = '') {
   });
 }
 
-export function pushAppNotification({ title, description, dedupeKey }) {
-  if (dedupeKey && state.notifications.some(n => n.dedupeKey === dedupeKey)) {
-    return false;
+export function getCurrentUserId() {
+  return state.currentUser?.id || null;
+}
+
+function loadNotificationsStore() {
+  try {
+    const parsed = JSON.parse(localStorage.getItem(NOTIFICATIONS_BY_USER_KEY) || '{}');
+    return parsed && typeof parsed === 'object' ? parsed : {};
+  } catch {
+    return {};
   }
-  const notification = {
-    id: `notif_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
-    title,
-    description,
-    timestamp: new Date().toLocaleTimeString('en-GB', { hour12: false }),
-    read: false,
-    dedupeKey: dedupeKey || null
-  };
-  state.notifications.unshift(notification);
-  if (state.notifications.length > 50) state.notifications.pop();
-  localStorage.setItem('polyschedule_notifications', JSON.stringify(state.notifications));
+}
+
+function saveNotificationsStore(store) {
+  localStorage.setItem(NOTIFICATIONS_BY_USER_KEY, JSON.stringify(store));
+}
+
+export function loadNotificationsForUser(userId) {
+  if (!userId) return [];
+  const store = loadNotificationsStore();
+  return Array.isArray(store[userId]) ? store[userId] : [];
+}
+
+export function saveNotificationsForUser(userId, notifications) {
+  if (!userId) return;
+  const store = loadNotificationsStore();
+  store[userId] = notifications;
+  saveNotificationsStore(store);
+}
+
+export function persistCurrentUserNotifications() {
+  const userId = getCurrentUserId();
+  if (userId) saveNotificationsForUser(userId, state.notifications);
+}
+
+export function refreshCurrentUserNotifications() {
+  const userId = getCurrentUserId();
+  state.notifications = userId ? loadNotificationsForUser(userId) : [];
   updateNotificationsBadge();
+}
+
+export function pushAppNotification({ title, description, dedupeKey, recipientId = null }) {
+  const targetUserId = recipientId || getCurrentUserId();
+  if (!targetUserId) return false;
+
+  const appendNotification = (list) => {
+    if (dedupeKey && list.some(n => n.dedupeKey === dedupeKey)) {
+      return { list, added: false };
+    }
+    const notification = {
+      id: `notif_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
+      title,
+      description,
+      timestamp: new Date().toLocaleTimeString('en-GB', { hour12: false }),
+      read: false,
+      dedupeKey: dedupeKey || null,
+      recipientId: targetUserId
+    };
+    const next = [notification, ...list];
+    if (next.length > 50) next.pop();
+    return { list: next, added: true };
+  };
+
+  if (targetUserId === getCurrentUserId()) {
+    const result = appendNotification([...state.notifications]);
+    if (!result.added) return false;
+    state.notifications = result.list;
+    saveNotificationsForUser(targetUserId, state.notifications);
+    updateNotificationsBadge();
+    return true;
+  }
+
+  const remote = loadNotificationsForUser(targetUserId);
+  const result = appendNotification([...remote]);
+  if (!result.added) return false;
+  saveNotificationsForUser(targetUserId, result.list);
   return true;
 }
 
 export function notifyProposalReviewers(proposal, config) {
   if (getWorkflowState(proposal) !== WORKFLOW.PROPOSED) return;
   getRequiredVoters(proposal.participantRoles || [], config).forEach(name => {
-    if (proposal.responses?.[name]?.status !== 'pending') return;
+    if (partnerRefsMatch(config, name, proposal.proposer)) return;
+    const response = getResponseForParticipant(proposal, name, config);
+    if (response?.status !== 'pending') return;
+    const recipient = findPartnerByRef(config, name);
+    if (!recipient || isPartnerPassive(recipient)) return;
     pushAppNotification({
       title: 'Proposal needs your review',
       description: `"${proposal.title}" from ${proposal.proposer} is waiting for your response.`,
-      dedupeKey: `pending_${proposal.id}_${name}`
+      dedupeKey: `pending_${proposal.id}_${recipient.id}`,
+      recipientId: recipient.id
     });
   });
 }
 
 export function syncPendingProposalAlertsForUser() {
   if (!state.currentUser || !state.config) return;
-  const userName = getCurrentUserName();
-  const userRef = state.currentUser.id || userName;
+  const userRef = state.currentUser.id || getCurrentUserName();
 
   (state.events || []).forEach(proposal => {
     if (!isProposalType(proposal.type)) return;
@@ -158,7 +227,7 @@ export function syncPendingProposalAlertsForUser() {
     pushAppNotification({
       title: 'Proposal needs your review',
       description: `"${proposal.title}" from ${proposal.proposer} is waiting for your response.`,
-      dedupeKey: `pending_${proposal.id}_${userName}`
+      dedupeKey: `pending_${proposal.id}_${state.currentUser.id}`
     });
   });
 }
@@ -218,6 +287,7 @@ export function showToast(message, type = 'info') {
 }
 
 export function updateNotificationsBadge() {
+  if (typeof document === 'undefined') return;
   const badge = document.getElementById('notifications-badge');
   if (badge) {
     const unreadCount = state.notifications.filter(n => !n.read).length;
@@ -330,6 +400,7 @@ export function establishSession(partner) {
   if (avatarImg) avatarImg.src = state.currentUser.picture;
   updateUIForAuthState(true);
   updateAdminNavVisibility();
+  refreshCurrentUserNotifications();
   syncPendingProposalAlertsForUser();
 }
 

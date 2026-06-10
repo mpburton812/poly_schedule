@@ -15,6 +15,8 @@ import {
   logoutUser,
   getCurrentUserName,
   saveConfig,
+  persistCurrentUserNotifications,
+  pushAppNotification,
   LOCAL_SESSION_KEY
 } from './context.js';
 
@@ -31,18 +33,10 @@ export function handleBookingDeletion(event, reason) {
   const cancelledBy = getCurrentUserName();
   const cancelledTime = new Date().toLocaleString();
 
-  const notification = {
-    id: 'notif_' + Date.now(),
+  pushAppNotification({
     title: 'Booking Cancelled',
-    description: `"${event.title}" was cancelled by ${cancelledBy} on ${cancelledTime}.${reason ? ` Reason: ${reason}` : ''}`,
-    timestamp: new Date().toLocaleTimeString('en-GB', { hour12: false }),
-    read: false
-  };
-
-  state.notifications.push(notification);
-  localStorage.setItem('polyschedule_notifications', JSON.stringify(state.notifications));
-
-  updateNotificationsBadge();
+    description: `"${event.title}" was cancelled by ${cancelledBy} on ${cancelledTime}.${reason ? ` Reason: ${reason}` : ''}`
+  });
 
   showToast('Booking cancelled successfully.', 'success');
   addLog(`Deleted event "${event.title}": ${reason || 'no reason'}`);
@@ -55,7 +49,7 @@ export function openNotificationsModal() {
 
   state.notifications.forEach(n => { n.read = true; });
   updateNotificationsBadge();
-  localStorage.setItem('polyschedule_notifications', JSON.stringify(state.notifications));
+  persistCurrentUserNotifications();
 
   let listHtml = '';
   if (state.notifications.length === 0) {
@@ -93,7 +87,7 @@ export function openNotificationsModal() {
 
   document.getElementById('btn-clear-notifications').addEventListener('click', () => {
     state.notifications = [];
-    localStorage.setItem('polyschedule_notifications', JSON.stringify([]));
+    persistCurrentUserNotifications();
     updateNotificationsBadge();
     modal.classList.remove('open');
     showToast('Notifications cleared.', 'success');

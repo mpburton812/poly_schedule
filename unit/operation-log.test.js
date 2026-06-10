@@ -47,3 +47,38 @@ describe('logOperationError', () => {
     expect(localStorage.getItem(LOGS_STORAGE_KEY)).toContain('Proposal submit failed');
   });
 });
+
+describe('pushAppNotification', () => {
+  beforeEach(async () => {
+    localStorage.clear();
+    const { state } = await import('../js/app/state.js');
+    state.notifications = [];
+    state.currentUser = { id: 'p1', name: 'Michael Burton', sessionActive: true };
+    state.config = {
+      partners: [
+        { id: 'p1', name: 'Michael Burton', username: 'mpburton' },
+        { id: 'p2', name: 'Katie Thompson', username: 'katie' }
+      ]
+    };
+  });
+
+  it('stores review alerts for the recipient user, not the current user', async () => {
+    const { state } = await import('../js/app/state.js');
+    const {
+      pushAppNotification,
+      loadNotificationsForUser,
+      refreshCurrentUserNotifications
+    } = await import('../js/app/context.js');
+
+    pushAppNotification({
+      title: 'Proposal needs your review',
+      description: '"This week" from Michael Burton is waiting for your response.',
+      dedupeKey: 'pending_prop1_p2',
+      recipientId: 'p2'
+    });
+
+    expect(loadNotificationsForUser('p2')).toHaveLength(1);
+    refreshCurrentUserNotifications();
+    expect(state.notifications).toHaveLength(0);
+  });
+});

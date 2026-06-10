@@ -91,6 +91,16 @@ export function getRequiredVoters(participantRoles, config) {
     .map(p => p.name);
 }
 
+/** Look up a participant's response even when response keys use a different partner ref. */
+export function getResponseForParticipant(proposal, participantName, config) {
+  const responses = proposal?.responses || {};
+  if (responses[participantName]) return responses[participantName];
+  for (const [key, value] of Object.entries(responses)) {
+    if (partnerRefsMatch(config, key, participantName)) return value;
+  }
+  return null;
+}
+
 /** True when an event proposal has only the proposer as a required participant. */
 export function isSoloEventProposal(proposal, config) {
   if (!proposal || proposal.type !== 'event') return false;
@@ -101,11 +111,20 @@ export function isSoloEventProposal(proposal, config) {
   return partnerRefsMatch(config, required[0], proposer);
 }
 
-export function userNeedsProposalVote(proposal, userName, config) {
+export function resolveParticipantRoleName(config, userRef, participantRoles = []) {
+  const match = (participantRoles || []).find(r => partnerRefsMatch(config, r.name, userRef));
+  return match?.name || (typeof userRef === 'string' && !String(userRef).startsWith('p') ? userRef : null);
+}
+
+export function userNeedsProposalVote(proposal, userRef, config) {
   if (getWorkflowState(proposal) !== WORKFLOW.PROPOSED) return false;
+  if (partnerRefsMatch(config, proposal.proposer, userRef)) return false;
   const required = getRequiredVoters(proposal.participantRoles || [], config);
-  return required.some(name => partnerRefsMatch(config, name, userName)
-    && proposal.responses?.[name]?.status === 'pending');
+  return required.some(name => {
+    if (partnerRefsMatch(config, name, proposal.proposer)) return false;
+    if (!partnerRefsMatch(config, name, userRef)) return false;
+    return getResponseForParticipant(proposal, name, config)?.status === 'pending';
+  });
 }
 
 export function canUserSeeProposal(proposal, userName, config = null) {
@@ -147,16 +166,15 @@ export function evaluateProposedProposal(proposal, config) {
   }
 
   const requiredVoters = getRequiredVoters(proposal.participantRoles || [], config);
-  const responses = proposal.responses || {};
 
   for (const name of requiredVoters) {
-    if (responses[name]?.status === 'reject') {
+    if (getResponseForParticipant(proposal, name, config)?.status === 'reject') {
       return { transition: 'declined', declinedBy: name };
     }
   }
 
   const allSatisfied = requiredVoters.every(name => {
-    const vote = responses[name]?.status;
+    const vote = getResponseForParticipant(proposal, name, config)?.status;
     if (!vote || vote === 'pending') return false;
     if (allowsAbstain(proposal.type)) {
       return vote === 'accept' || vote === 'abstain';

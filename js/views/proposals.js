@@ -11,7 +11,9 @@ import {
   normalizeBatchNight,
   getBedroomOptionsForHome,
   getCurrentUserPartner,
-  hasSleepingPartnerConnections
+  hasSleepingPartnerConnections,
+  partnerRefsMatch,
+  renderBatchNightsReviewHtml
 } from '../helpers.js';
 import {
   WORKFLOW,
@@ -20,12 +22,15 @@ import {
   allowsAbstain,
   isPassivePerson,
   getAutoArchiveDays,
-  isCalendarEvent
+  isCalendarEvent,
+  getResponseForParticipant,
+  resolveParticipantRoleName
 } from '../proposal-workflow.js';
 
 
 export function proposalsView(state, activeTab = 'proposed') {
     const userName = state.currentUser?.name;
+    const userRef = state.currentUser?.id || userName;
     const filtered = filterProposalsForTab(state.events, activeTab, userName, state.config);
 
     const tabLabels = {
@@ -47,10 +52,12 @@ export function proposalsView(state, activeTab = 'proposed') {
     } else {
       filtered.forEach(p => {
         const ws = getWorkflowState(p);
-        const isProposer = p.proposer === userName;
+        const isProposer = partnerRefsMatch(state.config, p.proposer, userRef);
         const isReceiver = !isProposer;
-        const userVote = p.responses?.[userName]?.status || 'pending';
-        const canVote = ws === WORKFLOW.PROPOSED && isReceiver && userVote === 'pending' && p.responses?.[userName];
+        const responseKey = resolveParticipantRoleName(state.config, userRef, p.participantRoles) || userName;
+        const userResponse = getResponseForParticipant(p, responseKey, state.config);
+        const userVote = userResponse?.status || 'pending';
+        const canVote = ws === WORKFLOW.PROPOSED && isReceiver && userVote === 'pending' && !!userResponse;
 
         const startDate = new Date(p.start);
         const dayStart = new Date(startDate);
@@ -92,7 +99,7 @@ export function proposalsView(state, activeTab = 'proposed') {
           const isAbstain = r.status === 'abstain';
           const icon = isPending ? 'pending' : isReject ? 'cancel' : isAbstain ? 'do_not_disturb_on' : 'check_circle';
           const colorClass = isPending ? 'text-outline' : isReject ? 'var(--error)' : isAbstain ? 'var(--on-surface-variant)' : 'var(--secondary)';
-          const nameLabel = k === userName ? 'You' : k.split(' ')[0];
+          const nameLabel = partnerRefsMatch(state.config, k, userRef) ? 'You' : k.split(' ')[0];
           const roleLabel = roleMap[k] === 'optional' ? ' · Optional' : ' · Required';
           const passiveLabel = isPassivePerson(k, state.config) ? ' · Passive' : '';
 
@@ -167,6 +174,9 @@ export function proposalsView(state, activeTab = 'proposed') {
           [WORKFLOW.DRAFT]: `<span class="font-label-sm" style="background-color: var(--tertiary-container); color: var(--on-tertiary-container); padding: 2px 8px; border-radius: var(--radius-sm); font-size: 9px; font-weight: bold; margin-left: 8px;">DRAFT</span>`
         };
         const statusBadge = statusBadgeMap[ws] || '';
+        const batchNightsHtml = p.type === 'batch_sleeping'
+          ? renderBatchNightsReviewHtml(p.batchNights)
+          : '';
 
         listHtml += `
           <div class="proposal-card ${p.type === 'sleeping' || p.type === 'batch_sleeping' ? 'sleeping' : ''}" id="prop-${p.id}">
@@ -208,6 +218,8 @@ export function proposalsView(state, activeTab = 'proposed') {
                 </div>
               </div>
             </div>
+
+            ${batchNightsHtml}
 
             <div class="review-box" style="margin-top: var(--space-sm);">
               ${responsesHtml || '<p class="font-label-sm" style="color: var(--on-surface-variant);">No responses yet.</p>'}

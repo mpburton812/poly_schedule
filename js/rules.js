@@ -426,5 +426,9 @@ export const RulesEngine = {
     }
 
     return warnings;
+  },
+
+  hasBatchRoomConflicts(warnings = []) {
+    return warnings.some(w => w.type === 'CAPACITY_CONFLICT');
   }
 };

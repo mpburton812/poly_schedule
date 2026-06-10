@@ -21,6 +21,8 @@ export const GOOGLE_PROFILE_KEY = 'polyschedule_google_profile';
 export const LEGACY_PROFILE_KEY = 'polyschedule_user_profile';
 export const SEED_REFRESH_NOTICE_KEY = 'polyschedule_seed_refreshed';
 export const CHANGE_LOG_STORAGE_KEY = 'polyschedule_change_log';
+export const NOTIFICATIONS_BY_USER_KEY = 'polyschedule_notifications_by_user';
+export const LEGACY_NOTIFICATIONS_KEY = 'polyschedule_notifications';
 
 export function partnerDisplayFirstName(name) {
   if (!name) return '';
@@ -438,6 +440,77 @@ export function expandBatchSleepingToEvents(batchProposal) {
     });
   });
   return events;
+}
+
+/** Remove duplicate confirmed sleeping events created by repeated batch approvals. */
+export function dedupeDuplicateSleepingEvents(events) {
+  const removeIds = new Set();
+  const seen = new Map();
+
+  const fingerprint = (event) => {
+    if (event.type !== 'sleeping') return null;
+    const day = new Date(event.start).toISOString().slice(0, 10);
+    const participants = [...(event.participants || [])].sort().join('|');
+    return `${day}|${event.homeId || ''}|${event.roomId || ''}|${participants}|${event.title || ''}`;
+  };
+
+  (events || []).forEach(event => {
+    const fp = fingerprint(event);
+    if (!fp) return;
+    if (seen.has(fp)) {
+      removeIds.add(event.id);
+    } else {
+      seen.set(fp, event.id);
+    }
+  });
+
+  return {
+    events: (events || []).filter(event => !removeIds.has(event.id)),
+    removedIds: [...removeIds]
+  };
+}
+
+export function reconcileBatchExpandedIds(events) {
+  (events || []).forEach(event => {
+    if (event.type !== 'batch_sleeping' || !Array.isArray(event.expandedEventIds)) return;
+    event.expandedEventIds = event.expandedEventIds.filter(id =>
+      events.some(e => e.id === id)
+    );
+  });
+  return events;
+}
+
+export function renderBatchNightsReviewHtml(batchNights = []) {
+  if (!batchNights?.length) return '';
+
+  const nightsHtml = batchNights.map((night, index) => {
+    const dateLabel = new Date(`${night.date}T12:00:00`).toLocaleDateString(undefined, {
+      weekday: 'short',
+      month: 'short',
+      day: 'numeric'
+    });
+    const assignmentRows = (night.assignments || []).map(assign => {
+      const people = (assign.participants || []).map(partnerDisplayFirstName).join(', ') || 'No one assigned';
+      const location = `${assign.homeName || 'Home'} · ${assign.roomName || 'Room'}`;
+      return `<li>${location} — ${people}</li>`;
+    }).join('');
+
+    return `
+      <div style="padding: var(--space-xs) 0;${index < batchNights.length - 1 ? ' border-bottom: 1px solid var(--outline-variant);' : ''}">
+        <div class="font-label-md" style="font-weight: 600; margin-bottom: 4px;">Night ${index + 1} · ${dateLabel}</div>
+        <ul style="margin: 0; padding-left: 1.25rem; color: var(--on-surface); font-size: 0.85rem; line-height: 1.5;">
+          ${assignmentRows || '<li>No room assignments</li>'}
+        </ul>
+      </div>
+    `;
+  }).join('');
+
+  return `
+    <div class="batch-proposal-nights" style="margin-top: var(--space-sm); padding: var(--space-sm) var(--space-md); background: var(--surface-container-high); border-radius: var(--radius-default);">
+      <div class="font-label-sm" style="color: var(--on-surface-variant); margin-bottom: var(--space-xs); letter-spacing: 0.04em;">NIGHT-BY-NIGHT PLAN</div>
+      ${nightsHtml}
+    </div>
+  `;
 }
 
 export function buildBatchNightsPayload(startDateStr, nightCount, nightAssignments, config = {}) {

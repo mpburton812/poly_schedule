@@ -408,34 +408,12 @@ export function runRulesChecks() {
   const durationVal = document.getElementById('prop-duration')?.value || '1';
   if (!startInput) return;
 
-  const currentUserName = getCurrentUserName();
   let warnings = [];
 
   if (flowState.currentCreateType === 'batch_sleeping') {
-    const nightCount = Math.min(14, Math.max(1, parseInt(durationVal, 10) || 1));
-    const assignments = readBatchAssignmentsFromDom();
-    const { batchNights, start, end } = buildBatchNightsPayload(startInput.value, nightCount, assignments, state.config);
-    const participantSet = new Set();
-    batchNights.forEach(night => {
-      (night.assignments || []).forEach(a => (a.participants || []).forEach(p => participantSet.add(p)));
-    });
-    if (!participantSet.has(currentUserName)) participantSet.add(currentUserName);
-
-    const tempProposal = {
-      id: 'temp_create',
-      type: 'batch_sleeping',
-      start,
-      end,
-      batchNights,
-      participants: Array.from(participantSet)
-    };
-    warnings = RulesEngine.evaluateBatchSleepingProposal(
-      tempProposal,
-      state.events,
-      state.config,
-      state.config.partners
-    );
+    warnings = evaluateCurrentBatchProposalWarnings();
   } else {
+    const currentUserName = getCurrentUserName();
     const startD = new Date(startInput.value);
     const endD = new Date(startD);
     endD.setDate(startD.getDate() + (parseInt(durationVal, 10) || 1));
@@ -466,6 +444,43 @@ export function runRulesChecks() {
     updateBatchPartnerLocks();
   }
   updateMicroCalendarConflicts(warnings);
+}
+
+export function evaluateCurrentBatchProposalWarnings() {
+  const startInput = document.getElementById('prop-start-date');
+  const durationVal = document.getElementById('prop-duration')?.value || '1';
+  if (!startInput) return [];
+
+  const nightCount = Math.min(14, Math.max(1, parseInt(durationVal, 10) || 1));
+  const assignments = readBatchAssignmentsFromDom();
+  const { batchNights, start, end } = buildBatchNightsPayload(
+    startInput.value,
+    nightCount,
+    assignments,
+    state.config
+  );
+  const currentUserName = getCurrentUserName();
+  const participantSet = new Set();
+  batchNights.forEach(night => {
+    (night.assignments || []).forEach(a => (a.participants || []).forEach(p => participantSet.add(p)));
+  });
+  if (!participantSet.has(currentUserName)) participantSet.add(currentUserName);
+
+  const tempProposal = {
+    id: flowState.currentDraftId || 'temp_create',
+    type: 'batch_sleeping',
+    start,
+    end,
+    batchNights,
+    participants: Array.from(participantSet)
+  };
+
+  return RulesEngine.evaluateBatchSleepingProposal(
+    tempProposal,
+    state.events,
+    state.config,
+    state.config.partners
+  );
 }
 
 export function bindCreateEvents() {
@@ -722,6 +737,13 @@ export function bindCreateEvents() {
         const emptyNight = batchNights.findIndex(n => !(n.assignments || []).length);
         if (emptyNight !== -1) {
           showToast(`Night ${emptyNight + 1} needs at least one room with people assigned.`, 'warning');
+          return;
+        }
+        const batchWarnings = evaluateCurrentBatchProposalWarnings();
+        if (RulesEngine.hasBatchRoomConflicts(batchWarnings)) {
+          showProposalRulesBanner(batchWarnings);
+          highlightBatchRowErrors(batchWarnings);
+          showToast('Cannot submit until all room conflicts are resolved.', 'error');
           return;
         }
       } else if (flowState.currentCreateType === 'event') {
