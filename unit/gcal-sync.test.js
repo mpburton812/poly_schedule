@@ -5,6 +5,7 @@ import {
   parseGCalEventItem,
   formatGCalSummary,
   resolveSyncBootstrapMode,
+  isLocalEventId,
   GCAL_CONFIG_SUMMARY
 } from '../js/gcal-sync.js';
 
@@ -60,6 +61,14 @@ describe('serializeEventMeta / parseGCalEventItem', () => {
 
   it('skips config events', () => {
     expect(parseGCalEventItem({ summary: GCAL_CONFIG_SUMMARY })).toBeNull();
+  });
+});
+
+describe('isLocalEventId', () => {
+  it('detects local draft and event ids', () => {
+    expect(isLocalEventId('prop_123')).toBe(true);
+    expect(isLocalEventId('e_456')).toBe(true);
+    expect(isLocalEventId('abc123google')).toBe(false);
   });
 });
 

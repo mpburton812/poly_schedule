@@ -24,7 +24,7 @@ import {
   newProposalState,
   resetNewProposalFormState
 } from '../state.js';
-import { addLog, showToast, getCurrentUserName, notifyProposalReviewers, addChangeLog } from '../context.js';
+import { addLog, showToast, getCurrentUserName, notifyProposalReviewers, addChangeLog, logOperationError } from '../context.js';
 import { renderView } from '../router.js';
 
 export function updateSleepingArrangementTitle() {
@@ -297,7 +297,10 @@ export function collectProposalFormData() {
     };
   }
 
-  const startD = new Date(startInput?.value || newProposalState.batchStartDate);
+  const startD = new Date(startInput?.value || newProposalState.batchStartDate || Date.now());
+  if (Number.isNaN(startD.getTime())) {
+    startD.setTime(Date.now());
+  }
   let endD = new Date(startD);
   if (flowState.currentCreateType === 'sleeping') {
     const durationVal = document.getElementById('prop-duration')?.value || '1';
@@ -389,7 +392,9 @@ export function ensureCreateDraftSync() {
     expandedEventIds: []
   };
   CalendarSync.events.push(draft);
-  CalendarSync.persistEvents();
+  if (CalendarSync.mode === 'offline') {
+    CalendarSync.persistEvents();
+  }
   state.events = CalendarSync.events;
   flowState.currentDraftId = draft.id;
   resetNewProposalFormState();
@@ -738,8 +743,17 @@ export function bindCreateEvents() {
 
       try {
         const data = collectProposalFormData();
-        const draftId = flowState.currentDraftId;
-        await CalendarSync.saveDraft(draftId, data);
+        let draftId = flowState.currentDraftId;
+        if (!draftId) {
+          ensureCreateDraftSync();
+          draftId = flowState.currentDraftId;
+        }
+        if (!draftId) {
+          throw new Error('Draft could not be created');
+        }
+        const saved = await CalendarSync.saveDraft(draftId, data);
+        draftId = saved?.id || draftId;
+        flowState.currentDraftId = draftId;
         await CalendarSync.submitProposal(draftId);
         const finalEvent = state.events.find(e => e.id === draftId);
 
@@ -764,6 +778,12 @@ export function bindCreateEvents() {
         }
         addLog(`Submitted proposal: "${data.title}"`);
       } catch (err) {
+        logOperationError('Proposal submit', err, {
+          draftId: flowState.currentDraftId,
+          proposalType: flowState.currentCreateType,
+          proposalTitle: document.getElementById('prop-title')?.value?.trim() || '',
+          soloEvent: flowState.soloEventMode
+        });
         showToast('Failed to submit proposal.', 'error');
       }
     });

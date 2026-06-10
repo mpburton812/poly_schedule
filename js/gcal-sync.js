@@ -173,6 +173,11 @@ export function resolveSyncBootstrapMode() {
   return wantsSync && hasCreds && hasToken ? 'sync' : 'offline';
 }
 
+/** Whether an event id is a local-only placeholder not yet in Google Calendar. */
+export function isLocalEventId(eventId) {
+  return typeof eventId === 'string' && (/^prop_/.test(eventId) || /^e_/.test(eventId));
+}
+
 export function formatGCalResource(event) {
   return {
     summary: formatGCalSummary(event),

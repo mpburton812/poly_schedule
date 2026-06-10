@@ -29,8 +29,11 @@ import {
 import {
   GCAL_CONFIG_SUMMARY,
   parseGCalEventItem,
-  formatGCalResource as buildGCalResource
+  formatGCalResource as buildGCalResource,
+  isLocalEventId
 } from './gcal-sync.js';
+
+import { flowState } from './app/state.js';
 
 // Local Storage Keys
 const LOCAL_EVENTS_KEY = 'polyschedule_local_events';
@@ -428,8 +431,47 @@ export const CalendarSync = {
     Promise.all((eventIds || []).map(async (id) => {
       const event = this.events.find(e => e.id === id);
       if (!event) return;
-      await this.updateGCalEvent(id, event);
+      await this.upsertGCalEvent(id, event);
     })).catch(err => console.error('Failed to sync events to Google Calendar', err));
+  },
+
+  /** Create or update a GCal event; remaps local prop_/e_ ids to Google ids. */
+  async upsertGCalEvent(eventId, event) {
+    if (isLocalEventId(eventId)) {
+      const created = await this.createGCalEvent(event);
+      return { id: created.id, created: true };
+    }
+
+    const resource = this.formatGCalResource(event);
+    const url = `https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(this.calendarId)}/events/${eventId}?key=${this.apiKey}`;
+    const res = await fetch(url, {
+      method: 'PUT',
+      headers: {
+        Authorization: `Bearer ${this.accessToken}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify(resource)
+    });
+
+    if (res.ok) {
+      return { id: eventId, created: false };
+    }
+    if (res.status === 404) {
+      const created = await this.createGCalEvent(event);
+      return { id: created.id, created: true };
+    }
+    throw new Error('Failed to update calendar event on Google Calendar');
+  },
+
+  /** Replace a local event id with the Google Calendar id after first sync. */
+  remapEventId(oldId, newId, updatedEvent) {
+    const idx = this.events.findIndex(e => e.id === oldId);
+    if (idx === -1) return;
+    updatedEvent.id = newId;
+    this.events[idx] = updatedEvent;
+    if (flowState.currentDraftId === oldId) {
+      flowState.currentDraftId = newId;
+    }
   },
 
   applyWorkflowEvaluation(event) {
@@ -765,8 +807,12 @@ export const CalendarSync = {
       localStorage.setItem(LOCAL_EVENTS_KEY, JSON.stringify(this.events));
     } else {
       try {
-        await this.updateGCalEvent(eventId, updated);
-        this.events[idx] = updated;
+        const { id: syncedId } = await this.upsertGCalEvent(eventId, updated);
+        if (syncedId !== eventId) {
+          this.remapEventId(eventId, syncedId, updated);
+        } else {
+          this.events[idx] = updated;
+        }
       } catch (e) {
         console.error('Failed to sync updated event to Google Calendar', e);
         throw e;

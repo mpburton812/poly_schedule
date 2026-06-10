@@ -8,6 +8,7 @@ import {
 import {
   loadPersistedLogs,
   addLog,
+  logOperationError,
   showToast,
   updateNotificationsBadge,
   establishSession,
@@ -44,7 +45,7 @@ export async function bootstrapData(mode) {
     state.isOffline = mode !== 'sync';
     router();
   } catch (err) {
-    addLog(`Error initializing sync: ${err.message}`, 'error');
+    logOperationError('Google Calendar sync init', err);
     showToast('Failed to connect to Google Calendar. Operating in Offline Mode.', 'error');
 
     state.isOffline = true;
@@ -80,7 +81,7 @@ export async function handleGoogleAuthState(authState) {
       await bootstrapData('sync');
       showToast('Connected to Google Calendar.', 'success');
     } catch (err) {
-      addLog(`Google sync handoff failed: ${err.message}`, 'error');
+      logOperationError('Google sync handoff', err);
     }
     return;
   }

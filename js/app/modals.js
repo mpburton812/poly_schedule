@@ -8,6 +8,7 @@ import { DEFAULT_AVATARS } from '../views.js';
 import { state } from './state.js';
 import {
   addLog,
+  logOperationError,
   showToast,
   updateNotificationsBadge,
   isAdmin,
@@ -408,6 +409,10 @@ export function openEventDetailsModal(event) {
         modal.classList.remove('open');
         handleBookingDeletion(event, reason);
       } catch (err) {
+        logOperationError('Booking delete', err, {
+          eventId: event.id,
+          eventTitle: event.title
+        });
         showToast('Failed to delete booking.', 'error');
       }
     }

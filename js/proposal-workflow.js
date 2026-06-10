@@ -124,7 +124,7 @@ export function buildInitialResponses(proposerName, participantRoles, config) {
   const responses = {};
   (participantRoles || []).forEach(({ name }) => {
     if (isPassivePerson(name, config)) return;
-    if (name === proposerName) {
+    if (name === proposerName || partnerRefsMatch(config, name, proposerName)) {
       responses[name] = { status: 'accept', comment: 'Organizer' };
     } else {
       responses[name] = { status: 'pending', comment: '' };

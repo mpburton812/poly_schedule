@@ -1,6 +1,6 @@
 import { CalendarSync } from '../../calendar.js';
 import { state, flowState } from '../state.js';
-import { addLog, showToast, getCurrentUserName } from '../context.js';
+import { addLog, showToast, getCurrentUserName, logOperationError } from '../context.js';
 import { renderView } from '../router.js';
 import { loadDraftIntoForm } from './create.js';
 
@@ -44,6 +44,11 @@ export function bindProposalsEvents() {
         showToast('Vote submitted successfully!', 'success');
         addLog(`User voted ${vote} on proposal "${proposal.title}"`);
       } catch (err) {
+        logOperationError('Proposal vote submit', err, {
+          proposalId: id,
+          proposalTitle: proposal.title,
+          vote
+        });
         showToast('Failed to submit vote.', 'error');
       }
     });
@@ -62,6 +67,10 @@ export function bindProposalsEvents() {
           addLog(`Proposal cancelled: "${proposal.title}"${reason ? ` — ${reason}` : ''}`, 'warning');
           showToast('Proposal cancelled.', 'success');
         } catch (err) {
+          logOperationError('Proposal cancel', err, {
+            proposalId: id,
+            proposalTitle: proposal.title
+          });
           showToast('Failed to cancel proposal.', 'error');
         }
       }
@@ -82,6 +91,10 @@ export function bindProposalsEvents() {
           flowState.activeProposalsTab = 'drafts';
           renderView();
         } catch (err) {
+          logOperationError('Proposal retract', err, {
+            proposalId: id,
+            proposalTitle: proposal.title
+          });
           showToast('Failed to retract proposal.', 'error');
         }
       }
@@ -106,6 +119,10 @@ export function bindProposalsEvents() {
         addLog(`Proposal deleted: "${proposal.title}"`, 'warning');
         showToast('Proposal deleted.', 'success');
       } catch (err) {
+        logOperationError('Proposal delete', err, {
+          proposalId: id,
+          proposalTitle: proposal.title
+        });
         showToast('Failed to delete proposal.', 'error');
       }
     });
@@ -124,6 +141,10 @@ export function bindProposalsEvents() {
         flowState.activeProposalsTab = 'drafts';
         window.location.hash = `#create?draft=${draft.id}`;
       } catch (err) {
+        logOperationError('Proposal reopen', err, {
+          proposalId: id,
+          proposalTitle: proposal.title
+        });
         showToast('Failed to reopen proposal.', 'error');
       }
     });
@@ -141,6 +162,10 @@ export function bindProposalsEvents() {
         flowState.activeProposalsTab = 'archived';
         renderView();
       } catch (err) {
+        logOperationError('Proposal archive', err, {
+          proposalId: id,
+          proposalTitle: proposal.title
+        });
         showToast('Failed to archive proposal.', 'error');
       }
     });

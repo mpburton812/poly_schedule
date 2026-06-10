@@ -36,21 +36,67 @@ export function loadPersistedLogs() {
   }
 }
 
-export function addLog(message, type = 'info') {
+export function addLog(message, type = 'info', meta = null) {
   const time = new Date().toLocaleTimeString('en-GB', { hour12: false });
-  state.logs.push({ time, message, type, timestamp: Date.now() });
+  const entry = { time, message, type, timestamp: Date.now(), ...(meta || {}) };
+  state.logs.push(entry);
   if (state.logs.length > 100) state.logs.shift();
   localStorage.setItem(LOGS_STORAGE_KEY, JSON.stringify(state.logs));
 
-  const consoleBodies = document.querySelectorAll('#console-logs-body');
-  consoleBodies.forEach(consoleBody => {
-    const p = document.createElement('p');
-    p.className = 'console-line';
-    const color = type === 'error' ? 'var(--error)' : type === 'warning' ? 'var(--tertiary)' : 'inherit';
-    p.innerHTML = `<span class="console-time">[${time}]</span> <span style="color: ${color};">${message}</span>`;
-    consoleBody.appendChild(p);
-    consoleBody.scrollTop = consoleBody.scrollHeight;
+  if (typeof document !== 'undefined') {
+    const consoleBodies = document.querySelectorAll('#console-logs-body');
+    consoleBodies.forEach(consoleBody => {
+      const p = document.createElement('p');
+      p.className = 'console-line';
+      const color = type === 'error' ? 'var(--error)' : type === 'warning' ? 'var(--tertiary)' : 'inherit';
+      p.innerHTML = `<span class="console-time">[${time}]</span> <span style="color: ${color};">${message}</span>`;
+      consoleBody.appendChild(p);
+      consoleBody.scrollTop = consoleBody.scrollHeight;
+    });
+  }
+}
+
+/** Collect ambient context useful when diagnosing user-facing failures. */
+export function buildOperationSupportContext(context = {}) {
+  return {
+    user: getCurrentUserName(),
+    syncMode: CalendarSync.mode || (state.isOffline ? 'offline' : 'unknown'),
+    view: state.currentView,
+    route: typeof window !== 'undefined' ? (window.location.hash || window.location.pathname) : '',
+    ...context
+  };
+}
+
+/**
+ * Record a user-facing operation failure in the live system log (localStorage export).
+ * Includes the error message plus support context for troubleshooting.
+ */
+export function logOperationError(operation, err, context = {}) {
+  const error = err instanceof Error ? err : new Error(String(err ?? 'Unknown error'));
+  const support = buildOperationSupportContext(context);
+  const detailParts = [`error=${error.message}`];
+
+  if (error.name && error.name !== 'Error') {
+    detailParts.push(`type=${error.name}`);
+  }
+  Object.entries(support).forEach(([key, value]) => {
+    if (value == null || value === '') return;
+    detailParts.push(`${key}=${String(value)}`);
   });
+  if (error.stack) {
+    detailParts.push(`stack=${error.stack.split('\n').slice(1, 4).map(line => line.trim()).join(' | ')}`);
+  }
+
+  const message = `${operation} failed · ${detailParts.join(' · ')}`;
+  addLog(message, 'error', {
+    operation,
+    errorMessage: error.message,
+    errorName: error.name,
+    support,
+    stack: error.stack || null
+  });
+  console.error(`[${operation}]`, error, support);
+  return message;
 }
 
 export function addChangeLog(action, detail = '') {
