@@ -168,6 +168,25 @@ describe('CalendarSync offline workflow', () => {
     expect(CalendarSync.events.find(e => e.id === 'e_child_1')).toBeUndefined();
     expect(CalendarSync.events.find(e => e.id === 'e_child_2')).toBeUndefined();
   });
+
+  it('deletes seed sleeping events without calling Google Calendar', async () => {
+    CalendarSync.events.push({
+      id: 's99',
+      title: "SLEEP: Room: Michael Burton & Katie Thompson",
+      type: 'sleeping',
+      start: new Date().toISOString(),
+      end: new Date(Date.now() + 36000000).toISOString(),
+      participants: ['Michael Burton', 'Katie Thompson'],
+      status: 'confirmed',
+      workflowState: WORKFLOW.APPROVED
+    });
+
+    const fetchSpy = vi.spyOn(globalThis, 'fetch');
+    await CalendarSync.deleteEvent('s99');
+    expect(CalendarSync.events.find(e => e.id === 's99')).toBeUndefined();
+    expect(fetchSpy).not.toHaveBeenCalled();
+    fetchSpy.mockRestore();
+  });
 });
 
 describe('CalendarSync seed refresh', () => {

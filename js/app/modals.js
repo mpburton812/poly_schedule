@@ -3,6 +3,7 @@
  */
 
 import { AuthManager } from '../auth.js';
+import { CalendarSync } from '../calendar.js';
 import { renderAvatarPickerHtml } from '../avatar.js';
 import { state } from './state.js';
 import {
@@ -18,7 +19,7 @@ import {
   pushAppNotification,
   LOCAL_SESSION_KEY
 } from './context.js';
-import { getCurrentUserPartner } from '../helpers.js';
+import { getCurrentUserPartner, formatAppDateTime } from '../helpers.js';
 import { renderPronounPickerHtml, bindPronounPicker } from '../pronouns.js';
 
 function openModalOverlay(box, ariaLabel) {
@@ -33,7 +34,7 @@ import { bindAvatarPicker } from '../avatar.js';
 
 export function handleBookingDeletion(event, reason) {
   const cancelledBy = getCurrentUserName();
-  const cancelledTime = new Date().toLocaleString();
+  const cancelledTime = formatAppDateTime();
 
   pushAppNotification({
     title: 'Booking Cancelled',
@@ -310,8 +311,10 @@ export function openEventDetailsModal(event) {
   if (!modal || !box) return;
 
   const dateStr = new Date(event.start).toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric' });
-  const startT = new Date(event.start).toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit', hour12: true });
-  const endT = new Date(event.end).toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit', hour12: true });
+  const timeOpts = { hour: 'numeric', minute: '2-digit', hour12: true };
+  const timeRangeStr = event.type === 'sleeping'
+    ? 'All night'
+    : `${new Date(event.start).toLocaleTimeString(undefined, timeOpts)} - ${new Date(event.end).toLocaleTimeString(undefined, timeOpts)}`;
 
   let locationOrRoom = '';
   if (event.type === 'sleeping') {
@@ -347,7 +350,7 @@ export function openEventDetailsModal(event) {
     </div>
     <div style="display: flex; gap: var(--space-base); align-items: center; color: var(--on-surface-variant); margin-bottom: var(--space-sm);">
       <span class="material-symbols-outlined">schedule</span>
-      <span>${startT} - ${endT}</span>
+      <span>${timeRangeStr}</span>
     </div>
 
     ${locationOrRoom}
@@ -372,8 +375,10 @@ export function openEventDetailsModal(event) {
       if (reason === null) return;
       try {
         await CalendarSync.deleteEvent(event.id);
+        state.events = CalendarSync.events;
         modal.classList.remove('open');
         handleBookingDeletion(event, reason);
+        import('./router.js').then(({ renderView }) => renderView());
       } catch (err) {
         logOperationError('Booking delete', err, {
           eventId: event.id,

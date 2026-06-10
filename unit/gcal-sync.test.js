@@ -71,22 +71,25 @@ describe('isLocalEventId', () => {
   it('detects local draft and event ids', () => {
     expect(isLocalEventId('prop_123')).toBe(true);
     expect(isLocalEventId('e_456')).toBe(true);
+    expect(isLocalEventId('s1')).toBe(true);
+    expect(isLocalEventId('p_s1')).toBe(true);
     expect(isLocalEventId('abc123google')).toBe(false);
   });
 });
 
 describe('shouldSyncEventToGCal', () => {
-  it('syncs regular events and open batch proposals', () => {
+  it('syncs regular events and sleeping arrangements', () => {
     expect(shouldSyncEventToGCal({ type: 'event' })).toBe(true);
     expect(shouldSyncEventToGCal({ type: 'sleeping', status: 'pending' })).toBe(true);
+    expect(shouldSyncEventToGCal({ type: 'sleeping', status: 'confirmed' })).toBe(true);
+  });
+
+  it('never syncs batch sleeping parent proposals', () => {
     expect(shouldSyncEventToGCal({
       type: 'batch_sleeping',
       status: 'pending',
       workflowState: 'proposed'
-    })).toBe(true);
-  });
-
-  it('skips approved batch parents once nights are expanded', () => {
+    })).toBe(false);
     expect(shouldSyncEventToGCal({
       type: 'batch_sleeping',
       status: 'confirmed',

@@ -35,7 +35,8 @@ import {
   parseGCalEventItem,
   formatGCalResource as buildGCalResource,
   isLocalEventId,
-  shouldSyncEventToGCal
+  shouldSyncEventToGCal,
+  shouldAttemptGCalDelete
 } from './gcal-sync.js';
 import {
   needsGCalAlignment,
@@ -954,35 +955,36 @@ export const CalendarSync = {
 
   async deleteEvent(eventId) {
     const idx = this.events.findIndex(e => e.id === eventId);
-    if (idx === -1) return;
+    if (idx === -1) {
+      throw new Error('Event not found');
+    }
 
     const event = this.events[idx];
     const childIds = new Set(event.expandedEventIds || []);
+    const idsToRemove = new Set([eventId, ...childIds]);
     const gcalIdsToDelete = [];
 
     if (event.type === 'batch_sleeping') {
       for (const childId of childIds) {
-        if (!isLocalEventId(childId)) gcalIdsToDelete.push(childId);
+        if (shouldAttemptGCalDelete(childId)) gcalIdsToDelete.push(childId);
       }
-      if (!isLocalEventId(eventId)) gcalIdsToDelete.push(eventId);
-    } else if (!isLocalEventId(eventId) && shouldSyncEventToGCal(event)) {
+      if (shouldAttemptGCalDelete(eventId)) gcalIdsToDelete.push(eventId);
+    } else if (shouldAttemptGCalDelete(eventId) && shouldSyncEventToGCal(event)) {
       gcalIdsToDelete.push(eventId);
     }
 
-    if (this.mode === 'offline') {
-      this.events = this.events.filter(e => e.id !== eventId && !childIds.has(e.id));
-      localStorage.setItem(LOCAL_EVENTS_KEY, JSON.stringify(this.events));
-    } else {
-      try {
-        for (const id of gcalIdsToDelete) {
+    if (this.mode === 'sync' && gcalIdsToDelete.length) {
+      for (const id of gcalIdsToDelete) {
+        try {
           await this.deleteGCalEvent(id);
+        } catch (err) {
+          console.error(`Failed to delete event ${id} from Google Calendar`, err);
         }
-        this.events = this.events.filter(e => e.id !== eventId && !childIds.has(e.id));
-      } catch (e) {
-        console.error('Failed to delete event from Google Calendar', e);
-        throw e;
       }
     }
+
+    this.events = this.events.filter(e => !idsToRemove.has(e.id));
+    localStorage.setItem(LOCAL_EVENTS_KEY, JSON.stringify(this.events));
 
     if (this.onStateUpdate) this.onStateUpdate();
   },

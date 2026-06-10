@@ -43,12 +43,17 @@ describe('collectEventsToSync', () => {
     const syncMap = collectEventsToSync(events);
     expect(syncMap.has('gcal_batch')).toBe(false);
     expect(syncMap.has('night_1')).toBe(true);
-    expect(syncMap.has('gcal_prop')).toBe(true);
+    expect(syncMap.has('gcal_prop')).toBe(false);
     expect(syncMap.has('gcal_evt')).toBe(true);
   });
 });
 
 describe('collectOrphanGCalIds', () => {
+  it('always treats [PROPOSAL-BATCH] items as orphans', () => {
+    const rawItems = [{ id: 'batch_in_keep', summary: '[PROPOSAL-BATCH] Week Plan' }];
+    expect(collectOrphanGCalIds(rawItems, new Set(['batch_in_keep']))).toEqual(['batch_in_keep']);
+  });
+
   it('returns GCal ids not in the keep set, excluding config events', () => {
     const rawItems = [
       { id: 'cfg', summary: GCAL_CONFIG_SUMMARY },

@@ -175,15 +175,22 @@ export function resolveSyncBootstrapMode() {
 
 /** Whether an event id is a local-only placeholder not yet in Google Calendar. */
 export function isLocalEventId(eventId) {
-  return typeof eventId === 'string' && (/^prop_/.test(eventId) || /^e_/.test(eventId));
+  if (typeof eventId !== 'string') return false;
+  if (/^prop_/.test(eventId) || /^e_/.test(eventId)) return true;
+  // Demo seed ids (s1, p_s1, p_e1, etc.)
+  if (/^[ps]\d+$/i.test(eventId)) return true;
+  if (/^p_[es]\d+$/i.test(eventId)) return true;
+  return false;
 }
 
-/** Whether an event should be written to Google Calendar. Approved batches sync only as individual nights. */
+/** Whether delete should call the Google Calendar API for this event id. */
+export function shouldAttemptGCalDelete(eventId) {
+  return !isLocalEventId(eventId);
+}
+
+/** Whether an event should be written to Google Calendar. Batch parents stay app-only; sync expanded sleeping nights instead. */
 export function shouldSyncEventToGCal(event) {
-  if (event?.type !== 'batch_sleeping') return true;
-  if (Array.isArray(event.expandedEventIds) && event.expandedEventIds.length > 0) return false;
-  if (event.workflowState === 'approved' || event.status === 'confirmed') return false;
-  return true;
+  return event?.type !== 'batch_sleeping';
 }
 
 /** All-day date range for a sleeping night (GCal end date is exclusive). */
