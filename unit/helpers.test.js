@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest';
+import { LEGACY_PRESET_AVATARS } from '../js/avatar.js';
 import { dedupeDuplicateSleepingEvents, normalizeConfigPartners, renderBatchNightsReviewHtml } from '../js/helpers.js';
+import { DEFAULT_AVATARS } from '../js/helpers.js';
 
 describe('normalizeConfigPartners', () => {
   it('restores empty sleeping rules from defaults', () => {
@@ -30,6 +32,28 @@ describe('normalizeConfigPartners', () => {
     const changed = normalizeConfigPartners(config, defaults);
     expect(changed).toBe(true);
     expect(config.partners[0].pronouns.preset).toBe('they/them');
+  });
+
+  it('migrates legacy Unsplash avatars to local bird icons', () => {
+    const config = {
+      partners: [{
+        id: 'p1',
+        name: 'Alex Rivera',
+        avatar: LEGACY_PRESET_AVATARS[2],
+        rules: {}
+      }]
+    };
+    const defaults = {
+      partners: [{
+        id: 'p1',
+        name: 'Alex Rivera',
+        avatar: DEFAULT_AVATARS[0],
+        rules: {}
+      }]
+    };
+    const changed = normalizeConfigPartners(config, defaults);
+    expect(changed).toBe(true);
+    expect(config.partners[0].avatar).toBe(DEFAULT_AVATARS[2]);
   });
 });
 

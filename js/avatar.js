@@ -11,6 +11,16 @@ export const DEFAULT_AVATARS = [
   'assets/images/icons/128/bird_yellow.png'
 ];
 
+/** Legacy Unsplash preset URLs replaced by local bird icons in v2 avatars. */
+export const LEGACY_PRESET_AVATARS = [
+  'https://images.unsplash.com/photo-1552728080-b9153f7f9f9?w=150&auto=format&fit=crop&q=80',
+  'https://images.unsplash.com/photo-1444464666168-49d633b86797?w=150&auto=format&fit=crop&q=80',
+  'https://images.unsplash.com/photo-1501704778740-628eb39a9257?w=150&auto=format&fit=crop&q=80',
+  'https://images.unsplash.com/photo-1518837695005-2083093ee35b?w=150&auto=format&fit=crop&q=80',
+  'https://images.unsplash.com/photo-1522926193345-9a711b0863f6?w=150&auto=format&fit=crop&q=80',
+  'https://images.unsplash.com/photo-1545249390-6bdfa286032f?w=150&auto=format&fit=crop&q=80'
+];
+
 export const AVATAR_OUTPUT_SIZE = 256;
 export const AVATAR_JPEG_QUALITY = 0.85;
 export const AVATAR_MAX_INPUT_BYTES = 10 * 1024 * 1024;
@@ -20,6 +30,34 @@ const BIRD_LABELS = ['Blue bird', 'Green bird', 'Orange bird', 'Purple bird', 'R
 
 export function isCustomAvatar(url) {
   return typeof url === 'string' && url.startsWith('data:image/');
+}
+
+function legacyAvatarIndex(url) {
+  if (!url || typeof url !== 'string') return -1;
+  const exact = LEGACY_PRESET_AVATARS.indexOf(url);
+  if (exact >= 0) return exact;
+  const match = url.match(/photo-([\d]+-[a-f0-9]+)/i);
+  if (!match) return -1;
+  return LEGACY_PRESET_AVATARS.findIndex((legacy) => legacy.includes(match[1]));
+}
+
+/** Map legacy remote presets to local bird icons; preserve custom uploads. */
+export function migrateAvatarUrl(avatar, fallbackIndex = 0) {
+  if (isCustomAvatar(avatar)) return avatar;
+  if (DEFAULT_AVATARS.includes(avatar)) return avatar;
+
+  const legacyIndex = legacyAvatarIndex(avatar);
+  if (legacyIndex >= 0) return DEFAULT_AVATARS[legacyIndex];
+
+  if (typeof avatar === 'string' && avatar.includes('images.unsplash.com')) {
+    return DEFAULT_AVATARS[fallbackIndex % DEFAULT_AVATARS.length];
+  }
+
+  if (!avatar) {
+    return DEFAULT_AVATARS[fallbackIndex % DEFAULT_AVATARS.length];
+  }
+
+  return avatar;
 }
 
 export function resolveSelectedAvatar(url) {

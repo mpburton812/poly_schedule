@@ -2,7 +2,14 @@
  * Google Calendar ↔ PolySchedule event serialization helpers.
  */
 
+import { WORKFLOW, getWorkflowState } from './proposal-workflow.js';
+
 export const GCAL_CONFIG_SUMMARY = '[CONFIG] PolySchedule Core Settings';
+
+/** Google Calendar preset colors (calendar colorId). */
+export const GCAL_COLOR_PROPOSED = '5';
+export const GCAL_COLOR_EVENT_APPROVED = '10';
+export const GCAL_COLOR_SLEEPING_APPROVED = '9';
 
 const PROPOSAL_PREFIXES = ['[PROPOSAL-BATCH] ', '[PROPOSAL-SLEEP] ', '[PROPOSAL] '];
 
@@ -51,9 +58,11 @@ export function serializeEventMeta(event) {
     submittedAt: event.submittedAt,
     declinedBy: event.declinedBy,
     declinedAt: event.declinedAt,
-    expandedEventIds: event.expandedEventIds
+    expandedEventIds: event.expandedEventIds,
+    notes: event.notes || ''
   };
   if (event.batchNights?.length) meta.batchNights = event.batchNights;
+  if (event.personConflicts?.length) meta.personConflicts = event.personConflicts;
   return meta;
 }
 
@@ -81,6 +90,8 @@ export function parseGCalEventItem(item) {
   let declinedBy;
   let declinedAt;
   let expandedEventIds;
+  let personConflicts;
+  let notes = '';
   let location = item.location || '';
 
   const rawTitle = item.summary || 'Untitled Event';
@@ -109,6 +120,8 @@ export function parseGCalEventItem(item) {
       declinedBy = meta.declinedBy;
       declinedAt = meta.declinedAt;
       expandedEventIds = meta.expandedEventIds;
+      personConflicts = meta.personConflicts;
+      notes = meta.notes || '';
     } catch {
       // Plain-text description — fall through to heuristics below.
     }
@@ -160,6 +173,8 @@ export function parseGCalEventItem(item) {
   if (declinedBy) event.declinedBy = declinedBy;
   if (declinedAt) event.declinedAt = declinedAt;
   if (expandedEventIds) event.expandedEventIds = expandedEventIds;
+  if (personConflicts?.length) event.personConflicts = personConflicts;
+  if (notes) event.notes = notes;
 
   return event;
 }
@@ -188,9 +203,73 @@ export function shouldAttemptGCalDelete(eventId) {
   return !isLocalEventId(eventId);
 }
 
-/** Whether an event should be written to Google Calendar. Batch parents stay app-only; sync expanded sleeping nights instead. */
+/** Whether an event should be written to Google Calendar (proposed tentative or approved). */
 export function shouldSyncEventToGCal(event) {
-  return event?.type !== 'batch_sleeping';
+  if (!event || event.type === 'batch_sleeping') return false;
+  const ws = getWorkflowState(event);
+  if (ws === WORKFLOW.PROPOSED || ws === WORKFLOW.APPROVED) return true;
+  if (!ws && event.status === 'confirmed') return true;
+  return false;
+}
+
+/** Whether a calendar row should be removed from Google Calendar. */
+export function shouldRemoveEventFromGCal(event) {
+  if (!event || event.type === 'batch_sleeping') return false;
+  const ws = getWorkflowState(event);
+  return ws === WORKFLOW.DRAFT || ws === WORKFLOW.DECLINED;
+}
+
+export function gcalColorIdForEvent(event) {
+  const ws = getWorkflowState(event);
+  if (ws === WORKFLOW.PROPOSED) return GCAL_COLOR_PROPOSED;
+  if (event.type === 'sleeping') return GCAL_COLOR_SLEEPING_APPROVED;
+  return GCAL_COLOR_EVENT_APPROVED;
+}
+
+export function gcalStatusForEvent(event) {
+  return getWorkflowState(event) === WORKFLOW.PROPOSED ? 'tentative' : 'confirmed';
+}
+
+/** True when the scheduled start is already in the past. */
+export function isPastScheduledEvent(event) {
+  if (!event?.start) return false;
+  const start = new Date(event.start);
+  if (Number.isNaN(start.getTime())) return false;
+  if (event.type === 'sleeping' || event.type === 'batch_sleeping') {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const startDay = new Date(start);
+    startDay.setHours(0, 0, 0, 0);
+    return startDay < today;
+  }
+  return start.getTime() < Date.now();
+}
+
+export function pastScheduleWarning(event) {
+  if (!isPastScheduledEvent(event)) return null;
+  const start = new Date(event.start);
+  const when = event.type === 'sleeping'
+    ? start.toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' })
+    : start.toLocaleString(undefined, { weekday: 'short', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit', hour12: true });
+  return {
+    type: 'PAST_SCHEDULE',
+    message: `This proposal is scheduled in the past (${when}). Reviewers will be alerted.`
+  };
+}
+
+/** Merge Google Calendar rows with app-local drafts and open proposals. */
+export function mergeGCalWithLocalEvents(gcalEvents = [], localEvents = []) {
+  const byId = new Map((gcalEvents || []).map(event => [event.id, event]));
+  for (const local of localEvents || []) {
+    if (!shouldSyncEventToGCal(local)) {
+      byId.set(local.id, local);
+      continue;
+    }
+    if (isLocalEventId(local.id) && !byId.has(local.id)) {
+      byId.set(local.id, local);
+    }
+  }
+  return Array.from(byId.values());
 }
 
 /** All-day date range for a sleeping night (GCal end date is exclusive). */
@@ -215,7 +294,9 @@ export function formatGCalResource(event) {
   const base = {
     summary: formatGCalSummary(event),
     location: event.location || '',
-    description: JSON.stringify(serializeEventMeta(event), null, 2)
+    description: JSON.stringify(serializeEventMeta(event), null, 2),
+    colorId: gcalColorIdForEvent(event),
+    status: gcalStatusForEvent(event)
   };
 
   if (event.type === 'sleeping') {

@@ -4,6 +4,7 @@
 
 import { AuthManager } from '../auth.js';
 import { CalendarSync } from '../calendar.js';
+import { isPastScheduledEvent } from '../gcal-sync.js';
 import { Views, DEFAULT_AVATARS } from '../views.js';
 import {
   LOGS_STORAGE_KEY,
@@ -244,7 +245,7 @@ export function notifyProposalReviewers(proposal, config) {
     if (!recipient || isPartnerPassive(recipient)) return;
     pushAppNotification({
       title: 'Proposal needs your review',
-      description: `"${proposal.title}" from ${proposal.proposer} is waiting for your response.`,
+      description: `"${proposal.title}" from ${proposal.proposer} is waiting for your response.${isPastScheduledEvent(proposal) ? ' This proposal is scheduled in the past.' : ''}`,
       dedupeKey: `pending_${proposal.id}_${recipient.id}`,
       recipientId: recipient.id
     });

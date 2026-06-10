@@ -25,7 +25,8 @@ export const flowState = {
   activePartnerType: 'active',
   currentDraftId: null,
   draftSaveTimer: null,
-  soloEventMode: false
+  soloEventMode: false,
+  highlightProposalId: null
 };
 
 export const newProposalState = {
@@ -36,7 +37,8 @@ export const newProposalState = {
   batchNightCount: 3,
   batchAssignments: [],
   batchStartDate: new Date().toISOString().split('T')[0],
-  draftTitle: ''
+  draftTitle: '',
+  draftNotes: ''
 };
 
 export function resetNewProposalFormState() {
@@ -48,6 +50,7 @@ export function resetNewProposalFormState() {
   newProposalState.batchNightCount = 3;
   newProposalState.batchAssignments = [];
   newProposalState.batchStartDate = new Date().toISOString().split('T')[0];
+  newProposalState.draftNotes = '';
 }
 
 export function resetCreateFlowForNavigation() {

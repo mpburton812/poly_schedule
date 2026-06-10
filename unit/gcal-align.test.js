@@ -32,26 +32,29 @@ describe('needsGCalAlignment', () => {
 });
 
 describe('collectEventsToSync', () => {
-  it('includes syncable events and expanded batch nights but not approved batch parents', () => {
+  it('includes syncable events, proposed items, and expanded batch nights', () => {
     const events = [
       { id: 'gcal_batch', type: 'batch_sleeping', status: 'confirmed', workflowState: 'approved', expandedEventIds: ['night_1'] },
       { id: 'night_1', type: 'sleeping', status: 'confirmed', start: '2026-06-10T22:00:00.000Z', end: '2026-06-11T08:00:00.000Z' },
-      { id: 'gcal_prop', type: 'batch_sleeping', status: 'pending', workflowState: 'proposed' },
+      { id: 'gcal_prop', type: 'event', status: 'pending', workflowState: 'proposed' },
       { id: 'gcal_evt', type: 'event', status: 'confirmed', workflowState: 'approved' }
     ];
 
     const syncMap = collectEventsToSync(events);
     expect(syncMap.has('gcal_batch')).toBe(false);
     expect(syncMap.has('night_1')).toBe(true);
-    expect(syncMap.has('gcal_prop')).toBe(false);
+    expect(syncMap.has('gcal_prop')).toBe(true);
     expect(syncMap.has('gcal_evt')).toBe(true);
   });
 });
 
 describe('collectOrphanGCalIds', () => {
-  it('always treats [PROPOSAL-BATCH] items as orphans', () => {
-    const rawItems = [{ id: 'batch_in_keep', summary: '[PROPOSAL-BATCH] Week Plan' }];
-    expect(collectOrphanGCalIds(rawItems, new Set(['batch_in_keep']))).toEqual(['batch_in_keep']);
+  it('always treats legacy batch proposal parents as orphans', () => {
+    const rawItems = [
+      { id: 'batch_in_keep', summary: '[PROPOSAL-BATCH] Week Plan' },
+      { id: 'prop_evt', summary: '[PROPOSAL] Dinner' }
+    ];
+    expect(collectOrphanGCalIds(rawItems, new Set(['batch_in_keep', 'prop_evt']))).toEqual(['batch_in_keep']);
   });
 
   it('returns GCal ids not in the keep set, excluding config events', () => {

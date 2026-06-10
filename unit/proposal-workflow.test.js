@@ -68,7 +68,7 @@ describe('getProposalOutcome', () => {
     const responses = {
       'Michael Burton': { status: 'accept' },
       'Katie Thompson': { status: 'accept' },
-      'Guest User': { status: 'abstain' }
+      'Jordan Lee': { status: 'abstain' }
     };
     expect(getProposalOutcome(responses, 'event')).toBe('confirmed');
   });

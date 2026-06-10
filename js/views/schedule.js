@@ -51,9 +51,10 @@ export function scheduleView(state) {
       sun.setDate(startOfWeek.getDate() + 7);
       sun.setHours(23,59,59,999);
       
+      const ws = getWorkflowState(e);
       const isCorrectWeek = eDate >= mon && eDate < sun
         && e.type !== 'batch_sleeping'
-        && (e.status === 'confirmed' || getWorkflowState(e) === WORKFLOW.APPROVED);
+        && (e.status === 'confirmed' || ws === WORKFLOW.APPROVED || ws === WORKFLOW.PROPOSED);
       if (!isCorrectWeek) return false;
 
       // Filter by selected partner
@@ -108,9 +109,12 @@ export function scheduleView(state) {
         `;
       } else {
         dayEvents.forEach(e => {
+          const isProposed = getWorkflowState(e) === WORKFLOW.PROPOSED;
+          const proposedClass = isProposed ? ' is-proposed' : '';
+
           if (e.type === 'sleeping') {
             cardsHtml += `
-              <div class="card-sleeping" data-id="${e.id}">
+              <div class="card-sleeping${proposedClass}" data-id="${e.id}">
                 <div class="sleeping-header">
                   <span class="material-symbols-outlined" style="font-size: 16px;">bed</span>
                   <span class="font-label-md">SLEEPING</span>
@@ -134,7 +138,7 @@ export function scheduleView(state) {
 
             const timeStr = new Date(e.start).toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit', hour12: true });
             cardsHtml += `
-              <div class="card-event" data-id="${e.id}">
+              <div class="card-event${proposedClass}" data-id="${e.id}">
                 <div class="event-title">${e.title}</div>
                 <div class="event-meta font-label-sm">${timeStr} • ${e.participants.length} Attendees</div>
                 <div class="avatar-stack">${avatarsHtml}</div>

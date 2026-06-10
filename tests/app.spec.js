@@ -177,7 +177,7 @@ test.describe('PolySchedule UI E2E Flow Tests', () => {
       const responses = {
         'Michael Burton': { status: 'accept', comment: '' },
         'Katie Thompson': { status: 'accept', comment: '' },
-        'Guest User': { status: 'abstain', comment: 'Maybe next time' }
+        'Jordan Lee': { status: 'abstain', comment: 'Maybe next time' }
       };
       return getProposalOutcome(responses) === 'confirmed';
     });
@@ -197,7 +197,7 @@ test.describe('PolySchedule UI E2E Flow Tests', () => {
   test('should redirect non-admins away from #admin', async ({ page }) => {
     await page.evaluate(() => localStorage.clear());
     await page.goto('/');
-    await loginAs(page, 'guest', 'password');
+    await loginAs(page, 'jordan', 'password');
     await page.goto('/#admin');
     await page.waitForTimeout(500);
     expect(page.url()).not.toContain('#admin');
@@ -209,7 +209,7 @@ test.describe('PolySchedule UI E2E Flow Tests', () => {
 
     await page.evaluate(() => localStorage.clear());
     await page.goto('/');
-    await loginAs(page, 'guest', 'password');
+    await loginAs(page, 'jordan', 'password');
     await expect(page.locator('#side-nav-admin')).toBeHidden();
     await expect(page.locator('#mobile-nav-admin')).toBeHidden();
   });
@@ -229,7 +229,7 @@ test.describe('PolySchedule UI E2E Flow Tests', () => {
   test('non-admin profile should not expose Google credential fields', async ({ page }) => {
     await page.evaluate(() => localStorage.clear());
     await page.goto('/');
-    await loginAs(page, 'guest', 'password');
+    await loginAs(page, 'jordan', 'password');
     await page.click('#avatar-container');
     await expect(page.locator('#setting-client-id')).toHaveCount(0);
     await expect(page.locator('#admin-google-client-id')).toHaveCount(0);
@@ -291,7 +291,7 @@ test.describe('PolySchedule UI E2E Flow Tests', () => {
   test('should block batch sleeping option if user has no sleeping partners', async ({ page }) => {
     await page.evaluate(() => localStorage.clear());
     await page.goto('/');
-    await loginAs(page, 'guest', 'password');
+    await loginAs(page, 'jordan', 'password');
     await page.click('#fab-quick-add');
     await page.waitForSelector('#prop-title');
     await expect(page.locator('#btn-toggle-batch-sleeping')).toHaveCount(0);
@@ -300,7 +300,7 @@ test.describe('PolySchedule UI E2E Flow Tests', () => {
   test('should block sleeping proposal option if user has no sleeping partners', async ({ page }) => {
     await page.evaluate(() => localStorage.clear());
     await page.goto('/');
-    await loginAs(page, 'guest', 'password');
+    await loginAs(page, 'jordan', 'password');
     await page.click('#fab-quick-add');
     await page.waitForSelector('#prop-title');
     const sleepingBtn = page.locator('button:has-text("Sleeping (Disabled)")');

@@ -36,7 +36,9 @@ import {
   formatGCalResource as buildGCalResource,
   isLocalEventId,
   shouldSyncEventToGCal,
-  shouldAttemptGCalDelete
+  shouldRemoveEventFromGCal,
+  shouldAttemptGCalDelete,
+  mergeGCalWithLocalEvents
 } from './gcal-sync.js';
 import {
   needsGCalAlignment,
@@ -52,7 +54,7 @@ import { flowState } from './app/state.js';
 const LOCAL_EVENTS_KEY = 'polyschedule_local_events';
 const LOCAL_CONFIG_KEY = 'polyschedule_local_config';
 const LOCAL_SEED_VERSION_KEY = 'polyschedule_seed_version';
-const CURRENT_SEED_VERSION = 2;
+const CURRENT_SEED_VERSION = 3;
 
 // Default Fallback Mock Data
 const DEFAULT_CONFIG = {
@@ -141,12 +143,12 @@ const DEFAULT_CONFIG = {
     },
     {
       id: 'p5',
-      name: 'Guest User',
-      username: 'guest',
+      name: 'Jordan Lee',
+      username: 'jordan',
       password: 'password',
       role: 'User',
       defaultHome: 'h3',
-      avatar: DEFAULT_AVATARS[2],
+      avatar: DEFAULT_AVATARS[4],
       pronouns: { preset: 'they/them' },
       rules: { minSoloNights: 2 }
     }
@@ -344,13 +346,11 @@ export const CalendarSync = {
       const saved = localStorage.getItem(LOCAL_CONFIG_KEY);
       if (saved) {
         this.config = JSON.parse(saved);
-        if (normalizeConfigPartners(this.config, DEFAULT_CONFIG)) {
-          localStorage.setItem(LOCAL_CONFIG_KEY, JSON.stringify(this.config));
-        }
       } else {
         const seeded = applyDefaultSeed();
         this.config = seeded.config;
         this.events = seeded.events;
+        return;
       }
     } else {
       // Fetch Config from Google Calendar configuration event description
@@ -360,19 +360,33 @@ export const CalendarSync = {
           this.config = JSON.parse(configEvent.description);
         } else {
           // Create a new config event in Google Calendar
-          this.config = DEFAULT_CONFIG;
-          await this.saveGCalConfigEvent(DEFAULT_CONFIG);
+          this.config = cloneDefaultConfig();
+          await this.saveGCalConfigEvent(this.config);
+          return;
         }
       } catch (e) {
         console.error('Failed to load config from GCal, falling back to local', e);
-        this.config = DEFAULT_CONFIG;
+        this.config = cloneDefaultConfig();
       }
     }
 
-    if (syncAllHomeAssociationDefaults(this.config)) {
-      if (this.mode === 'offline') {
-        localStorage.setItem(LOCAL_CONFIG_KEY, JSON.stringify(this.config));
-      }
+    await this.normalizeAndPersistConfig();
+  },
+
+  async normalizeAndPersistConfig() {
+    let changed = normalizeConfigPartners(this.config, DEFAULT_CONFIG);
+    if (syncAllHomeAssociationDefaults(this.config)) changed = true;
+    if (!changed) return;
+
+    if (this.mode === 'offline') {
+      localStorage.setItem(LOCAL_CONFIG_KEY, JSON.stringify(this.config));
+      return;
+    }
+
+    try {
+      await this.saveGCalConfigEvent(this.config);
+    } catch (e) {
+      console.error('Failed to persist normalized config to Google Calendar', e);
     }
   },
 
@@ -411,7 +425,9 @@ export const CalendarSync = {
       this.migrateAndNormalizeEvents();
     } else {
       try {
-        this.events = await this.fetchGCalEvents();
+        const gcalEvents = await this.fetchGCalEvents();
+        const localEvents = JSON.parse(localStorage.getItem(LOCAL_EVENTS_KEY) || '[]');
+        this.events = mergeGCalWithLocalEvents(gcalEvents, localEvents);
         this.migrateAndNormalizeEvents();
       } catch (e) {
         console.error('Failed to fetch events from GCal, falling back to local storage', e);
@@ -520,6 +536,10 @@ export const CalendarSync = {
     return stats;
   },
 
+  persistLocalEventsMirror() {
+    localStorage.setItem(LOCAL_EVENTS_KEY, JSON.stringify(this.events));
+  },
+
   persistEvents(eventIds = null) {
     if (this.mode === 'offline') {
       localStorage.setItem(LOCAL_EVENTS_KEY, JSON.stringify(this.events));
@@ -626,8 +646,7 @@ export const CalendarSync = {
       return;
     }
     for (const id of changedIds) {
-      const event = this.events.find(e => e.id === id);
-      if (event) await this.updateGCalEvent(id, event);
+      await this.updateEvent(id, {}, { skipWorkflow: true });
     }
   },
 
@@ -864,11 +883,13 @@ export const CalendarSync = {
       localStorage.setItem(LOCAL_EVENTS_KEY, JSON.stringify(this.events));
     } else if (!shouldSyncEventToGCal(newEvent)) {
       this.events.push(newEvent);
+      this.persistLocalEventsMirror();
     } else {
       try {
         const created = await this.createGCalEvent(newEvent);
         newEvent.id = created.id; // Map back the Google Calendar Event ID
         this.events.push(newEvent);
+        this.persistLocalEventsMirror();
       } catch (e) {
         console.error('Failed to sync created event to Google Calendar', e);
         throw e;
@@ -933,8 +954,20 @@ export const CalendarSync = {
     if (this.mode === 'offline') {
       this.events[idx] = updated;
       localStorage.setItem(LOCAL_EVENTS_KEY, JSON.stringify(this.events));
+    } else if (shouldRemoveEventFromGCal(updated)) {
+      if (shouldAttemptGCalDelete(eventId)) {
+        try {
+          await this.deleteGCalEvent(eventId);
+        } catch (e) {
+          console.error('Failed to remove calendar event from Google Calendar', e);
+          throw e;
+        }
+      }
+      this.events[idx] = updated;
+      this.persistLocalEventsMirror();
     } else if (!shouldSyncEventToGCal(updated)) {
       this.events[idx] = updated;
+      this.persistLocalEventsMirror();
     } else {
       try {
         const { id: syncedId } = await this.upsertGCalEvent(eventId, updated);
@@ -943,6 +976,7 @@ export const CalendarSync = {
         } else {
           this.events[idx] = updated;
         }
+        this.persistLocalEventsMirror();
       } catch (e) {
         console.error('Failed to sync updated event to Google Calendar', e);
         throw e;
@@ -969,7 +1003,7 @@ export const CalendarSync = {
         if (shouldAttemptGCalDelete(childId)) gcalIdsToDelete.push(childId);
       }
       if (shouldAttemptGCalDelete(eventId)) gcalIdsToDelete.push(eventId);
-    } else if (shouldAttemptGCalDelete(eventId) && shouldSyncEventToGCal(event)) {
+    } else if (shouldAttemptGCalDelete(eventId) && (shouldSyncEventToGCal(event) || shouldRemoveEventFromGCal(event))) {
       gcalIdsToDelete.push(eventId);
     }
 

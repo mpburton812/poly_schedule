@@ -3,8 +3,9 @@
  */
 
 import { normalizePronouns } from './pronouns.js';
+import { DEFAULT_AVATARS, migrateAvatarUrl, isCustomAvatar } from './avatar.js';
 
-export { DEFAULT_AVATARS } from './avatar.js';
+export { DEFAULT_AVATARS, migrateAvatarUrl, isCustomAvatar };
 
 export const LOGS_STORAGE_KEY = 'polyschedule_system_logs';
 export const CREATE_NEW_HOME = '__create_new__';
@@ -134,6 +135,13 @@ export function normalizeConfigPartners(config, defaultConfig) {
   if (!config?.partners || !defaultConfig?.partners) return false;
 
   let changed = false;
+
+  const beforeCount = config.partners.length;
+  config.partners = (config.partners || []).filter((partner) =>
+    partner.name !== 'Guest User' && partner.username !== 'guest'
+  );
+  if (config.partners.length !== beforeCount) changed = true;
+
   defaultConfig.partners.forEach(defaultPartner => {
     const partner = config.partners.find(p => p.id === defaultPartner.id);
     if (!partner) return;
@@ -153,12 +161,22 @@ export function normalizeConfigPartners(config, defaultConfig) {
     }
   });
 
-  config.partners.forEach((partner) => {
+  config.partners.forEach((partner, index) => {
     if (!partner.pronouns) {
       const seedPartner = defaultConfig.partners.find((p) => p.id === partner.id);
       partner.pronouns = seedPartner?.pronouns
         ? JSON.parse(JSON.stringify(seedPartner.pronouns))
         : normalizePronouns(null);
+      changed = true;
+    }
+
+    const seedPartner = defaultConfig.partners.find((p) => p.id === partner.id);
+    const fallbackIndex = seedPartner
+      ? defaultConfig.partners.indexOf(seedPartner)
+      : index;
+    const migratedAvatar = migrateAvatarUrl(partner.avatar, fallbackIndex);
+    if (migratedAvatar !== partner.avatar) {
+      partner.avatar = migratedAvatar;
       changed = true;
     }
   });
@@ -565,6 +583,12 @@ export function buildBatchNightsPayload(startDateStr, nightCount, nightAssignmen
 }
 
 export { renderAvatarPickerHtml } from './avatar.js';
+
+export function formatPersonConflictNotice(conflicts = []) {
+  if (!conflicts?.length) return '';
+  if (conflicts.length === 1) return `<p>${conflicts[0].message}</p>`;
+  return `<ul class="banner-alert-list">${conflicts.map(c => `<li>${c.message}</li>`).join('')}</ul>`;
+}
 
 export function parseHashParams() {
   const hash = window.location.hash || '';

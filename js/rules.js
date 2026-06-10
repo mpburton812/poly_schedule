@@ -32,6 +32,37 @@ const hasParticipant = (participants, targetName) => {
   return participants.some(p => p.split(' ')[0].toLowerCase() === targetFirst);
 };
 
+const eventsTimeOverlap = (left, right) => {
+  const leftStart = new Date(left.start).getTime();
+  const leftEnd = new Date(left.end).getTime();
+  const rightStart = new Date(right.start).getTime();
+  const rightEnd = new Date(right.end).getTime();
+  if ([leftStart, leftEnd, rightStart, rightEnd].some(Number.isNaN)) return false;
+  return leftStart < rightEnd && rightStart < leftEnd;
+};
+
+const isBlockingScheduleEvent = (event, excludeId) => {
+  if (!event || event.id === excludeId || event.type === 'batch_sleeping') return false;
+  if (event.status === 'rejected' || event.status === 'cancelled') return false;
+  if (event.workflowState === 'archived' || event.workflowState === 'declined' || event.workflowState === 'draft') {
+    return false;
+  }
+  if (!event.workflowState && event.status === 'draft') return false;
+  return true;
+};
+
+const personScheduledOnEvent = (person, event) => {
+  if (event.proposer && hasParticipant([event.proposer], person)) return true;
+  return hasParticipant(event.participants || [], person);
+};
+
+const collectEventPeople = (proposal) => {
+  const people = new Set();
+  if (proposal.proposer) people.add(proposal.proposer);
+  (proposal.participants || []).forEach(name => people.add(name));
+  return Array.from(people);
+};
+
 const getWeekStartsInRange = (startDate, endDate) => {
   const weekKeys = new Set();
   const curr = new Date(startDate);
@@ -435,5 +466,40 @@ export const RulesEngine = {
 
   hasBatchRoomConflicts(warnings = []) {
     return warnings.some(w => w.type === 'CAPACITY_CONFLICT');
+  },
+
+  /**
+   * Detect overlapping timed events that share participants (including proposer).
+   * Returns advisory warnings — submission is still allowed.
+   */
+  evaluateEventPersonConflicts(proposal, existingEvents = [], config = {}) {
+    void config;
+    if (!proposal || proposal.type !== 'event') return [];
+
+    const people = collectEventPeople(proposal);
+    if (!people.length) return [];
+
+    const conflicts = [];
+    for (const other of existingEvents) {
+      if (!isBlockingScheduleEvent(other, proposal.id)) continue;
+      if (!eventsTimeOverlap(proposal, other)) continue;
+
+      const overlappingPeople = people.filter(person => personScheduledOnEvent(person, other));
+      if (!overlappingPeople.length) continue;
+
+      const timeOpts = { hour: 'numeric', minute: '2-digit', hour12: true };
+      const startOther = new Date(other.start);
+      const endOther = new Date(other.end);
+      const names = overlappingPeople.map(name => name.split(' ')[0]).join(', ');
+      conflicts.push({
+        type: 'PERSON_CONFLICT',
+        eventId: other.id,
+        eventTitle: other.title || 'Untitled Event',
+        people: overlappingPeople,
+        message: `${names} ${overlappingPeople.length === 1 ? 'is' : 'are'} also scheduled for "${other.title || 'Untitled Event'}" (${startOther.toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' })} · ${startOther.toLocaleTimeString(undefined, timeOpts)}–${endOther.toLocaleTimeString(undefined, timeOpts)}).`
+      });
+    }
+
+    return conflicts;
   }
 };

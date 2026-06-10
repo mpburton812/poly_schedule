@@ -13,8 +13,10 @@ import {
   getCurrentUserPartner,
   hasSleepingPartnerConnections,
   partnerRefsMatch,
-  renderBatchNightsReviewHtml
+  renderBatchNightsReviewHtml,
+  formatPersonConflictNotice
 } from '../helpers.js';
+import { isPastScheduledEvent } from '../gcal-sync.js';
 import {
   WORKFLOW,
   filterProposalsForTab,
@@ -22,7 +24,6 @@ import {
   allowsAbstain,
   isPassivePerson,
   getAutoArchiveDays,
-  isCalendarEvent,
   getResponseForParticipant,
   resolveParticipantRoleName
 } from '../proposal-workflow.js';
@@ -59,37 +60,9 @@ export function proposalsView(state, activeTab = 'proposed') {
         const userVote = userResponse?.status || 'pending';
         const canVote = ws === WORKFLOW.PROPOSED && isReceiver && userVote === 'pending' && !!userResponse;
 
-        const startDate = new Date(p.start);
-        const dayStart = new Date(startDate);
-        dayStart.setHours(0, 0, 0, 0);
-        const dayEnd = new Date(dayStart);
-        dayEnd.setDate(dayEnd.getDate() + 1);
-
-        const existingOnDay = state.events.filter(e => {
-          if (e.id === p.id) return false;
-          if (!isCalendarEvent(e)) return false;
-          const eStart = new Date(e.start);
-          return eStart >= dayStart && eStart < dayEnd;
-        });
-
-        const toImpactSegment = (eventStart, eventEnd) => {
-          const startH = new Date(eventStart).getHours() + new Date(eventStart).getMinutes() / 60;
-          const endH = new Date(eventEnd).getHours() + new Date(eventEnd).getMinutes() / 60;
-          const left = Math.max(0, Math.min(100, ((startH - 8) / 16) * 100));
-          const width = Math.max(8, Math.min(100 - left, ((endH - startH) / 16) * 100));
-          return { left, width };
-        };
-
-        let existingSegmentsHtml = '';
-        existingOnDay.forEach(e => {
-          const seg = toImpactSegment(e.start, e.end);
-          existingSegmentsHtml += `<div class="impact-segment existing" style="width: ${seg.width}%; left: ${seg.left}%;"></div>`;
-        });
-
-        const proposedSeg = toImpactSegment(p.start, p.end);
-        const dateStr = startDate.toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' });
+        const dateStr = new Date(p.start).toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' });
         const timeOpts = { hour: 'numeric', minute: '2-digit', hour12: true };
-        const timeStr = `${startDate.toLocaleTimeString(undefined, timeOpts)} - ${new Date(p.end).toLocaleTimeString(undefined, timeOpts)}`;
+        const timeStr = `${new Date(p.start).toLocaleTimeString(undefined, timeOpts)} - ${new Date(p.end).toLocaleTimeString(undefined, timeOpts)}`;
 
         const roleMap = Object.fromEntries((p.participantRoles || []).map(r => [r.name, r.role]));
         let responsesHtml = '';
@@ -178,6 +151,37 @@ export function proposalsView(state, activeTab = 'proposed') {
         const batchNightsHtml = p.type === 'batch_sleeping'
           ? renderBatchNightsReviewHtml(p.batchNights)
           : '';
+        const personConflictHtml = (p.personConflicts || []).length
+          ? `
+            <div class="proposal-person-conflict-notice">
+              <span class="material-symbols-outlined" aria-hidden="true">warning</span>
+              <div>
+                <strong>Person schedule conflict</strong>
+                ${formatPersonConflictNotice(p.personConflicts)}
+                <p class="font-label-sm" style="margin-top: var(--space-xs); opacity: 0.85;">Reviewers should confirm this overlap is intentional before accepting.</p>
+              </div>
+            </div>
+          `
+          : '';
+        const pastScheduleHtml = isPastScheduledEvent(p)
+          ? `
+            <div class="proposal-person-conflict-notice proposal-past-schedule-notice">
+              <span class="material-symbols-outlined" aria-hidden="true">history</span>
+              <div>
+                <strong>Past schedule</strong>
+                <p class="font-body-sm" style="margin-top: var(--space-xs);">This proposal is scheduled in the past. Confirm the date and time are intentional before accepting.</p>
+              </div>
+            </div>
+          `
+          : '';
+        const notesHtml = p.notes?.trim()
+          ? `
+            <div class="proposal-notes-block">
+              <span class="font-label-sm" style="color: var(--on-surface-variant); display: block; margin-bottom: 4px;">NOTES</span>
+              <p class="proposal-notes-text">${p.notes.trim()}</p>
+            </div>
+          `
+          : '';
 
         listHtml += `
           <div class="proposal-card ${p.type === 'sleeping' || p.type === 'batch_sleeping' ? 'sleeping' : ''}" id="prop-${p.id}">
@@ -205,22 +209,15 @@ export function proposalsView(state, activeTab = 'proposed') {
                     : p.type === 'sleeping' ? `${p.homeName || 'Home'}: ${p.roomName || 'Room'}` : p.location || 'No location set'}</span>
                 </div>
               </div>
-
-              <div class="impact-bar-container">
-                <div class="impact-bar-title">${startDate.toLocaleString(undefined, { weekday: 'short' }).toUpperCase()} SCHEDULE IMPACT</div>
-                <div class="impact-bar">
-                  ${existingSegmentsHtml}
-                  <div class="impact-segment proposed" style="width: ${proposedSeg.width}%; left: ${proposedSeg.left}%;"></div>
-                </div>
-                <div class="impact-scale">
-                  <span>08:00</span>
-                  <span>16:00</span>
-                  <span>00:00</span>
-                </div>
-              </div>
             </div>
 
+            ${notesHtml}
+
             ${batchNightsHtml}
+
+            ${personConflictHtml}
+
+            ${pastScheduleHtml}
 
             <div class="review-box" style="margin-top: var(--space-sm);">
               ${responsesHtml || '<p class="font-label-sm" style="color: var(--on-surface-variant);">No responses yet.</p>'}

@@ -32,6 +32,7 @@ export function createProposalView(state, type = 'event', formState = {}) {
     // Populate partner options (checkboxes or select)
     let circleHtml = '';
     state.config.partners.forEach(partner => {
+      if (partner.name === 'Guest User' || partner.username === 'guest') return;
       const passive = isPartnerPassive(partner);
       const selected = (formState.participants || []).includes(partner.name);
       const roleEntry = (formState.participantRoles || []).find(r => r.name === partner.name);
@@ -255,6 +256,11 @@ export function createProposalView(state, type = 'event', formState = {}) {
           <input class="form-input" id="prop-title" placeholder="${type === 'event' ? 'e.g. Dinner & Game Night' : 'e.g. Two-Week Rotation'}" type="text" value="${formState.draftTitle || ''}"/>
         </div>
 
+        <div class="form-group">
+          <label class="form-label" for="prop-notes">Notes</label>
+          <textarea class="form-input" id="prop-notes" rows="3" placeholder="Optional context for reviewers (parking, dress code, etc.)" style="resize: vertical; min-height: 72px;">${formState.draftNotes || ''}</textarea>
+        </div>
+
         ${type === 'event' ? `
         <div class="form-group" style="margin-bottom: var(--space-sm);">
           <label class="solo-event-toggle" style="display: flex; align-items: flex-start; gap: var(--space-sm); cursor: pointer; padding: var(--space-sm); background: var(--surface-container-high); border-radius: var(--radius-default);">
@@ -267,9 +273,9 @@ export function createProposalView(state, type = 'event', formState = {}) {
         </div>
         ` : ''}
 
-        ${type !== 'batch_sleeping' ? `
+        ${type !== 'batch_sleeping' && !(type === 'event' && formState.soloEventMode) ? `
         <!-- Poly Circle Selection -->
-        <div class="form-group" id="invitees-section" style="${type === 'event' && formState.soloEventMode ? 'opacity: 0.45; pointer-events: none;' : ''}">
+        <div class="form-group" id="invitees-section">
           <label class="form-label" style="margin-bottom: var(--space-sm);">${polyFamilyName} (Invitees)</label>
           <div style="display: flex; flex-wrap: wrap; gap: var(--space-lg); padding: var(--space-sm) 0;" id="circle-options-row">
             ${circleHtml}

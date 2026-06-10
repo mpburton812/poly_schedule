@@ -1,15 +1,23 @@
 import { state, flowState } from '../state.js';
 import { renderView } from '../router.js';
 import { openEventDetailsModal } from '../modals.js';
+import { getWorkflowState, WORKFLOW } from '../../proposal-workflow.js';
 
 export function bindScheduleEvents() {
   document.querySelectorAll('.card-event, .card-sleeping').forEach(card => {
     card.addEventListener('click', () => {
       const id = card.dataset.id;
       const event = state.events.find(e => e.id === id);
-      if (event) {
-        openEventDetailsModal(event);
+      if (!event) return;
+
+      if (getWorkflowState(event) === WORKFLOW.PROPOSED) {
+        flowState.activeProposalsTab = 'proposed';
+        flowState.highlightProposalId = id;
+        window.location.hash = '#proposals';
+        return;
       }
+
+      openEventDetailsModal(event);
     });
   });
 

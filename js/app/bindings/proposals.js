@@ -27,6 +27,18 @@ export function bindProposalsEvents() {
   bindTab('btn-tab-archived', 'archived');
   bindTab('btn-tab-declined', 'declined');
 
+  if (flowState.highlightProposalId) {
+    const highlightId = flowState.highlightProposalId;
+    flowState.highlightProposalId = null;
+    requestAnimationFrame(() => {
+      const card = document.getElementById(`prop-${highlightId}`);
+      if (!card) return;
+      card.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      card.classList.add('proposal-card-highlight');
+      setTimeout(() => card.classList.remove('proposal-card-highlight'), 2400);
+    });
+  }
+
   document.querySelectorAll('.vote-btn').forEach(btn => {
     btn.addEventListener('click', async () => {
       const id = btn.dataset.id;

@@ -6,7 +6,7 @@
 import { GCAL_CONFIG_SUMMARY, shouldSyncEventToGCal } from './gcal-sync.js';
 import { sleepingEventFingerprint } from './helpers.js';
 
-export const GCAL_ALIGN_VERSION = 2;
+export const GCAL_ALIGN_VERSION = 4;
 export const GCAL_ALIGN_VERSION_KEY = 'polyschedule_gcal_align_version';
 
 export function needsGCalAlignment() {

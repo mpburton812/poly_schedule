@@ -1,7 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import {
   DEFAULT_AVATARS,
+  LEGACY_PRESET_AVATARS,
   isCustomAvatar,
+  migrateAvatarUrl,
   resolveSelectedAvatar,
   createInitialCropState,
   clampCropOffsets
@@ -19,6 +21,19 @@ describe('isCustomAvatar', () => {
   it('detects data URLs', () => {
     expect(isCustomAvatar('data:image/jpeg;base64,abc')).toBe(true);
     expect(isCustomAvatar('assets/images/icons/128/bird_blue.png')).toBe(false);
+  });
+});
+
+describe('migrateAvatarUrl', () => {
+  it('maps legacy Unsplash presets to local bird icons by index', () => {
+    expect(migrateAvatarUrl(LEGACY_PRESET_AVATARS[1], 0)).toBe(DEFAULT_AVATARS[1]);
+    expect(migrateAvatarUrl(LEGACY_PRESET_AVATARS[3], 0)).toBe(DEFAULT_AVATARS[3]);
+  });
+
+  it('preserves custom uploads and current presets', () => {
+    const custom = 'data:image/jpeg;base64,abc';
+    expect(migrateAvatarUrl(custom, 0)).toBe(custom);
+    expect(migrateAvatarUrl(DEFAULT_AVATARS[2], 0)).toBe(DEFAULT_AVATARS[2]);
   });
 });
 

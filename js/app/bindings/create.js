@@ -13,6 +13,7 @@ import {
   buildBatchNightsPayload,
   formatAppTime
 } from '../../helpers.js';
+import { pastScheduleWarning } from '../../gcal-sync.js';
 import {
   WORKFLOW,
   getWorkflowState,
@@ -145,27 +146,59 @@ export function showProposalRulesBanner(warnings) {
 
   if (warnings.length > 0) {
     banner.classList.remove('hidden');
+    const personConflictWarnings = warnings.filter(w => w.type === 'PERSON_CONFLICT');
+    const pastScheduleWarnings = warnings.filter(w => w.type === 'PAST_SCHEDULE');
     const capacityWarnings = warnings.filter(w => w.type === 'CAPACITY_CONFLICT');
     const partnerMaxWarnings = warnings.filter(w => w.type === 'PARTNER_MAX_LIMIT');
     const preferenceWarnings = warnings.filter(w =>
-      w.type !== 'CAPACITY_CONFLICT' && w.type !== 'PARTNER_MAX_LIMIT'
+      w.type !== 'CAPACITY_CONFLICT'
+      && w.type !== 'PARTNER_MAX_LIMIT'
+      && w.type !== 'PERSON_CONFLICT'
+      && w.type !== 'PAST_SCHEDULE'
     );
+    const pastScheduleHtml = pastScheduleWarnings.length
+      ? `<ul class="banner-alert-list">${pastScheduleWarnings.map(w => `<li>${w.message}</li>`).join('')}</ul>`
+      : '';
+    const pastOnly = pastScheduleWarnings.length > 0 && personConflictWarnings.length === 0;
+    const hasSleepingRules = capacityWarnings.length > 0 || partnerMaxWarnings.length > 0 || preferenceWarnings.length > 0;
+    const useAdvisoryBanner = personConflictWarnings.length > 0 || (pastOnly && !hasSleepingRules);
 
-    if (capacityWarnings.length > 0) {
+    if (useAdvisoryBanner) {
+      const titles = [];
+      if (personConflictWarnings.length) {
+        titles.push(personConflictWarnings.length > 1 ? 'Person Schedule Conflicts' : 'Person Schedule Conflict');
+      }
+      if (pastScheduleWarnings.length) {
+        titles.push('Past Schedule');
+      }
+      titleEl.textContent = titles.join(' · ');
+      const parts = [];
+      if (personConflictWarnings.length) {
+        parts.push(formatWarningList(personConflictWarnings));
+      }
+      if (pastScheduleWarnings.length) {
+        parts.push(`<ul class="banner-alert-list">${pastScheduleWarnings.map(w => `<li>${w.message}</li>`).join('')}</ul>`);
+      }
+      parts.push('<p class="font-label-sm" style="margin-top: var(--space-xs); opacity: 0.9;">You can still submit. Reviewers will see this during approval.</p>');
+      descEl.innerHTML = parts.join('');
+      banner.style.backgroundColor = '#fff8e1';
+      banner.style.color = '#5d4037';
+      banner.style.borderColor = '#f9a825';
+    } else if (capacityWarnings.length > 0) {
       titleEl.textContent = capacityWarnings.length > 1 ? 'Room Capacity Conflicts' : 'Room Capacity Conflict';
-      descEl.innerHTML = formatWarningList(capacityWarnings);
+      descEl.innerHTML = pastScheduleHtml + formatWarningList(capacityWarnings);
       banner.style.backgroundColor = 'var(--error-container)';
       banner.style.color = 'var(--on-error-container)';
       banner.style.borderColor = 'var(--error)';
     } else if (partnerMaxWarnings.length > 0) {
       titleEl.textContent = partnerMaxWarnings.length > 1 ? 'Extended Stay Alerts' : 'Extended Stay Alert';
-      descEl.innerHTML = formatWarningList(partnerMaxWarnings);
+      descEl.innerHTML = pastScheduleHtml + formatWarningList(partnerMaxWarnings);
       banner.style.backgroundColor = 'var(--tertiary-fixed)';
       banner.style.color = 'var(--on-tertiary-fixed)';
       banner.style.borderColor = 'var(--tertiary)';
     } else {
       titleEl.textContent = preferenceWarnings.length > 1 ? 'Preference Limit Alerts' : 'Preference Limit Alert';
-      descEl.innerHTML = `<ul class="banner-alert-list">${preferenceWarnings.map(w => `<li>${w.message}</li>`).join('')}</ul>`;
+      descEl.innerHTML = pastScheduleHtml + `<ul class="banner-alert-list">${preferenceWarnings.map(w => `<li>${w.message}</li>`).join('')}</ul>`;
       banner.style.backgroundColor = 'var(--tertiary-fixed)';
       banner.style.color = 'var(--on-tertiary-fixed)';
       banner.style.borderColor = 'var(--tertiary)';
@@ -237,6 +270,8 @@ export function updateMicroCalendarConflicts(warnings) {
 export function preserveCreateFormDraft() {
   const titleEl = document.getElementById('prop-title');
   if (titleEl) newProposalState.draftTitle = titleEl.value;
+  const notesEl = document.getElementById('prop-notes');
+  if (notesEl) newProposalState.draftNotes = notesEl.value;
 }
 
 export function loadDraftIntoForm(draftId) {
@@ -251,6 +286,8 @@ export function loadDraftIntoForm(draftId) {
     newProposalState.participantRoles = normalizeParticipantRoles(newProposalState.participants, state.config, flowState.currentCreateType);
   }
   newProposalState.draftTitle = draft.title || '';
+  newProposalState.draftNotes = draft.notes || '';
+  flowState.soloEventMode = draft.type === 'event' && isSoloEventProposal(draft, state.config);
   newProposalState.homeId = draft.homeId || 'h1';
   newProposalState.roomId = draft.roomId || 'r1';
   newProposalState.homeName = draft.homeName;
@@ -301,7 +338,8 @@ export function collectProposalFormData() {
       batchNights,
       participants,
       participantRoles: normalizeParticipantRoles(participants, state.config, 'batch_sleeping'),
-      proposer: currentUserName
+      proposer: currentUserName,
+      notes: document.getElementById('prop-notes')?.value?.trim() || ''
     };
   }
 
@@ -337,7 +375,8 @@ export function collectProposalFormData() {
     end: endD.toISOString(),
     participants: [...newProposalState.participants],
     participantRoles: [...newProposalState.participantRoles],
-    proposer: currentUserName
+    proposer: currentUserName,
+    notes: document.getElementById('prop-notes')?.value?.trim() || ''
   };
 
   if (flowState.currentCreateType === 'sleeping') {
@@ -405,9 +444,7 @@ export function ensureCreateDraftSync() {
     expandedEventIds: []
   };
   CalendarSync.events.push(draft);
-  if (CalendarSync.mode === 'offline') {
-    CalendarSync.persistEvents();
-  }
+  CalendarSync.persistLocalEventsMirror();
   state.events = CalendarSync.events;
   flowState.currentDraftId = draft.id;
   resetNewProposalFormState();
@@ -473,6 +510,37 @@ export async function submitCurrentProposal() {
       throw new Error('Draft could not be created');
     }
 
+    const proposalPayload = { ...data, id: draftId, type: flowState.currentCreateType };
+    const advisoryWarnings = [];
+    const pastWarning = pastScheduleWarning(proposalPayload);
+    if (pastWarning) advisoryWarnings.push(pastWarning);
+
+    if (flowState.currentCreateType === 'event') {
+      const personConflicts = RulesEngine.evaluateEventPersonConflicts(
+        proposalPayload,
+        state.events,
+        state.config
+      );
+      data.personConflicts = personConflicts;
+      advisoryWarnings.push(...personConflicts);
+    }
+
+    if (advisoryWarnings.length) {
+      showProposalRulesBanner(advisoryWarnings);
+      if (pastWarning) {
+        showToast(pastWarning.message, 'warning');
+      }
+      const personCount = advisoryWarnings.filter(w => w.type === 'PERSON_CONFLICT').length;
+      if (personCount) {
+        showToast(
+          personCount === 1
+            ? 'Person schedule conflict detected. Reviewers will be notified during approval.'
+            : `${personCount} person schedule conflicts detected. Reviewers will be notified during approval.`,
+          'warning'
+        );
+      }
+    }
+
     const saved = await CalendarSync.saveDraft(draftId, data);
     draftId = saved?.id || draftId;
     flowState.currentDraftId = draftId;
@@ -519,48 +587,67 @@ export async function submitCurrentProposal() {
 }
 
 export function runRulesChecks() {
-  if (flowState.currentCreateType !== 'sleeping' && flowState.currentCreateType !== 'batch_sleeping') return;
+  const data = collectProposalFormData();
+  data.id = flowState.currentDraftId;
+  data.type = flowState.currentCreateType;
 
-  const startInput = document.getElementById('prop-start-date');
-  const durationVal = document.getElementById('prop-duration')?.value || '1';
-  if (!startInput) return;
-
-  let warnings = [];
-
-  if (flowState.currentCreateType === 'batch_sleeping') {
-    warnings = evaluateCurrentBatchProposalWarnings();
-  } else {
-    const currentUserName = getCurrentUserName();
-    const startD = new Date(startInput.value);
-    const endD = new Date(startD);
-    endD.setDate(startD.getDate() + (parseInt(durationVal, 10) || 1));
-    const participants = [...newProposalState.participants];
-    if (!participants.includes(currentUserName)) participants.push(currentUserName);
-
-    const tempProposal = {
-      id: 'temp_create',
-      type: 'sleeping',
-      start: startD.toISOString(),
-      end: endD.toISOString(),
-      participants,
-      homeId: newProposalState.homeId,
-      roomId: newProposalState.roomId,
-      roomName: newProposalState.roomName
-    };
-    warnings = RulesEngine.evaluateSleepingProposal(
-      tempProposal,
-      state.events,
-      state.config,
-      state.config.partners
-    );
+  if (flowState.currentCreateType === 'event') {
+    const warnings = [
+      ...RulesEngine.evaluateEventPersonConflicts(data, state.events, state.config),
+      pastScheduleWarning(data)
+    ].filter(Boolean);
+    showProposalRulesBanner(warnings);
+    return;
   }
 
-  showProposalRulesBanner(warnings);
-  if (flowState.currentCreateType === 'batch_sleeping') {
-    highlightBatchRowErrors(warnings);
-    updateBatchPartnerLocks();
+  if (flowState.currentCreateType === 'sleeping' || flowState.currentCreateType === 'batch_sleeping') {
+    const pastWarning = pastScheduleWarning(data);
+    const startInput = document.getElementById('prop-start-date');
+    const durationVal = document.getElementById('prop-duration')?.value || '1';
+    if (!startInput) {
+      showProposalRulesBanner(pastWarning ? [pastWarning] : []);
+      return;
+    }
+
+    let warnings = [];
+
+    if (flowState.currentCreateType === 'batch_sleeping') {
+      warnings = evaluateCurrentBatchProposalWarnings();
+    } else {
+      const currentUserName = getCurrentUserName();
+      const startD = new Date(startInput.value);
+      const endD = new Date(startD);
+      endD.setDate(startD.getDate() + (parseInt(durationVal, 10) || 1));
+      const participants = [...newProposalState.participants];
+      if (!participants.includes(currentUserName)) participants.push(currentUserName);
+
+      const tempProposal = {
+        id: 'temp_create',
+        type: 'sleeping',
+        start: startD.toISOString(),
+        end: endD.toISOString(),
+        participants,
+        homeId: newProposalState.homeId,
+        roomId: newProposalState.roomId,
+        roomName: newProposalState.roomName
+      };
+      warnings = RulesEngine.evaluateSleepingProposal(
+        tempProposal,
+        state.events,
+        state.config,
+        state.config.partners
+      );
+    }
+
+    if (pastWarning) warnings.unshift(pastWarning);
+    showProposalRulesBanner(warnings);
+    if (flowState.currentCreateType === 'batch_sleeping') {
+      highlightBatchRowErrors(warnings);
+      updateBatchPartnerLocks();
+    }
+    updateMicroCalendarConflicts(warnings);
+    return;
   }
-  updateMicroCalendarConflicts(warnings);
 }
 
 export function evaluateCurrentBatchProposalWarnings() {
@@ -700,6 +787,14 @@ export function bindCreateEvents() {
     });
   }
 
+  const notesInputEl = document.getElementById('prop-notes');
+  if (notesInputEl) {
+    notesInputEl.addEventListener('input', () => {
+      newProposalState.draftNotes = notesInputEl.value;
+      scheduleDraftSave();
+    });
+  }
+
   const startDateInput = document.getElementById('prop-start-date');
   const durationInput = document.getElementById('prop-duration');
   if (startDateInput) {
@@ -798,6 +893,14 @@ export function bindCreateEvents() {
 
   if (flowState.currentCreateType === 'batch_sleeping') {
     updateBatchPartnerLocks();
+    runRulesChecks();
+  } else if (flowState.currentCreateType === 'event') {
+    ['prop-start-hour', 'prop-start-minute', 'prop-start-ampm', 'prop-end-hour', 'prop-end-minute', 'prop-end-ampm'].forEach((id) => {
+      document.getElementById(id)?.addEventListener('change', () => {
+        runRulesChecks();
+        scheduleDraftSave();
+      });
+    });
     runRulesChecks();
   }
 
