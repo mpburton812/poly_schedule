@@ -1,6 +1,6 @@
 import { AuthManager } from '../../auth.js';
 import { state } from '../state.js';
-import { addLog, showToast, logoutGoogleSync, addChangeLog } from '../context.js';
+import { logUserAction, showToast, logoutGoogleSync, addChangeLog } from '../context.js';
 
 export function bindLogisticsEvents(container = document) {
   const exportBtn = container.querySelector('#btn-export-logs');
@@ -13,7 +13,7 @@ export function bindLogisticsEvents(container = document) {
       a.download = 'polyschedule_logs.json';
       a.click();
       showToast('Logs exported successfully!', 'success');
-      addLog('Admin: System logs exported.', 'info');
+      logUserAction('System logs exported.', 'info');
     });
   }
 
@@ -51,7 +51,7 @@ export function bindGoogleCredentialsEvents(container = document) {
       state.isOffline = false;
 
       showToast('Google credentials saved. Use Sync Google in the top bar to connect.', 'success');
-      addLog('Admin: Google Calendar API credentials updated.', 'info');
+      logUserAction('Google Calendar API credentials updated.', 'info');
       addChangeLog('Updated Google Calendar credentials', calid || 'primary');
 
       const loginBtn = document.getElementById('btn-google-login');

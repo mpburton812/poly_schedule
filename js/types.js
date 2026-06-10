@@ -10,6 +10,14 @@
  */
 
 /**
+ * @typedef {Object} PartnerPronouns
+ * @property {string} preset Preset key (e.g. `she/her`) or `custom`.
+ * @property {string} subject Subject form (e.g. she, they).
+ * @property {string} object Object form (e.g. her, them).
+ * @property {string} possessive Possessive form (e.g. her, their).
+ */
+
+/**
  * @typedef {Object} Partner
  * @property {string} id Stable partner identifier (preferred for references).
  * @property {string} name Display name shown in the UI.
@@ -17,6 +25,7 @@
  * @property {string} [password] Demo-only local auth secret.
  * @property {boolean} [passive] Passive partners do not vote on proposals.
  * @property {string} [avatar] Avatar image URL.
+ * @property {PartnerPronouns} [pronouns] Subject/object/possessive forms for generated text.
  * @property {string} [defaultHome] Default residence id.
  * @property {PartnerRules} [rules] Sleeping and partner limit rules.
  * @property {string[]} [sleepingPartners] Legacy sleeping connection names.

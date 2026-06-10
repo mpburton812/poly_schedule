@@ -88,7 +88,8 @@ export function proposalsView(state, activeTab = 'proposed') {
 
         const proposedSeg = toImpactSegment(p.start, p.end);
         const dateStr = startDate.toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' });
-        const timeStr = `${startDate.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' })} - ${new Date(p.end).toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' })}`;
+        const timeOpts = { hour: 'numeric', minute: '2-digit', hour12: true };
+        const timeStr = `${startDate.toLocaleTimeString(undefined, timeOpts)} - ${new Date(p.end).toLocaleTimeString(undefined, timeOpts)}`;
 
         const roleMap = Object.fromEntries((p.participantRoles || []).map(r => [r.name, r.role]));
         let responsesHtml = '';

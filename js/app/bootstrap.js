@@ -8,6 +8,8 @@ import {
 import {
   loadPersistedLogs,
   addLog,
+  initChangeLog,
+  syncPromotionChangeLog,
   logOperationError,
   showToast,
   updateNotificationsBadge,
@@ -130,6 +132,8 @@ function migrateLegacySession() {
 export function init() {
   const run = async () => {
     state.logs = loadPersistedLogs();
+    initChangeLog();
+    void syncPromotionChangeLog();
 
     window.addEventListener('hashchange', router);
 

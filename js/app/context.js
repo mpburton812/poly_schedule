@@ -7,7 +7,6 @@ import { CalendarSync } from '../calendar.js';
 import { Views, DEFAULT_AVATARS } from '../views.js';
 import {
   LOGS_STORAGE_KEY,
-  CHANGE_LOG_STORAGE_KEY,
   NOTIFICATIONS_BY_USER_KEY,
   LEGACY_NOTIFICATIONS_KEY,
   CREATE_NEW_HOME,
@@ -18,8 +17,20 @@ import {
   LEGACY_PROFILE_KEY,
   isPartnerPassive,
   findPartnerByRef,
-  partnerRefsMatch
+  partnerRefsMatch,
+  getCurrentUserPartner,
+  formatAppTime,
+  formatAppDateTime
 } from '../helpers.js';
+import { normalizePronouns } from '../pronouns.js';
+import {
+  appendChangeEntry,
+  persistChangeLog,
+  refreshChangeLogDom,
+  migrateChangeLog,
+  recordPromotionIfNeeded,
+  isPromotionGroup
+} from '../change-log.js';
 import {
   getWorkflowState,
   getRequiredVoters,
@@ -42,7 +53,7 @@ export function loadPersistedLogs() {
 }
 
 export function addLog(message, type = 'info', meta = null) {
-  const time = new Date().toLocaleTimeString('en-GB', { hour12: false });
+  const time = formatAppTime();
   const entry = { time, message, type, timestamp: Date.now(), ...(meta || {}) };
   state.logs.push(entry);
   if (state.logs.length > 100) state.logs.shift();
@@ -104,21 +115,44 @@ export function logOperationError(operation, err, context = {}) {
   return message;
 }
 
+export function initChangeLog() {
+  if (!state.changeLog?.length) return;
+  if (state.changeLog.some(isPromotionGroup)) return;
+  state.changeLog = migrateChangeLog(state.changeLog);
+  persistChangeLog(state.changeLog);
+}
+
+export async function syncPromotionChangeLog() {
+  try {
+    const [versionRes, notesRes] = await Promise.all([
+      fetch('version.json'),
+      fetch('release-notes.json')
+    ]);
+    if (!versionRes.ok) return;
+    const versionInfo = await versionRes.json();
+    const releaseNotes = notesRes.ok ? await notesRes.json() : {};
+    const note = releaseNotes[versionInfo.commit] || null;
+    if (recordPromotionIfNeeded(state.changeLog, versionInfo, note)) {
+      persistChangeLog(state.changeLog);
+      refreshChangeLogDom(state.changeLog);
+    }
+  } catch (err) {
+    console.warn('Could not sync promotion change log', err);
+  }
+}
+
 export function addChangeLog(action, detail = '') {
   const actor = getCurrentUserName();
-  const time = new Date().toLocaleString();
-  const entry = { time, actor, action, detail, timestamp: Date.now() };
-  state.changeLog.unshift(entry);
-  if (state.changeLog.length > 200) state.changeLog.pop();
-  localStorage.setItem(CHANGE_LOG_STORAGE_KEY, JSON.stringify(state.changeLog));
+  const time = formatAppDateTime();
+  appendChangeEntry(state.changeLog, { time, actor, action, detail, timestamp: Date.now() });
+  if (state.changeLog.length > 50) state.changeLog.pop();
+  persistChangeLog(state.changeLog);
+  refreshChangeLogDom(state.changeLog);
+}
 
-  const changeBodies = document.querySelectorAll('#change-log-body');
-  changeBodies.forEach(body => {
-    const p = document.createElement('p');
-    p.className = 'console-line';
-    p.innerHTML = `<span class="console-time">[${time}]</span> <strong>${actor}</strong>: ${action}${detail ? ` — ${detail}` : ''}`;
-    body.prepend(p);
-  });
+/** System log line attributed to the signed-in user (not a generic "Admin" label). */
+export function logUserAction(message, type = 'info') {
+  addLog(`${getCurrentUserName()}: ${message}`, type);
 }
 
 export function getCurrentUserId() {
@@ -174,7 +208,7 @@ export function pushAppNotification({ title, description, dedupeKey, recipientId
       id: `notif_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
       title,
       description,
-      timestamp: new Date().toLocaleTimeString('en-GB', { hour12: false }),
+      timestamp: formatAppTime(),
       read: false,
       dedupeKey: dedupeKey || null,
       recipientId: targetUserId
@@ -314,6 +348,35 @@ export function saveConfig(auditAction = null, auditDetail = '') {
   if (auditAction) addChangeLog(auditAction, auditDetail);
 }
 
+/**
+ * Update a partner's profile fields and propagate name changes across schedule data.
+ */
+export function updatePartnerProfile(partnerId, updates) {
+  const partner = state.config?.partners?.find((p) => p.id === partnerId);
+  if (!partner) return false;
+
+  const oldName = partner.name;
+  if (updates.name && updates.name !== oldName) {
+    CalendarSync.renamePartnerInEvents(oldName, updates.name);
+  }
+
+  if (updates.name !== undefined) partner.name = updates.name;
+  if (updates.avatar !== undefined) partner.avatar = updates.avatar;
+  if (updates.username !== undefined) partner.username = updates.username;
+  if (updates.password !== undefined) partner.password = updates.password;
+  if (updates.pronouns !== undefined) partner.pronouns = normalizePronouns(updates.pronouns);
+
+  saveConfig('Updated profile', partner.name);
+
+  if (state.currentUser?.id === partnerId) {
+    establishSession(partner);
+  }
+
+  state.events = CalendarSync.events;
+  import('./router.js').then(({ renderView }) => renderView());
+  return true;
+}
+
 export function updateImpersonationBanner() {
   const banner = document.getElementById('impersonation-banner');
   const select = document.getElementById('impersonation-select');
@@ -336,8 +399,9 @@ export function impersonatePartner(partnerId) {
   if (!partner) return;
   if (partner.id === state.currentUser?.id) return;
 
+  const actorName = getCurrentUserName();
   establishSession(partner);
-  addLog(`Admin: Impersonating user "${partner.name}".`, 'warning');
+  addLog(`${actorName}: Impersonating user "${partner.name}".`, 'warning');
   addChangeLog('Impersonated user', partner.name);
   showToast(`Viewing as ${partner.name.split(' ')[0]}`, 'info');
   import('./router.js').then(({ router }) => router());
@@ -410,11 +474,11 @@ export function attemptLogin(username, password) {
   );
   if (!partner) {
     showToast('Invalid username or password.', 'error');
-    addLog(`Auth: Failed login attempt for "${username.trim()}".`, 'warning');
+    addLog(`${username.trim()}: Failed login attempt.`, 'warning');
     return false;
   }
   establishSession(partner);
-  addLog(`Auth: User "${partner.name}" logged in successfully.`, 'info');
+  addLog(`${partner.name}: Logged in successfully.`, 'info');
   showToast(`Welcome back, ${partner.name.split(' ')[0]}!`, 'success');
   window.location.hash = '#schedule';
   import('./router.js').then(({ router }) => router());
@@ -422,16 +486,17 @@ export function attemptLogin(username, password) {
 }
 
 export function logoutUser() {
+  const name = getCurrentUserName();
   state.currentUser = null;
   localStorage.removeItem(LOCAL_SESSION_KEY);
-  addLog('Auth: Local session ended.', 'info');
+  addLog(`${name}: Logged out.`, 'info');
   showLoginView();
 }
 
 /** Disconnect Google Calendar sync without ending the local partner session. */
 export function logoutGoogleSync() {
   AuthManager.logout();
-  addLog('Auth: Google sync disconnected.', 'info');
+  logUserAction('Disconnected Google Calendar sync.', 'info');
   showToast('Google Calendar sync disconnected.', 'info');
 }
 

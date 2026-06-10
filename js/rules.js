@@ -3,7 +3,11 @@
  * Evaluates scheduling proposals against capacity constraints and partner sleeping limits.
  */
 
-import { batchProposalToSleepingEvents, findPartnerByRef } from './helpers.js';
+import { findPartnerByRef, batchProposalToSleepingEvents } from './helpers.js';
+import {
+  partnerSleepingWithMessage,
+  partnerSoloNightsMessage
+} from './pronouns.js';
 
 const getStartOfWeek = (date) => {
   const d = new Date(date);
@@ -41,8 +45,9 @@ const getWeekStartsInRange = (startDate, endDate) => {
   return Array.from(weekKeys).map(t => new Date(t));
 };
 
-const evaluatePartnerAndSoloRules = (eventsToCheck, daysOfWeek, partners, proposalParticipants) => {
+const evaluatePartnerAndSoloRules = (eventsToCheck, daysOfWeek, config, proposalParticipants) => {
   const warnings = [];
+  const partners = config?.partners || [];
 
   for (const pA of proposalParticipants) {
     const partnerConfig = findPartnerByRef({ partners }, pA);
@@ -82,13 +87,13 @@ const evaluatePartnerAndSoloRules = (eventsToCheck, daysOfWeek, partners, propos
           if (limit.max !== undefined && nightsTogether > limit.max) {
             warnings.push({
               type: 'PARTNER_MAX_LIMIT',
-              message: `${pA} sleeping with ${pB} for ${nightsTogether} nights exceeds ${pA}'s preferred limit of ${limit.max} nights/week with ${pB}.`
+              message: partnerSleepingWithMessage(config, pA, pB, nightsTogether, limit, 'max')
             });
           }
           if (limit.min !== undefined && nightsTogether < limit.min) {
             warnings.push({
               type: 'PARTNER_MIN_LIMIT',
-              message: `${pA} sleeping with ${pB} for ${nightsTogether} nights is below ${pA}'s preferred limit of ${limit.min} nights/week with ${pB}.`
+              message: partnerSleepingWithMessage(config, pA, pB, nightsTogether, limit, 'min')
             });
           }
         }
@@ -111,7 +116,7 @@ const evaluatePartnerAndSoloRules = (eventsToCheck, daysOfWeek, partners, propos
       if (soloNights < minSoloNights) {
         warnings.push({
           type: 'SOLO_MIN_LIMIT',
-          message: `${pA} sleeping alone for ${soloNights} nights is below preferred minimum of ${minSoloNights} solo nights/week.`
+          message: partnerSoloNightsMessage(config, pA, soloNights, minSoloNights)
         });
       }
     }
@@ -289,14 +294,14 @@ export const RulesEngine = {
             if (limit.max !== undefined && nightsTogether > limit.max) {
               warnings.push({
                 type: 'PARTNER_MAX_LIMIT',
-                message: `${pA} sleeping with ${pB} for ${nightsTogether} nights exceeds ${pA}'s preferred limit of ${limit.max} nights/week with ${pB}.`
+                message: partnerSleepingWithMessage(config, pA, pB, nightsTogether, limit, 'max')
               });
             }
 
             if (limit.min !== undefined && nightsTogether < limit.min) {
               warnings.push({
                 type: 'PARTNER_MIN_LIMIT',
-                message: `${pA} sleeping with ${pB} for ${nightsTogether} nights is below ${pA}'s preferred limit of ${limit.min} nights/week with ${pB}.`
+                message: partnerSleepingWithMessage(config, pA, pB, nightsTogether, limit, 'min')
               });
             }
           }
@@ -327,7 +332,7 @@ export const RulesEngine = {
         if (soloNights < minSoloNights) {
           warnings.push({
             type: 'SOLO_MIN_LIMIT',
-            message: `${pA} sleeping alone for ${soloNights} nights is below preferred minimum of ${minSoloNights} solo nights/week.`
+            message: partnerSoloNightsMessage(config, pA, soloNights, minSoloNights)
           });
         }
       }
@@ -422,7 +427,7 @@ export const RulesEngine = {
         d.setDate(weekStart.getDate() + i);
         daysOfWeek.push(d);
       }
-      warnings.push(...evaluatePartnerAndSoloRules(eventsToCheck, daysOfWeek, partners, proposalParticipants));
+      warnings.push(...evaluatePartnerAndSoloRules(eventsToCheck, daysOfWeek, config, proposalParticipants));
     }
 
     return warnings;

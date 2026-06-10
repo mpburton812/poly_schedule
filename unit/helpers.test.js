@@ -21,6 +21,16 @@ describe('normalizeConfigPartners', () => {
     expect(changed).toBe(true);
     expect(config.partners[0].rules.partnerLimits.Sam).toEqual({ min: 3, max: 3 });
   });
+
+  it('adds default pronouns when missing', () => {
+    const config = {
+      partners: [{ id: 'p9', name: 'New Partner', rules: {} }]
+    };
+    const defaults = { partners: [] };
+    const changed = normalizeConfigPartners(config, defaults);
+    expect(changed).toBe(true);
+    expect(config.partners[0].pronouns.preset).toBe('they/them');
+  });
 });
 
 describe('dedupeDuplicateSleepingEvents', () => {

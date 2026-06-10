@@ -3,7 +3,6 @@
  */
 
 import { AuthManager } from '../auth.js';
-import { CalendarSync } from '../calendar.js';
 import { renderAvatarPickerHtml } from '../avatar.js';
 import { state } from './state.js';
 import {
@@ -14,11 +13,13 @@ import {
   isAdmin,
   logoutUser,
   getCurrentUserName,
-  saveConfig,
+  updatePartnerProfile,
   persistCurrentUserNotifications,
   pushAppNotification,
   LOCAL_SESSION_KEY
 } from './context.js';
+import { getCurrentUserPartner } from '../helpers.js';
+import { renderPronounPickerHtml, bindPronounPicker } from '../pronouns.js';
 
 function openModalOverlay(box, ariaLabel) {
   const modal = document.getElementById('app-modal');
@@ -132,6 +133,8 @@ export function openUserProfileModal() {
       </div>
   ` : '';
 
+  const profilePartner = getCurrentUserPartner(state.config, state.currentUser);
+
   box.innerHTML = `
     <div style="display: flex; justify-content: space-between; align-items: start; margin-bottom: var(--space-md); border-bottom: 1px solid var(--outline-variant); padding-bottom: var(--space-sm);">
       <div style="display: flex; gap: var(--space-md); align-items: center;">
@@ -175,6 +178,8 @@ export function openUserProfileModal() {
             <input class="form-input" id="setting-password" type="password" value="${state.currentUser?.password || ''}" style="padding: 6px 12px; font-size: 0.85rem;"/>
           </div>
         </div>
+
+        ${renderPronounPickerHtml(profilePartner)}
 
         <div class="form-group" style="margin-bottom: 0;">
           <label class="form-label" style="font-size: 0.8rem;">Select Avatar</label>
@@ -246,6 +251,9 @@ export function openUserProfileModal() {
     }
   });
 
+  const displayNameInput = box.querySelector('#setting-display-name');
+  const getPronouns = bindPronounPicker(box, { displayNameInput });
+
   const getSelectedAvatar = bindAvatarPicker('#setting-avatar-options', {
     initialUrl: state.currentUser?.picture,
     size: 44,
@@ -255,51 +263,40 @@ export function openUserProfileModal() {
   const btnSaveProfile = box.querySelector('#btn-save-profile');
   if (btnSaveProfile) {
     btnSaveProfile.addEventListener('click', () => {
-      const dispName = box.querySelector('#setting-display-name').value.trim();
+      const dispName = displayNameInput.value.trim();
       const userName = box.querySelector('#setting-username').value.trim();
       const pwd = box.querySelector('#setting-password').value.trim();
       const selectedAvatar = getSelectedAvatar();
+      const pronouns = getPronouns();
 
       if (!dispName || !userName) {
         showToast('Display Name and User Name are required.', 'warning');
         return;
       }
 
-      const partner = state.config?.partners?.find(p => p.id === state.currentUser.id);
-      const oldName = partner?.name || state.currentUser.name;
-
-      if (oldName && oldName !== dispName) {
-        CalendarSync.renamePartnerInEvents(oldName, dispName);
+      if (!pronouns) {
+        showToast('Please complete custom pronoun fields (subject, object, possessive).', 'warning');
+        return;
       }
 
-      state.currentUser.name = dispName;
-      state.currentUser.username = userName;
-      state.currentUser.password = pwd;
-      state.currentUser.picture = selectedAvatar;
-      state.currentUser.sessionActive = true;
+      if (!state.currentUser?.id) return;
 
-      localStorage.setItem(LOCAL_SESSION_KEY, JSON.stringify(state.currentUser));
-
-      const avatarImg = document.getElementById('user-avatar-img');
-      if (avatarImg) avatarImg.src = selectedAvatar;
+      updatePartnerProfile(state.currentUser.id, {
+        name: dispName,
+        username: userName,
+        password: pwd,
+        avatar: selectedAvatar,
+        pronouns
+      });
 
       const modalHeading = box.querySelector('h3.font-title-lg');
       if (modalHeading) modalHeading.textContent = dispName;
       const modalAvatarImg = box.querySelector('.profile-avatar img');
       if (modalAvatarImg) modalAvatarImg.src = selectedAvatar;
 
-      if (partner) {
-        partner.name = dispName;
-        partner.avatar = selectedAvatar;
-        partner.username = userName;
-        partner.password = pwd;
-        saveConfig();
-      }
-
+      addLog(`Profile updated for "${dispName}".`, 'info');
       showToast('Profile updated successfully.', 'success');
       modal.classList.remove('open');
-      state.events = CalendarSync.events;
-      import('./router.js').then(({ renderView }) => renderView());
     });
   }
 
@@ -313,8 +310,8 @@ export function openEventDetailsModal(event) {
   if (!modal || !box) return;
 
   const dateStr = new Date(event.start).toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric' });
-  const startT = new Date(event.start).toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit', hour12: false });
-  const endT = new Date(event.end).toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit', hour12: false });
+  const startT = new Date(event.start).toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit', hour12: true });
+  const endT = new Date(event.end).toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit', hour12: true });
 
   let locationOrRoom = '';
   if (event.type === 'sleeping') {

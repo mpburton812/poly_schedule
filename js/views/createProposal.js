@@ -221,7 +221,7 @@ export function createProposalView(state, type = 'event', formState = {}) {
           <h2 class="font-title-lg">New Proposal</h2>
           <p class="font-label-sm" id="draft-autosave-status" style="color: var(--on-surface-variant); margin-top: 2px;">Draft — changes save automatically</p>
         </div>
-        <button class="btn btn-filled" id="btn-submit-proposal">Send Proposal</button>
+        <button type="button" class="btn btn-filled" id="btn-submit-proposal">Send Proposal</button>
       </div>
 
       <!-- Toggle Switch Event/Sleep/Batch -->

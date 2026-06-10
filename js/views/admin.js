@@ -22,6 +22,7 @@ import {
   getAutoArchiveDays,
   isCalendarEvent
 } from '../proposal-workflow.js';
+import { renderChangeLogHtml } from '../change-log.js';
 
 
 export function adminView(state) {
@@ -31,17 +32,12 @@ export function adminView(state) {
     const apiKey = localStorage.getItem('polyschedule_api_key') || '';
     const calendarId = localStorage.getItem('polyschedule_calendar_id') || 'primary';
     const credentialsConfigured = !!(clientId && apiKey);
-    const changeLogHtml = (state.changeLog || []).map(entry => `
-      <p class="console-line">
-        <span class="console-time">[${entry.time}]</span>
-        <strong>${entry.actor}</strong>: ${entry.action}${entry.detail ? ` — ${entry.detail}` : ''}
-      </p>
-    `).join('') || '<p class="console-line" style="color: var(--on-surface-variant);">No configuration changes recorded yet.</p>';
+    const changeLogHtml = renderChangeLogHtml(state.changeLog || []);
 
     const logsHtml = (state.logs || []).map(log => {
       const color = log.type === 'error' ? 'var(--error)' : log.type === 'warning' ? 'var(--tertiary)' : 'inherit';
-      return `<p class="console-line"><span class="console-time">[${log.time}]</span> <span style="color: ${color};">${log.message}</span></p>`;
-    }).join('') || '<p class="console-line" style="color: var(--on-surface-variant);">No system events logged yet.</p>';
+      return `<p class="console-line"><span class="console-time">[${log.time}]</span> <span class="system-log-message" style="color: ${color};">${log.message}</span></p>`;
+    }).join('') || '<p class="console-line system-log-empty">No system events logged yet.</p>';
 
     return `
       <div class="mb-xl" style="margin-bottom: var(--space-xl);">
@@ -110,8 +106,8 @@ export function adminView(state) {
           <p class="font-body-md" style="color: var(--on-surface-variant); margin-bottom: var(--space-md);">
             Audit trail of configuration and workflow changes (${(state.changeLog || []).length} entries).
           </p>
-          <div class="console-container">
-            <div class="console-body" id="change-log-body" style="max-height: 220px; overflow-y: auto; background: var(--surface-container-low);">
+          <div class="change-log-panel">
+            <div class="change-log-body" id="change-log-body">
               ${changeLogHtml}
             </div>
           </div>

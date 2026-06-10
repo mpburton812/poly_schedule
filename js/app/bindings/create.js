@@ -10,7 +10,8 @@ import {
   cloneBatchNight,
   normalizeBatchNight,
   getBedroomOptionsForHome,
-  buildBatchNightsPayload
+  buildBatchNightsPayload,
+  formatAppTime
 } from '../../helpers.js';
 import {
   WORKFLOW,
@@ -24,7 +25,14 @@ import {
   newProposalState,
   resetNewProposalFormState
 } from '../state.js';
-import { addLog, showToast, getCurrentUserName, notifyProposalReviewers, addChangeLog, logOperationError } from '../context.js';
+import {
+  logUserAction,
+  showToast,
+  getCurrentUserName,
+  notifyProposalReviewers,
+  addChangeLog,
+  logOperationError
+} from '../context.js';
 import { renderView } from '../router.js';
 
 export function updateSleepingArrangementTitle() {
@@ -352,7 +360,7 @@ export function scheduleDraftSave() {
       await CalendarSync.saveDraft(flowState.currentDraftId, data);
       const statusEl = document.getElementById('draft-autosave-status');
       if (statusEl) {
-        statusEl.textContent = `Draft saved ${new Date().toLocaleTimeString()}`;
+        statusEl.textContent = `Draft saved ${formatAppTime()}`;
       }
     } catch (err) {
       console.error('Draft auto-save failed', err);
@@ -364,9 +372,14 @@ export function ensureCreateDraftSync() {
   const params = parseHashParams();
   if (params.draft) {
     if (flowState.currentDraftId !== params.draft) {
-      loadDraftIntoForm(params.draft);
+      if (loadDraftIntoForm(params.draft)) {
+        return;
+      }
+      flowState.currentDraftId = null;
+      window.history.replaceState({}, '', '#create');
+    } else {
+      return;
     }
-    return;
   }
   if (flowState.currentDraftId) return;
 
@@ -375,7 +388,7 @@ export function ensureCreateDraftSync() {
   const draft = {
     id: `prop_${Date.now()}`,
     title: 'Untitled Proposal',
-    type: 'event',
+    type: flowState.currentCreateType || 'event',
     start: now.toISOString(),
     end: new Date(now.getTime() + 3600000).toISOString(),
     participants: [],
@@ -399,6 +412,110 @@ export function ensureCreateDraftSync() {
   flowState.currentDraftId = draft.id;
   resetNewProposalFormState();
   window.history.replaceState({}, '', `#create?draft=${draft.id}`);
+}
+
+export async function submitCurrentProposal() {
+  const btnSubmit = document.getElementById('btn-submit-proposal');
+  if (btnSubmit?.dataset.submitting === '1') return;
+
+  const titleInput = document.getElementById('prop-title');
+  if (!titleInput?.value.trim()) {
+    showToast('Please enter a title for the proposal.', 'warning');
+    return;
+  }
+
+  if (flowState.currentCreateType === 'batch_sleeping') {
+    const durationVal = document.getElementById('prop-duration')?.value || '1';
+    const nightCount = Math.min(14, Math.max(1, parseInt(durationVal, 10) || 1));
+    const assignments = readBatchAssignmentsFromDom();
+    const startInput = document.getElementById('prop-start-date');
+    const { batchNights } = buildBatchNightsPayload(startInput.value, nightCount, assignments, state.config);
+    const emptyNight = batchNights.findIndex(n => !(n.assignments || []).length);
+    if (emptyNight !== -1) {
+      showToast(`Night ${emptyNight + 1} needs at least one room with people assigned.`, 'warning');
+      return;
+    }
+    const batchWarnings = evaluateCurrentBatchProposalWarnings();
+    if (RulesEngine.hasBatchRoomConflicts(batchWarnings)) {
+      showProposalRulesBanner(batchWarnings);
+      highlightBatchRowErrors(batchWarnings);
+      showToast('Cannot submit until all room conflicts are resolved.', 'error');
+      return;
+    }
+  } else if (flowState.currentCreateType === 'event') {
+    const startD = new Date(document.getElementById('prop-start-date').value);
+    const endD = new Date(startD);
+    const startTime = read12HourTime('prop-start');
+    const endTime = read12HourTime('prop-end');
+    startD.setHours(startTime.hours, startTime.minutes, 0, 0);
+    endD.setHours(endTime.hours, endTime.minutes, 0, 0);
+    if (endD <= startD) {
+      showToast('End time must be after start time.', 'warning');
+      return;
+    }
+  }
+
+  if (btnSubmit) {
+    btnSubmit.dataset.submitting = '1';
+    btnSubmit.disabled = true;
+  }
+
+  try {
+    ensureCreateDraftSync();
+
+    const data = collectProposalFormData();
+    let draftId = flowState.currentDraftId;
+    if (!draftId) {
+      ensureCreateDraftSync();
+      draftId = flowState.currentDraftId;
+    }
+    if (!draftId) {
+      throw new Error('Draft could not be created');
+    }
+
+    const saved = await CalendarSync.saveDraft(draftId, data);
+    draftId = saved?.id || draftId;
+    flowState.currentDraftId = draftId;
+
+    await CalendarSync.submitProposal(draftId);
+    state.events = CalendarSync.events;
+
+    const finalEvent = state.events.find(e => e.id === draftId);
+
+    if (finalEvent && getWorkflowState(finalEvent) === WORKFLOW.APPROVED) {
+      if (isSoloEventProposal(finalEvent, state.config)) {
+        showToast('Personal event confirmed and added to your calendar.', 'success');
+      } else {
+        showToast('Proposal approved and added to your calendar.', 'success');
+      }
+      addChangeLog('Proposal approved', finalEvent.title);
+      flowState.currentDraftId = null;
+      flowState.soloEventMode = false;
+      window.location.hash = '#schedule';
+    } else {
+      if (finalEvent) notifyProposalReviewers(finalEvent, state.config);
+      showToast('Proposal submitted successfully!', 'success');
+      addChangeLog('Proposal submitted', finalEvent?.title || data.title);
+      flowState.currentDraftId = null;
+      flowState.soloEventMode = false;
+      flowState.activeProposalsTab = 'proposed';
+      window.location.hash = '#proposals';
+    }
+    logUserAction(`Submitted proposal: "${data.title}"`);
+  } catch (err) {
+    logOperationError('Proposal submit', err, {
+      draftId: flowState.currentDraftId,
+      proposalType: flowState.currentCreateType,
+      proposalTitle: document.getElementById('prop-title')?.value?.trim() || '',
+      soloEvent: flowState.soloEventMode
+    });
+    showToast(err?.message || 'Failed to submit proposal.', 'error');
+  } finally {
+    if (btnSubmit) {
+      delete btnSubmit.dataset.submitting;
+      btnSubmit.disabled = false;
+    }
+  }
 }
 
 export function runRulesChecks() {
@@ -721,93 +838,9 @@ export function bindCreateEvents() {
 
   const btnSubmit = document.getElementById('btn-submit-proposal');
   if (btnSubmit) {
-    btnSubmit.addEventListener('click', async () => {
-      const titleInput = document.getElementById('prop-title');
-      if (!titleInput?.value.trim()) {
-        showToast('Please enter a title for the proposal.', 'warning');
-        return;
-      }
-
-      if (flowState.currentCreateType === 'batch_sleeping') {
-        const durationVal = document.getElementById('prop-duration')?.value || '1';
-        const nightCount = Math.min(14, Math.max(1, parseInt(durationVal, 10) || 1));
-        const assignments = readBatchAssignmentsFromDom();
-        const startInput = document.getElementById('prop-start-date');
-        const { batchNights } = buildBatchNightsPayload(startInput.value, nightCount, assignments, state.config);
-        const emptyNight = batchNights.findIndex(n => !(n.assignments || []).length);
-        if (emptyNight !== -1) {
-          showToast(`Night ${emptyNight + 1} needs at least one room with people assigned.`, 'warning');
-          return;
-        }
-        const batchWarnings = evaluateCurrentBatchProposalWarnings();
-        if (RulesEngine.hasBatchRoomConflicts(batchWarnings)) {
-          showProposalRulesBanner(batchWarnings);
-          highlightBatchRowErrors(batchWarnings);
-          showToast('Cannot submit until all room conflicts are resolved.', 'error');
-          return;
-        }
-      } else if (flowState.currentCreateType === 'event') {
-        const startD = new Date(document.getElementById('prop-start-date').value);
-        const endD = new Date(startD);
-        const startTime = read12HourTime('prop-start');
-        const endTime = read12HourTime('prop-end');
-        startD.setHours(startTime.hours, startTime.minutes, 0, 0);
-        endD.setHours(endTime.hours, endTime.minutes, 0, 0);
-        if (endD <= startD) {
-          showToast('End time must be after start time.', 'warning');
-          return;
-        }
-      }
-
-      if (!flowState.currentDraftId) {
-        ensureCreateDraftSync();
-      }
-
-      try {
-        const data = collectProposalFormData();
-        let draftId = flowState.currentDraftId;
-        if (!draftId) {
-          ensureCreateDraftSync();
-          draftId = flowState.currentDraftId;
-        }
-        if (!draftId) {
-          throw new Error('Draft could not be created');
-        }
-        const saved = await CalendarSync.saveDraft(draftId, data);
-        draftId = saved?.id || draftId;
-        flowState.currentDraftId = draftId;
-        await CalendarSync.submitProposal(draftId);
-        const finalEvent = state.events.find(e => e.id === draftId);
-
-        if (finalEvent && getWorkflowState(finalEvent) === WORKFLOW.APPROVED) {
-          if (isSoloEventProposal(finalEvent, state.config)) {
-            showToast('Personal event confirmed and added to your calendar.', 'success');
-          } else {
-            showToast('Proposal approved and added to your calendar.', 'success');
-          }
-          addChangeLog('Proposal approved', finalEvent.title);
-          flowState.currentDraftId = null;
-          flowState.soloEventMode = false;
-          window.location.hash = '#schedule';
-        } else {
-          if (finalEvent) notifyProposalReviewers(finalEvent, state.config);
-          showToast('Proposal submitted successfully!', 'success');
-          addChangeLog('Proposal submitted', finalEvent?.title || data.title);
-          flowState.currentDraftId = null;
-          flowState.soloEventMode = false;
-          flowState.activeProposalsTab = 'proposed';
-          window.location.hash = '#proposals';
-        }
-        addLog(`Submitted proposal: "${data.title}"`);
-      } catch (err) {
-        logOperationError('Proposal submit', err, {
-          draftId: flowState.currentDraftId,
-          proposalType: flowState.currentCreateType,
-          proposalTitle: document.getElementById('prop-title')?.value?.trim() || '',
-          soloEvent: flowState.soloEventMode
-        });
-        showToast('Failed to submit proposal.', 'error');
-      }
-    });
+    btnSubmit.type = 'button';
+    btnSubmit.onclick = () => {
+      void submitCurrentProposal();
+    };
   }
 }

@@ -2,6 +2,8 @@
  * Shared PolySchedule helpers
  */
 
+import { normalizePronouns } from './pronouns.js';
+
 export { DEFAULT_AVATARS } from './avatar.js';
 
 export const LOGS_STORAGE_KEY = 'polyschedule_system_logs';
@@ -20,6 +22,26 @@ export const LEGACY_NOTIFICATIONS_KEY = 'polyschedule_notifications';
 export function partnerDisplayFirstName(name) {
   if (!name) return '';
   return String(name).split(' ')[0];
+}
+
+const APP_TIME_OPTS = { hour: 'numeric', minute: '2-digit', hour12: true };
+const APP_DATETIME_OPTS = {
+  month: 'short',
+  day: 'numeric',
+  year: 'numeric',
+  hour: 'numeric',
+  minute: '2-digit',
+  hour12: true
+};
+
+/** Locale time string with AM/PM (e.g. 3:45 PM). */
+export function formatAppTime(date = new Date()) {
+  return new Date(date).toLocaleTimeString(undefined, APP_TIME_OPTS);
+}
+
+/** Locale date + time with AM/PM. */
+export function formatAppDateTime(date = new Date()) {
+  return new Date(date).toLocaleString(undefined, APP_DATETIME_OPTS);
 }
 
 /**
@@ -127,6 +149,16 @@ export function normalizeConfigPartners(config, defaultConfig) {
 
     if (partner.rules.minSoloNights === undefined && defaultPartner.rules?.minSoloNights !== undefined) {
       partner.rules.minSoloNights = defaultPartner.rules.minSoloNights;
+      changed = true;
+    }
+  });
+
+  config.partners.forEach((partner) => {
+    if (!partner.pronouns) {
+      const seedPartner = defaultConfig.partners.find((p) => p.id === partner.id);
+      partner.pronouns = seedPartner?.pronouns
+        ? JSON.parse(JSON.stringify(seedPartner.pronouns))
+        : normalizePronouns(null);
       changed = true;
     }
   });

@@ -1,4 +1,5 @@
 import { CalendarSync } from '../../calendar.js';
+import { normalizePronouns } from '../../pronouns.js';
 import {
   CREATE_NEW_HOME,
   RETURN_ADD_PARTNER_KEY,
@@ -17,6 +18,7 @@ import {
 } from '../state.js';
 import {
   addLog,
+  logUserAction,
   showToast,
   saveConfig,
   addChangeLog,
@@ -26,7 +28,8 @@ import {
   restoreAddPartnerDraft,
   selectNewHomeAfterReturn,
   bindAvatarPicker,
-  bindSleepingPartnerCheckboxes
+  bindSleepingPartnerCheckboxes,
+  updatePartnerProfile
 } from '../context.js';
 import { renderView } from '../router.js';
 import { bindLogisticsEvents, bindGoogleCredentialsEvents } from './logistics.js';
@@ -38,7 +41,7 @@ export function bindAdminEvents() {
     btnSave.addEventListener('click', () => {
       const name = familyInput.value.trim() || 'The Poly Circle';
       localStorage.setItem('polyschedule_poly_family_name', name);
-      addLog(`Admin: Group name updated to "${name}".`, 'info');
+      logUserAction(`Group name updated to "${name}".`, 'info');
       addChangeLog('Updated group name', name);
       showToast('Group name saved.', 'success');
     });
@@ -50,7 +53,7 @@ export function bindAdminEvents() {
     btnArchiveSave.addEventListener('click', () => {
       const days = parseInt(archiveInput.value, 10);
       setAutoArchiveDays(Number.isFinite(days) ? days : 7);
-      addLog(`Admin: Auto-archive set to ${getAutoArchiveDays()} day(s).`, 'info');
+      logUserAction(`Auto-archive set to ${getAutoArchiveDays()} day(s).`, 'info');
       addChangeLog('Updated auto-archive setting', `${getAutoArchiveDays()} day(s)`);
       showToast('Archive setting saved.', 'success');
     });
@@ -179,13 +182,14 @@ export function bindAddPartnerEvents() {
       }
 
       const newId = 'p' + Date.now();
+      const defaultPronouns = normalizePronouns(null);
       const newPartner = isPassive
-        ? { id: newId, name, passive: true, defaultHome, avatar: selectedAvatar, rules: {} }
-        : { id: newId, name, username, password, role, defaultHome, avatar: selectedAvatar, rules };
+        ? { id: newId, name, passive: true, defaultHome, avatar: selectedAvatar, pronouns: defaultPronouns, rules: {} }
+        : { id: newId, name, username, password, role, defaultHome, avatar: selectedAvatar, pronouns: defaultPronouns, rules };
 
       state.config.partners.push(newPartner);
       saveConfig(isPassive ? 'Added passive partner' : 'Added partner', name);
-      addLog(`Logistics: ${isPassive ? 'Passive' : 'Active'} partner "${name}" added.`, 'info');
+      logUserAction(`${isPassive ? 'Passive' : 'Active'} partner "${name}" added.`, 'info');
       showToast(`Partner "${name}" added successfully!`, 'success');
       window.location.hash = '#logistics';
     });
@@ -269,7 +273,7 @@ export function bindAddHomeEvents() {
         sessionStorage.setItem(SELECT_HOME_KEY, newHomeId);
       }
       saveConfig('Added home', name);
-      addLog(`Logistics: Home "${name}" added.`, 'info');
+      logUserAction(`Home "${name}" added.`, 'info');
       showToast(`Home "${name}" added successfully!`, 'success');
 
       if (sessionStorage.getItem(RETURN_ADD_PARTNER_KEY) === '1') {
@@ -312,18 +316,16 @@ export function bindEditPartnerEvents() {
       return;
     }
 
-    const oldName = partner.name;
-    if (oldName !== name) {
-      CalendarSync.renamePartnerInEvents(oldName, name);
-    }
-
-    partner.name = name;
     partner.defaultHome = defaultHome;
-    partner.avatar = getSelectedAvatar();
+
+    const profileUpdates = {
+      name,
+      avatar: getSelectedAvatar()
+    };
 
     if (!isPartnerPassive(partner)) {
-      partner.username = document.getElementById('edit-partner-username').value.trim();
-      partner.password = document.getElementById('edit-partner-password').value.trim();
+      profileUpdates.username = document.getElementById('edit-partner-username').value.trim();
+      profileUpdates.password = document.getElementById('edit-partner-password').value.trim();
       partner.role = document.getElementById('edit-partner-role').value;
       partner.rules = partner.rules || {};
       partner.rules.minSoloNights = parseInt(document.getElementById('edit-partner-solo-nights')?.value, 10) || 2;
@@ -343,8 +345,8 @@ export function bindEditPartnerEvents() {
       partner.rules.partnerLimits = nextLimits;
     }
 
-    saveConfig('Updated partner', name);
-    addLog(`Admin: Partner "${name}" updated.`, 'info');
+    updatePartnerProfile(partnerId, profileUpdates);
+    logUserAction(`Partner "${name}" updated.`, 'info');
     showToast(`Partner "${name}" updated.`, 'success');
     window.location.hash = '#logistics';
   });
@@ -370,7 +372,7 @@ export function bindEditPartnerEvents() {
     CalendarSync.removePartner(partnerId);
     state.config = CalendarSync.config;
     state.events = CalendarSync.events;
-    addLog(`Admin: Partner "${partner.name}" deleted.`, 'warning');
+    logUserAction(`Partner "${partner.name}" deleted.`, 'warning');
     showToast(`Partner "${partner.name}" deleted.`, 'success');
     window.location.hash = '#logistics';
   });
@@ -432,7 +434,7 @@ export function bindEditHomeEvents() {
     applyHomeAssociationDefaults(state.config, homeId, associatedPeople);
 
     saveConfig('Updated home', name);
-    addLog(`Admin: Home "${name}" updated.`, 'info');
+    logUserAction(`Home "${name}" updated.`, 'info');
     showToast(`Home "${name}" updated.`, 'success');
     window.location.hash = '#logistics';
   });
@@ -447,7 +449,7 @@ export function bindEditHomeEvents() {
     CalendarSync.removeHome(homeId);
     state.config = CalendarSync.config;
     state.events = CalendarSync.events;
-    addLog(`Admin: Home "${home.name}" deleted.`, 'warning');
+    logUserAction(`Home "${home.name}" deleted.`, 'warning');
     showToast(`Home "${home.name}" deleted.`, 'success');
     window.location.hash = '#logistics';
   });

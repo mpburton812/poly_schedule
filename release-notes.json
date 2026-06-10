@@ -1,0 +1,13 @@
+{
+  "latest": {
+    "summary": "Pronouns, logging, AM/PM times, and proposal submit fix",
+    "changes": [
+      "Profile pronoun picker with presets, neopronouns, and custom forms",
+      "Pronoun-aware rule warnings with correct verb agreement",
+      "Change control log grouped by dev promotion with readable styling",
+      "System administration log attributes actions to signed-in users",
+      "AM/PM time formatting across logs, proposals, and event details",
+      "Fix batch sleeping proposal submit (missing rules engine import)"
+    ]
+  }
+}

@@ -96,6 +96,7 @@ const DEFAULT_CONFIG = {
       role: 'Admin',
       defaultHome: 'h1',
       avatar: DEFAULT_AVATARS[0],
+      pronouns: { preset: 'he/him' },
       rules: {
         minSoloNights: 2,
         partnerLimits: {
@@ -111,6 +112,7 @@ const DEFAULT_CONFIG = {
       role: 'Admin',
       defaultHome: 'h2',
       avatar: DEFAULT_AVATARS[1],
+      pronouns: { preset: 'she/her' },
       rules: {
         minSoloNights: 2,
         partnerLimits: {
@@ -124,6 +126,7 @@ const DEFAULT_CONFIG = {
       passive: true,
       defaultHome: 'h3',
       avatar: DEFAULT_AVATARS[3],
+      pronouns: { preset: 'he/him' },
       rules: {}
     },
     {
@@ -132,6 +135,7 @@ const DEFAULT_CONFIG = {
       passive: true,
       defaultHome: '',
       avatar: DEFAULT_AVATARS[2],
+      pronouns: { preset: 'they/them' },
       rules: {}
     },
     {
@@ -142,6 +146,7 @@ const DEFAULT_CONFIG = {
       role: 'User',
       defaultHome: 'h3',
       avatar: DEFAULT_AVATARS[2],
+      pronouns: { preset: 'they/them' },
       rules: { minSoloNights: 2 }
     }
   ]

@@ -327,6 +327,71 @@ body {
   display: none !important;
 }
 
+.pronouns-custom-fields[hidden] {
+  display: none !important;
+}
+
+/* Change control log — readable on light panel (not terminal styling) */
+.change-log-panel {
+  border: 1px solid var(--outline-variant);
+  border-radius: var(--radius-md);
+  background: var(--surface-container-lowest);
+  overflow: hidden;
+}
+
+.change-log-body {
+  max-height: 320px;
+  overflow-y: auto;
+  padding: var(--space-md);
+  color: #1a1a1a;
+  font-size: 0.8rem;
+  line-height: 1.45;
+}
+
+.change-log-promotion {
+  margin-bottom: var(--space-lg);
+  padding-bottom: var(--space-md);
+  border-bottom: 1px solid var(--outline-variant);
+}
+
+.change-log-promotion:last-child {
+  margin-bottom: 0;
+  padding-bottom: 0;
+  border-bottom: none;
+}
+
+.change-log-promotion-title {
+  margin: 0 0 var(--space-xs);
+  font-size: 0.9rem;
+  font-weight: 700;
+  color: #1a1a1a;
+}
+
+.change-log-promotion-meta {
+  margin: 0 0 var(--space-sm);
+  font-size: 0.75rem;
+  color: #444;
+}
+
+.change-log-line {
+  margin: 0 0 var(--space-xs);
+  color: #1a1a1a;
+}
+
+.change-log-time {
+  color: #666;
+  margin-right: var(--space-xs);
+}
+
+.change-log-empty {
+  color: #666;
+  font-style: italic;
+}
+
+.console-body .system-log-empty {
+  color: rgba(255, 255, 255, 0.5);
+}
+
 .avatar-crop-hint {
   color: var(--on-surface-variant);
   margin: 0;
