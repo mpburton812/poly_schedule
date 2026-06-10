@@ -399,9 +399,20 @@ export function saveQuietHoursSettings({ enabled, startHour, endHour }) {
 export async function fetchRegisteredDevices() {
   const { url, secret } = getPushConfig();
   if (!url || !secret) throw new Error('Notify service is not configured');
-  const res = await fetch(`${url}/v1/devices`, {
-    headers: { 'X-Notify-Secret': secret }
-  });
-  if (!res.ok) throw new Error('Could not load registered devices');
+  let res;
+  try {
+    res = await fetch(`${url}/v1/devices`, {
+      headers: { 'X-Notify-Secret': secret }
+    });
+  } catch {
+    throw new Error(`Could not reach notify service at ${url}. Is it running?`);
+  }
+  if (res.status === 401) {
+    throw new Error('Notify secret rejected. Check Admin → Notify Secret matches NOTIFY_SECRET on the service.');
+  }
+  if (res.status === 404) {
+    throw new Error('Device list not available — restart the notify service (npm run notify) to pick up the latest version.');
+  }
+  if (!res.ok) throw new Error(`Could not load registered devices (HTTP ${res.status}).`);
   return res.json();
 }
