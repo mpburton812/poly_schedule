@@ -1,5 +1,6 @@
 node_modules
 notify-service
+public
 tests
 test-results
 playwright-report

@@ -3,6 +3,7 @@ test-results/
 playwright-report/
 .system_generated/
 .gemini/
+public/
 .env
 *.log
 notify-service/.env
