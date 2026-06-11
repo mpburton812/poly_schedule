@@ -25,10 +25,14 @@ import {
 
 
 export function logisticsView(state) {
-    const showAdmin = state.currentUser ? (state.config?.partners?.find(p => p.id === state.currentUser.id)?.role === 'Admin') : false;
+    const partners = state.config?.partners || [];
+    const residences = state.config?.residences || [];
+    const showAdmin = state.currentUser
+      ? (partners.find(p => p.id === state.currentUser.id)?.role === 'Admin')
+      : false;
 
     let profilesHtml = '';
-    state.config.partners.forEach(partner => {
+    partners.forEach(partner => {
       const passive = isPartnerPassive(partner);
       let badge = '';
       if (passive) {
@@ -36,7 +40,7 @@ export function logisticsView(state) {
       } else if (partner.role === 'Admin') {
         badge = `<span class="font-label-sm" style="background-color: var(--secondary-container); color: var(--on-secondary-container); padding: 2px 8px; border-radius: var(--radius-sm); font-size: 9px; font-weight: bold;">ADMIN</span>`;
       }
-      const defaultHomeObj = state.config.residences.find(r => r.id === partner.defaultHome);
+      const defaultHomeObj = residences.find(r => r.id === partner.defaultHome);
       const homeName = defaultHomeObj ? defaultHomeObj.name : 'None';
       const editBtn = showAdmin ? `
         <button class="btn btn-outline btn-edit-partner" data-partner-id="${partner.id}" style="padding: 4px 12px; font-size: 0.75rem; flex-shrink: 0;">
@@ -63,7 +67,7 @@ export function logisticsView(state) {
     });
 
     let homesHtml = '';
-    state.config.residences.forEach(home => {
+    residences.forEach(home => {
       // Bedrooms list
       let bedroomsStr = '';
       if (home.bedroomDetails) {
@@ -81,7 +85,7 @@ export function logisticsView(state) {
         </div>`;
       } else {
         // Fallback: check which partners have defaultHome === home.id
-        const associated = state.config.partners.filter(p => p.defaultHome === home.id).map(p => p.name.split(' ')[0]);
+        const associated = partners.filter(p => p.defaultHome === home.id).map(p => p.name.split(' ')[0]);
         if (associated.length > 0) {
           peopleStr = `<div class="font-body-md" style="font-size: 0.8rem; color: var(--on-surface-variant); margin-top: 4px;">
             <span style="font-weight: bold;">Associated:</span> ${associated.join(', ')}

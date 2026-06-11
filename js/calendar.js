@@ -11,6 +11,8 @@ import {
   removePartnerReferences,
   removeHomeReferences,
   normalizeConfigPartners,
+  normalizeHouseholdConfigShape,
+  pickNewerHouseholdConfig,
   syncAllHomeAssociationDefaults,
   findPartnerByRef,
   LOCAL_CONFIG_KEY,
@@ -92,31 +94,59 @@ export const CalendarSync = {
   },
 
   async loadConfig() {
-    if (this.mode === 'offline') {
+    let localConfig = null;
+    try {
       const saved = localStorage.getItem(LOCAL_CONFIG_KEY);
-      if (saved) {
-        this.config = JSON.parse(saved);
+      if (saved) localConfig = JSON.parse(saved);
+    } catch {
+      localConfig = null;
+    }
+
+    if (this.mode === 'offline') {
+      if (localConfig) {
+        this.config = normalizeHouseholdConfigShape(localConfig);
       } else {
         this.config = createEmptyHousehold();
         localStorage.setItem(LOCAL_CONFIG_KEY, JSON.stringify(this.config));
       }
     } else {
-      // Fetch Config from Google Calendar configuration event description
+      const { canWriteToGoogleCalendar } = await import('./gcal-sync.js');
+      let configSource = 'remote';
+
       try {
         const configEvent = await this.findGCalConfigEvent();
-        if (configEvent && configEvent.description) {
-          this.config = JSON.parse(configEvent.description);
+        if (configEvent?.description) {
+          const gcalConfig = JSON.parse(configEvent.description);
+          const picked = pickNewerHouseholdConfig(localConfig, gcalConfig);
+          this.config = picked.config;
+          configSource = picked.source;
+        } else if (localConfig) {
+          this.config = normalizeHouseholdConfigShape(localConfig);
+          configSource = 'local';
         } else {
-          // Create a new config event in Google Calendar
           this.config = createEmptyHousehold();
-          await this.saveGCalConfigEvent(this.config);
-          return;
+          if (canWriteToGoogleCalendar(this)) {
+            await this.saveGCalConfigEvent(this.config);
+          }
         }
       } catch (e) {
         console.error('Failed to load config from GCal, falling back to local', e);
-        this.config = createEmptyHousehold();
+        this.config = localConfig ? normalizeHouseholdConfigShape(localConfig) : createEmptyHousehold();
+        configSource = localConfig ? 'local' : 'empty';
+      }
+
+      localStorage.setItem(LOCAL_CONFIG_KEY, JSON.stringify(this.config));
+
+      if (configSource === 'local' && canWriteToGoogleCalendar(this)) {
+        try {
+          await this.saveGCalConfigEvent(this.config);
+        } catch (e) {
+          console.warn('[GCal] Failed to upload newer local config', e);
+        }
       }
     }
+
+    normalizeHouseholdConfigShape(this.config);
 
     const syncMod = await import('./household-sync.js');
     const identityChanged = syncMod.ensureHouseholdIdentity(this.config);

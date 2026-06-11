@@ -106,6 +106,58 @@ export function needsHouseholdSetup(config) {
   return !(config?.partners || []).some(canPartnerLogin);
 }
 
+/** Ensure household config has required top-level arrays. */
+export function normalizeHouseholdConfigShape(config) {
+  if (!config || typeof config !== 'object') {
+    return { partners: [], residences: [] };
+  }
+  if (!Array.isArray(config.partners)) config.partners = [];
+  if (!Array.isArray(config.residences)) config.residences = [];
+  return config;
+}
+
+/**
+ * Prefer the config that has household data or the higher sync revision.
+ * @returns {{ config: object, source: 'local'|'remote'|'empty' }}
+ */
+export function pickNewerHouseholdConfig(local, remote) {
+  const normalizedLocal = local
+    ? normalizeHouseholdConfigShape(JSON.parse(JSON.stringify(local)))
+    : null;
+  const normalizedRemote = remote
+    ? normalizeHouseholdConfigShape(JSON.parse(JSON.stringify(remote)))
+    : null;
+
+  if (!normalizedLocal && !normalizedRemote) {
+    return { config: { partners: [], residences: [] }, source: 'empty' };
+  }
+  if (!normalizedLocal) return { config: normalizedRemote, source: 'remote' };
+  if (!normalizedRemote) return { config: normalizedLocal, source: 'local' };
+
+  const localHasUsers = normalizedLocal.partners.some(canPartnerLogin);
+  const remoteHasUsers = normalizedRemote.partners.some(canPartnerLogin);
+  if (localHasUsers && !remoteHasUsers) {
+    return { config: normalizedLocal, source: 'local' };
+  }
+  if (remoteHasUsers && !localHasUsers) {
+    return { config: normalizedRemote, source: 'remote' };
+  }
+
+  const localRev = normalizedLocal.syncRevision || 0;
+  const remoteRev = normalizedRemote.syncRevision || 0;
+  if (localRev !== remoteRev) {
+    return localRev > remoteRev
+      ? { config: normalizedLocal, source: 'local' }
+      : { config: normalizedRemote, source: 'remote' };
+  }
+
+  const localScore = normalizedLocal.partners.length + normalizedLocal.residences.length;
+  const remoteScore = normalizedRemote.partners.length + normalizedRemote.residences.length;
+  return localScore >= remoteScore
+    ? { config: normalizedLocal, source: 'local' }
+    : { config: normalizedRemote, source: 'remote' };
+}
+
 export function getPartnerById(config, partnerId) {
   if (!partnerId || !config?.partners) return null;
   return config.partners.find(p => p.id === partnerId) || null;

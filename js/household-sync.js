@@ -3,7 +3,11 @@
  */
 
 import { NOTIFY_SECRET_KEY, NOTIFY_URL_KEY } from './push-notifications.js';
-import { LOCAL_CONFIG_KEY, LOCAL_EVENTS_KEY } from './helpers.js';
+import {
+  LOCAL_CONFIG_KEY,
+  LOCAL_EVENTS_KEY,
+  pickNewerHouseholdConfig
+} from './helpers.js';
 
 export const HOUSEHOLD_SYNC_TOKEN_KEY = 'polyschedule_household_sync_token';
 export const DEVICE_ID_KEY = 'polyschedule_device_id';
@@ -182,12 +186,19 @@ export async function refreshHouseholdFromCloud(scopes = ['config', 'events'], {
       if (scopes.includes('config')) {
         const cached = await fetchCacheConfig(householdId, sinceRevision);
         if (cached?.config) {
-          CalendarSync.config = cached.config;
-          state.config = cached.config;
-          localStorage.setItem(LOCAL_CONFIG_KEY, JSON.stringify(cached.config));
+          let localConfig = null;
+          try {
+            localConfig = JSON.parse(localStorage.getItem(LOCAL_CONFIG_KEY) || 'null');
+          } catch {
+            localConfig = null;
+          }
+          const picked = pickNewerHouseholdConfig(localConfig, cached.config);
+          CalendarSync.config = picked.config;
+          state.config = picked.config;
+          localStorage.setItem(LOCAL_CONFIG_KEY, JSON.stringify(picked.config));
           localStorage.setItem(LAST_SYNC_REVISION_KEY, String(cached.revision));
           const { applySyncedAdminSettingsFromConfig } = await import('./household-config-apply.js');
-          applySyncedAdminSettingsFromConfig(cached.config, { CalendarSync });
+          applySyncedAdminSettingsFromConfig(picked.config, { CalendarSync });
           applied = true;
         }
       }

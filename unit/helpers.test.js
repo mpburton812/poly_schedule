@@ -4,6 +4,7 @@ import {
   canPartnerLogin,
   dedupeDuplicateSleepingEvents,
   needsHouseholdSetup,
+  pickNewerHouseholdConfig,
   normalizeConfigPartners,
   parseLocalDateString,
   renderBatchNightsReviewHtml
@@ -130,6 +131,37 @@ describe('renderBatchNightsReviewHtml', () => {
     expect(html).toContain('Night 1');
     expect(html).toContain('Lake House · North Bedroom');
     expect(html).toContain('Michael, Katie');
+  });
+});
+
+describe('pickNewerHouseholdConfig', () => {
+  it('prefers local config when it has login users and remote does not', () => {
+    const local = {
+      syncRevision: 1,
+      partners: [{ id: 'p1', username: 'admin', password: 'x' }],
+      residences: [{ id: 'h1', name: 'Home' }]
+    };
+    const remote = { syncRevision: 5, partners: [], residences: [] };
+    const picked = pickNewerHouseholdConfig(local, remote);
+    expect(picked.source).toBe('local');
+    expect(picked.config.partners).toHaveLength(1);
+    expect(picked.config.residences).toHaveLength(1);
+  });
+
+  it('prefers higher sync revision when both have users', () => {
+    const local = {
+      syncRevision: 2,
+      partners: [{ id: 'p1', username: 'a', password: 'b' }],
+      residences: []
+    };
+    const remote = {
+      syncRevision: 4,
+      partners: [{ id: 'p2', username: 'c', password: 'd' }],
+      residences: []
+    };
+    const picked = pickNewerHouseholdConfig(local, remote);
+    expect(picked.source).toBe('remote');
+    expect(picked.config.syncRevision).toBe(4);
   });
 });
 

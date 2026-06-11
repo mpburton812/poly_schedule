@@ -20,7 +20,7 @@ import {
   addLog,
   logUserAction,
   showToast,
-  saveConfig,
+  persistHouseholdConfig,
   attemptLogin,
   createFirstAdminPartner,
   bindHomeSelectCreateNew,
@@ -201,10 +201,14 @@ export function bindAddPartnerEvents() {
         : { id: newId, name, username, password, role, defaultHome, avatar: selectedAvatar, pronouns: defaultPronouns, rules };
 
       state.config.partners.push(newPartner);
-      saveConfig(isPassive ? 'Added passive partner' : 'Added partner', name);
-      logUserAction(`${isPassive ? 'Passive' : 'Active'} partner "${name}" added.`, 'info');
-      showToast(`Partner "${name}" added successfully!`, 'success');
-      window.location.hash = '#logistics';
+      void persistHouseholdConfig(`${isPassive ? 'Added passive partner' : 'Added partner'}: ${name}`)
+        .then(() => {
+          showToast(`Partner "${name}" added successfully!`, 'success');
+          window.location.hash = '#logistics';
+        })
+        .catch(() => {
+          state.config.partners.pop();
+        });
     });
   }
 }
@@ -270,6 +274,7 @@ export function bindAddHomeEvents() {
         }
       });
 
+      state.config.residences = state.config.residences || [];
       const newHomeId = 'h' + (state.config.residences.length + 1);
       const newHome = {
         id: newHomeId,
@@ -285,16 +290,19 @@ export function bindAddHomeEvents() {
       if (sessionStorage.getItem(RETURN_ADD_PARTNER_KEY) === '1') {
         sessionStorage.setItem(SELECT_HOME_KEY, newHomeId);
       }
-      saveConfig('Added home', name);
-      logUserAction(`Home "${name}" added.`, 'info');
-      showToast(`Home "${name}" added successfully!`, 'success');
-
-      if (sessionStorage.getItem(RETURN_ADD_PARTNER_KEY) === '1') {
-        sessionStorage.removeItem(RETURN_ADD_PARTNER_KEY);
-        window.location.hash = '#add-partner';
-      } else {
-        window.location.hash = '#logistics';
-      }
+      void persistHouseholdConfig(`Added home: ${name}`)
+        .then(() => {
+          showToast(`Home "${name}" added successfully!`, 'success');
+          if (sessionStorage.getItem(RETURN_ADD_PARTNER_KEY) === '1') {
+            sessionStorage.removeItem(RETURN_ADD_PARTNER_KEY);
+            window.location.hash = '#add-partner';
+          } else {
+            window.location.hash = '#logistics';
+          }
+        })
+        .catch(() => {
+          state.config.residences.pop();
+        });
     });
   }
 }
@@ -359,10 +367,12 @@ export function bindEditPartnerEvents() {
       partner.rules.partnerLimits = nextLimits;
     }
 
-    updatePartnerProfile(partnerId, profileUpdates);
-    logUserAction(`Partner "${name}" updated.`, 'info');
-    showToast(`Partner "${name}" updated.`, 'success');
-    window.location.hash = '#logistics';
+    void updatePartnerProfile(partnerId, profileUpdates)
+      .then(() => {
+        showToast(`Partner "${name}" updated.`, 'success');
+        window.location.hash = '#logistics';
+      })
+      .catch(() => {});
   });
 
   document.getElementById('btn-delete-edit-partner')?.addEventListener('click', () => {
@@ -423,8 +433,8 @@ export function bindEditHomeEvents() {
     const address = document.getElementById('edit-home-address').value.trim();
     const bedroomsCount = Math.max(1, parseInt(bedroomsInput.value) || 1);
 
-    if (!name || !address) {
-      showToast('Home Name and Address are required.', 'warning');
+    if (!name) {
+      showToast('Home Name is required.', 'warning');
       return;
     }
 
@@ -447,10 +457,12 @@ export function bindEditHomeEvents() {
     home.associatedPeople = associatedPeople;
     applyHomeAssociationDefaults(state.config, homeId, associatedPeople);
 
-    saveConfig('Updated home', name);
-    logUserAction(`Home "${name}" updated.`, 'info');
-    showToast(`Home "${name}" updated.`, 'success');
-    window.location.hash = '#logistics';
+    void persistHouseholdConfig(`Updated home: ${name}`)
+      .then(() => {
+        showToast(`Home "${name}" updated.`, 'success');
+        window.location.hash = '#logistics';
+      })
+      .catch(() => {});
   });
 
   document.getElementById('btn-delete-edit-home')?.addEventListener('click', () => {
@@ -522,8 +534,11 @@ export function bindActivatePartnerEvents() {
     }
     partner.rules = rules;
 
-    saveConfig('Activated partner', partner.name);
-    showToast(`"${partner.name}" is now an active user!`, 'success');
-    window.location.hash = '#logistics';
+    void persistHouseholdConfig(`Activated partner: ${partner.name}`)
+      .then(() => {
+        showToast(`"${partner.name}" is now an active user!`, 'success');
+        window.location.hash = '#logistics';
+      })
+      .catch(() => {});
   });
 }

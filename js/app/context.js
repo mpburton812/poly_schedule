@@ -417,14 +417,27 @@ export function getCurrentUserName() {
   return state.currentUser?.name || 'User';
 }
 
-export function saveConfig() {
-  CalendarSync.saveConfig(state.config);
+export async function persistHouseholdConfig(logMessage) {
+  try {
+    const result = await CalendarSync.saveConfig(state.config);
+    state.config = CalendarSync.config;
+    if (logMessage) logUserAction(logMessage, 'info');
+    return result;
+  } catch (err) {
+    showToast(`Failed to save changes: ${err.message}`, 'error');
+    throw err;
+  }
+}
+
+/** @deprecated Use persistHouseholdConfig — kept for fire-and-forget callers */
+export function saveConfig(logMessage) {
+  void persistHouseholdConfig(logMessage).catch(() => {});
 }
 
 /**
  * Update a partner's profile fields and propagate name changes across schedule data.
  */
-export function updatePartnerProfile(partnerId, updates) {
+export async function updatePartnerProfile(partnerId, updates) {
   const partner = state.config?.partners?.find((p) => p.id === partnerId);
   if (!partner) return false;
 
@@ -442,7 +455,7 @@ export function updatePartnerProfile(partnerId, updates) {
     partner.notificationEmail = String(updates.notificationEmail || '').trim();
   }
 
-  saveConfig('Updated profile', partner.name);
+  await persistHouseholdConfig(`Updated profile for ${partner.name}`);
 
   if (state.currentUser?.id === partnerId) {
     establishSession(partner);
@@ -618,6 +631,7 @@ export async function createFirstAdminPartner({ name, username, password }) {
   };
 
   state.config.partners = state.config.partners || [];
+  state.config.residences = state.config.residences || [];
   state.config.partners.push(partner);
 
   let saveResult;
