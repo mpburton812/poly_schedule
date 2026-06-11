@@ -1,4 +1,5 @@
 import { CalendarSync } from '../../calendar.js';
+import { hashPassword } from '../../crypto.js';
 import { normalizePronouns } from '../../pronouns.js';
 import {
   CREATE_NEW_HOME,
@@ -81,12 +82,12 @@ export function bindLoginEvents() {
   const usernameInput = document.getElementById('login-username');
   const passwordInput = document.getElementById('login-password');
 
-  const submit = () => {
+  const submit = async () => {
     if (!usernameInput?.value || !passwordInput?.value) {
       showToast('Please enter username and password.', 'warning');
       return;
     }
-    attemptLogin(usernameInput.value, passwordInput.value);
+    await attemptLogin(usernameInput.value, passwordInput.value);
   };
 
   if (btnLogin) btnLogin.addEventListener('click', submit);
@@ -131,7 +132,7 @@ export function bindAddPartnerEvents() {
 
   const btnSubmit = document.getElementById('btn-submit-partner');
   if (btnSubmit) {
-    btnSubmit.addEventListener('click', () => {
+    btnSubmit.addEventListener('click', async () => {
       const name = document.getElementById('new-partner-name').value.trim();
       const partnerType = document.getElementById('new-partner-type')?.value || flowState.activePartnerType;
       const isPassive = partnerType === 'passive';
@@ -194,11 +195,15 @@ export function bindAddPartnerEvents() {
         }
       }
 
-      const newId = 'p' + Date.now();
+      const newId = `p${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
       const defaultPronouns = normalizePronouns(null);
-      const newPartner = isPassive
-        ? { id: newId, name, passive: true, defaultHome, avatar: selectedAvatar, pronouns: defaultPronouns, rules: {} }
-        : { id: newId, name, username, password, role, defaultHome, avatar: selectedAvatar, pronouns: defaultPronouns, rules };
+      let newPartner;
+      if (isPassive) {
+        newPartner = { id: newId, name, passive: true, defaultHome, avatar: selectedAvatar, pronouns: defaultPronouns, rules: {} };
+      } else {
+        const passwordHash = await hashPassword(password, newId);
+        newPartner = { id: newId, name, username, passwordHash, role, defaultHome, avatar: selectedAvatar, pronouns: defaultPronouns, rules };
+      }
 
       state.config.partners.push(newPartner);
       void persistHouseholdConfig(`${isPassive ? 'Added passive partner' : 'Added partner'}: ${name}`)
@@ -321,7 +326,7 @@ export function bindEditPartnerEvents() {
   });
   bindSleepingPartnerCheckboxes();
 
-  document.getElementById('btn-save-edit-partner')?.addEventListener('click', () => {
+  document.getElementById('btn-save-edit-partner')?.addEventListener('click', async () => {
     const partnerId = document.getElementById('edit-partner-id').value;
     const partner = state.config.partners.find(p => p.id === partnerId);
     if (!partner) return;
@@ -442,7 +447,9 @@ export function bindEditHomeEvents() {
     const bedroomsList = [];
     for (let i = 0; i < bedroomsCount; i++) {
       const input = Array.from(bedroomInputs).find(inp => parseInt(inp.dataset.index) === i);
-      bedroomsList.push({ id: `r${i + 1}`, name: (input?.value.trim()) || `Bedroom ${i + 1}` });
+      const existing = home.bedroomDetails?.[i];
+      const bedId = existing?.id || `r_${Date.now()}_${i}`;
+      bedroomsList.push({ id: bedId, name: (input?.value.trim()) || `Bedroom ${i + 1}` });
     }
 
     const associatedPeople = [];
@@ -488,7 +495,7 @@ export function bindActivatePartnerEvents() {
 
   bindSleepingPartnerCheckboxes();
 
-  document.getElementById('btn-submit-activate')?.addEventListener('click', () => {
+  document.getElementById('btn-submit-activate')?.addEventListener('click', async () => {
     const partnerId = document.getElementById('activate-partner-select').value;
     const partner = state.config.partners.find(p => p.id === partnerId);
     if (!partner || !isPartnerPassive(partner)) {
@@ -511,7 +518,8 @@ export function bindActivatePartnerEvents() {
     }
 
     partner.username = username;
-    partner.password = password;
+    partner.passwordHash = await hashPassword(password, partnerId);
+    delete partner.password;
     partner.role = role;
     delete partner.passive;
 

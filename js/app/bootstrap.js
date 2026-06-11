@@ -25,6 +25,19 @@ import {
 } from './modals.js';
 import { router } from './router.js';
 
+// Global localStorage exception handling
+const originalSetItem = Storage.prototype.setItem;
+Storage.prototype.setItem = function(key, value) {
+  try {
+    originalSetItem.call(this, key, value);
+  } catch (err) {
+    console.error('localStorage.setItem failed (quota exceeded or disabled):', err);
+    if (typeof window !== 'undefined' && window.showToast) {
+      window.showToast('Storage quota exceeded. Some data may not be saved locally.', 'error');
+    }
+  }
+};
+
 function createSyncHooks() {
   return {
     CalendarSync,

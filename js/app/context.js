@@ -3,6 +3,7 @@
  */
 
 import { AuthManager } from '../auth.js';
+import { hashPassword } from '../crypto.js';
 import { CalendarSync } from '../calendar.js';
 import { isPastScheduledEvent } from '../gcal-sync.js';
 import {
@@ -14,6 +15,7 @@ import {
   buildProposalReviewRecipients
 } from '../push-notifications.js';
 import { Views, DEFAULT_AVATARS } from '../views.js';
+import { escapeHtml } from '../escape.js';
 import {
   LOGS_STORAGE_KEY,
   NOTIFICATIONS_BY_USER_KEY,
@@ -74,7 +76,7 @@ export function addLog(message, type = 'info', meta = null) {
       const p = document.createElement('p');
       p.className = 'console-line';
       const color = type === 'error' ? 'var(--error)' : type === 'warning' ? 'var(--tertiary)' : 'inherit';
-      p.innerHTML = `<span class="console-time">[${time}]</span> <span style="color: ${color};">${message}</span>`;
+      p.innerHTML = `<span class="console-time">[${escapeHtml(time)}]</span> <span style="color: ${color};">${escapeHtml(message)}</span>`;
       consoleBody.appendChild(p);
       consoleBody.scrollTop = consoleBody.scrollHeight;
     });
@@ -181,7 +183,9 @@ function saveNotificationsStore(store) {
 export function loadNotificationsForUser(userId) {
   if (!userId) return [];
   const store = loadNotificationsStore();
-  return Array.isArray(store[userId]) ? store[userId] : [];
+  const list = Array.isArray(store[userId]) ? store[userId] : [];
+  list.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+  return list;
 }
 
 export function saveNotificationsForUser(userId, notifications) {
@@ -378,7 +382,7 @@ export function showToast(message, type = 'info') {
 
   toast.innerHTML = `
     <span class="material-symbols-outlined" style="font-size: 18px;">${icon}</span>
-    <span>${message}</span>
+    <span>${escapeHtml(message)}</span>
   `;
 
   container.appendChild(toast);
@@ -449,7 +453,10 @@ export async function updatePartnerProfile(partnerId, updates) {
   if (updates.name !== undefined) partner.name = updates.name;
   if (updates.avatar !== undefined) partner.avatar = updates.avatar;
   if (updates.username !== undefined) partner.username = updates.username;
-  if (updates.password !== undefined) partner.password = updates.password;
+  if (updates.password !== undefined && updates.password !== '') {
+    partner.passwordHash = await hashPassword(updates.password, partnerId);
+    delete partner.password;
+  }
   if (updates.pronouns !== undefined) partner.pronouns = normalizePronouns(updates.pronouns);
   if (updates.notificationEmail !== undefined) {
     partner.notificationEmail = String(updates.notificationEmail || '').trim();
@@ -542,8 +549,6 @@ export function establishSession(partner) {
   state.currentUser = {
     id: partner.id,
     name: partner.name,
-    username: partner.username,
-    password: partner.password,
     picture: partner.avatar || DEFAULT_AVATARS[0],
     role: partner.role,
     sessionActive: true
@@ -571,13 +576,27 @@ export function establishSession(partner) {
   });
 }
 
-export function attemptLogin(username, password) {
+export async function attemptLogin(username, password) {
   const trimmedUser = username.trim();
   const trimmedPassword = password.trim();
-  const partner = state.config?.partners?.find(p =>
-    !isPartnerPassive(p) && p.username === trimmedUser && p.password === trimmedPassword
-  );
-  if (!partner) {
+  const partnerCandidates = state.config?.partners?.filter(p => !isPartnerPassive(p) && p.username === trimmedUser);
+  let authenticatedPartner = null;
+
+  if (partnerCandidates && partnerCandidates.length > 0) {
+    for (const p of partnerCandidates) {
+      if (p.password === trimmedPassword) {
+        p.passwordHash = await hashPassword(trimmedPassword, p.id);
+        delete p.password;
+        authenticatedPartner = p;
+        break;
+      } else if (p.passwordHash && p.passwordHash === await hashPassword(trimmedPassword, p.id)) {
+        authenticatedPartner = p;
+        break;
+      }
+    }
+  }
+
+  if (!authenticatedPartner) {
     const hint = needsHouseholdSetup(state.config)
       ? 'No household accounts exist yet — create the first admin account.'
       : 'Invalid username or password.';
@@ -585,9 +604,14 @@ export function attemptLogin(username, password) {
     addLog(`${trimmedUser}: Failed login attempt.`, 'warning');
     return false;
   }
-  establishSession(partner);
-  addLog(`${partner.name}: Logged in successfully.`, 'info');
-  showToast(`Welcome back, ${partner.name.split(' ')[0]}!`, 'success');
+  
+  if (authenticatedPartner.passwordHash) {
+    persistHouseholdConfig('Migrated password to hash.').catch(() => {});
+  }
+
+  establishSession(authenticatedPartner);
+  addLog(`${authenticatedPartner.name}: Logged in successfully.`, 'info');
+  showToast(`Welcome back, ${authenticatedPartner.name.split(' ')[0]}!`, 'success');
   window.location.hash = '#schedule';
   import('./router.js').then(({ router }) => router());
   return true;
@@ -619,11 +643,14 @@ export async function createFirstAdminPartner({ name, username, password }) {
     return false;
   }
 
+  const newId = `p_${crypto.randomUUID?.() || Date.now()}`;
+  const passwordHash = await hashPassword(trimmedPassword, newId);
+
   const partner = {
-    id: `p_${crypto.randomUUID?.() || Date.now()}`,
+    id: newId,
     name: trimmedName,
     username: trimmedUser,
-    password: trimmedPassword,
+    passwordHash,
     role: 'Admin',
     avatar: DEFAULT_AVATARS[0],
     pronouns: normalizePronouns(null),

@@ -1,4 +1,5 @@
 import { RulesEngine } from '../rules.js';
+import { escapeHtml } from '../escape.js';
 import {
   DEFAULT_AVATARS,
   isPartnerPassive,
@@ -83,11 +84,11 @@ export function proposalsView(state, activeTab = 'proposed') {
               <div class="review-user-row">
                 <div class="review-user-info">
                   <span class="material-symbols-outlined" style="color: ${colorClass}; font-size: 18px;">${icon}</span>
-                  <span>${nameLabel}<span class="font-label-sm" style="color: var(--on-surface-variant);">${roleLabel}${passiveLabel}</span></span>
+                  <span>${escapeHtml(nameLabel)}<span class="font-label-sm" style="color: var(--on-surface-variant);">${roleLabel}${passiveLabel}</span></span>
                 </div>
                 <span class="font-label-sm" style="color: var(--on-surface-variant);">${responseStatusLabel(r.status)}</span>
               </div>
-              ${r.comment ? `<p class="review-comment">"${r.comment}"</p>` : ''}
+              ${r.comment ? `<p class="review-comment">"${escapeHtml(r.comment)}"</p>` : ''}
             </div>
           `;
         });
@@ -179,7 +180,7 @@ export function proposalsView(state, activeTab = 'proposed') {
           ? `
             <div class="proposal-notes-block">
               <span class="font-label-sm" style="color: var(--on-surface-variant); display: block; margin-bottom: 4px;">NOTES</span>
-              <p class="proposal-notes-text">${p.notes.trim()}</p>
+              <p class="proposal-notes-text">${escapeHtml(p.notes.trim())}</p>
             </div>
           `
           : '';
@@ -189,11 +190,11 @@ export function proposalsView(state, activeTab = 'proposed') {
             <div class="proposal-header">
               <div>
                 <span class="proposal-badge ${p.type === 'batch_sleeping' ? 'batch' : p.type}">${p.type === 'batch_sleeping' ? 'BATCH SLEEPING' : p.type.toUpperCase()} PROPOSAL</span>
-                <h3 class="font-title-lg" style="margin-top: 4px; font-weight: 700; color: var(--on-surface);">${p.title}${statusBadge}</h3>
+                <h3 class="font-title-lg" style="margin-top: 4px; font-weight: 700; color: var(--on-surface);">${escapeHtml(p.title)}${statusBadge}</h3>
               </div>
               <div style="text-align: right;">
                 <span class="font-label-sm" style="color: var(--on-surface-variant); display: block;">PROPOSED BY</span>
-                <span class="font-body-md" style="font-weight: 600;">${p.proposer}</span>
+                <span class="font-body-md" style="font-weight: 600;">${escapeHtml(p.proposer)}</span>
               </div>
             </div>
 
@@ -207,7 +208,7 @@ export function proposalsView(state, activeTab = 'proposed') {
                   <span class="material-symbols-outlined" style="font-size: 18px;">${p.type === 'sleeping' || p.type === 'batch_sleeping' ? 'bed' : 'location_on'}</span>
                   <span>${p.type === 'batch_sleeping'
                     ? `${(p.batchNights || []).length} nights · ${new Date(p.start).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })} – ${new Date(p.end).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}`
-                    : p.type === 'sleeping' ? `${p.homeName || 'Home'}: ${p.roomName || 'Room'}` : p.location || 'No location set'}</span>
+                    : p.type === 'sleeping' ? `${escapeHtml(p.homeName || 'Home')}: ${escapeHtml(p.roomName || 'Room')}` : escapeHtml(p.location || 'No location set')}</span>
                 </div>
               </div>
             </div>

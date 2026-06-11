@@ -1,5 +1,6 @@
 import { CalendarSync } from '../../calendar.js';
 import { RulesEngine } from '../../rules.js';
+import { escapeHtml } from '../../escape.js';
 import {
   parseHashParams,
   isPartnerPassive,
@@ -148,8 +149,8 @@ export function readBatchAssignmentsFromDom() {
 
 export function formatWarningList(warnings) {
   if (!warnings.length) return '';
-  if (warnings.length === 1) return warnings[0].message;
-  return `<ul class="banner-alert-list">${warnings.map(w => `<li>${w.message}</li>`).join('')}</ul>`;
+  if (warnings.length === 1) return escapeHtml(warnings[0].message);
+  return `<ul class="banner-alert-list">${warnings.map(w => `<li>${escapeHtml(w.message)}</li>`).join('')}</ul>`;
 }
 
 export function showProposalRulesBanner(warnings) {
@@ -445,7 +446,7 @@ export function ensureCreateDraftSync() {
   const currentUserName = getCurrentUserName();
   const now = new Date();
   const draft = {
-    id: `prop_${Date.now()}`,
+    id: `prop_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
     title: 'Untitled Proposal',
     type: flowState.currentCreateType || 'event',
     start: now.toISOString(),

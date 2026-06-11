@@ -1,4 +1,5 @@
 import { RulesEngine } from '../rules.js';
+import { escapeHtml } from '../escape.js';
 import {
   DEFAULT_AVATARS,
   isPartnerPassive,
@@ -32,7 +33,7 @@ export function editHomeView(state, homeId) {
     const count = home.bedrooms || home.bedroomDetails?.length || 1;
     for (let i = 0; i < count; i++) {
       const bedName = home.bedroomDetails?.[i]?.name || `Bedroom ${i + 1}`;
-      bedroomInputs += `<div class="form-group" style="margin-bottom: var(--space-xs);"><input class="form-input bedroom-name-input" type="text" data-index="${i}" value="${bedName}"/></div>`;
+      bedroomInputs += `<div class="form-group" style="margin-bottom: var(--space-xs);"><input class="form-input bedroom-name-input" type="text" data-index="${i}" value="${escapeHtml(bedName)}"/></div>`;
     }
 
     let partnersHtml = '';
@@ -40,8 +41,8 @@ export function editHomeView(state, homeId) {
       const associated = home.associatedPeople?.includes(partner.name) || partner.defaultHome === home.id;
       partnersHtml += `
         <label style="display: flex; align-items: center; gap: var(--space-md); cursor: pointer; padding: var(--space-xs);">
-          <input type="checkbox" class="home-associated-partner" data-partner-name="${partner.name}" ${associated ? 'checked' : ''} style="accent-color: var(--primary); width: 18px; height: 18px;"/>
-          <span>${partner.name}</span>
+          <input type="checkbox" class="home-associated-partner" data-partner-name="${escapeHtml(partner.name)}" ${associated ? 'checked' : ''} style="accent-color: var(--primary); width: 18px; height: 18px;"/>
+          <span>${escapeHtml(partner.name)}</span>
         </label>
       `;
     });
@@ -50,7 +51,7 @@ export function editHomeView(state, homeId) {
       <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: var(--space-lg);">
         <div style="display: flex; align-items: center; gap: var(--space-base);">
           <button class="btn-icon-only" id="btn-edit-home-back"><span class="material-symbols-outlined">arrow_back</span></button>
-          <h2 class="font-title-lg">Edit Home: ${home.name}</h2>
+          <h2 class="font-title-lg">Edit Home: ${escapeHtml(home.name)}</h2>
         </div>
         <div style="display: flex; gap: var(--space-sm);">
           <button class="btn btn-outline" id="btn-delete-edit-home" style="color: var(--error); border-color: var(--error);">Delete Home</button>
@@ -61,9 +62,9 @@ export function editHomeView(state, homeId) {
       <div style="display: grid; gap: var(--space-xl); max-width: 900px; grid-template-columns: 2fr 1fr;">
         <div class="bento-card" style="padding: var(--space-lg); display: flex; flex-direction: column; gap: var(--space-md);">
           <div class="form-group"><label class="form-label" for="edit-home-name">Home Name</label>
-            <input class="form-input" id="edit-home-name" type="text" value="${home.name}"/></div>
+            <input class="form-input" id="edit-home-name" type="text" value="${escapeHtml(home.name)}"/></div>
           <div class="form-group"><label class="form-label" for="edit-home-address">Address</label>
-            <input class="form-input" id="edit-home-address" type="text" value="${home.address}"/></div>
+            <input class="form-input" id="edit-home-address" type="text" value="${escapeHtml(home.address)}"/></div>
           <div class="form-group"><label class="form-label" for="edit-home-bedrooms-count">Number of Bedrooms</label>
             <input class="form-input" id="edit-home-bedrooms-count" type="number" min="1" max="10" value="${count}"/></div>
           <div id="bedroom-names-container"><h4 class="font-label-md" style="font-weight: bold;">Bedroom Names</h4>${bedroomInputs}</div>

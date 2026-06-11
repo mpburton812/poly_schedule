@@ -24,7 +24,9 @@ export function bindScheduleEvents() {
   const weekInput = document.getElementById('input-week-selector');
   if (weekInput) {
     weekInput.addEventListener('change', (e) => {
-      state.selectedDate = new Date(e.target.value);
+      if (!e.target.value) return;
+      const [y, m, d] = e.target.value.split('-');
+      state.selectedDate = new Date(y, m - 1, d);
       renderView();
     });
   }

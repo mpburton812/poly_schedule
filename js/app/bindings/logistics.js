@@ -1,6 +1,7 @@
 import { AuthManager } from '../../auth.js';
 import { CalendarSync } from '../../calendar.js';
 import { probeGoogleCalendarConnection } from '../../gcal-sync.js';
+import { escapeHtml } from '../../escape.js';
 import { state } from '../state.js';
 import { logUserAction, showToast, logoutGoogleSync, getCurrentUserId } from '../context.js';
 import {
@@ -432,7 +433,7 @@ export function bindAdminDevicesEvents(container = document) {
         const name = partner?.name || row.partnerId;
         const deviceLines = (row.devices || []).map(device => `
           <li style="margin-bottom: 4px;">
-            <span style="color: var(--on-surface);">${device.userAgent}</span>
+            <span style="color: var(--on-surface);">${escapeHtml(device.userAgent)}</span>
             <span style="display: block; font-size: 0.75rem; opacity: 0.8;">Updated ${device.updatedAt || 'unknown'}</span>
           </li>
         `).join('');

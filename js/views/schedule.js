@@ -1,4 +1,5 @@
 import { RulesEngine } from '../rules.js';
+import { escapeHtml } from '../escape.js';
 import {
   DEFAULT_AVATARS,
   isPartnerPassive,
@@ -112,7 +113,7 @@ export function scheduleView(state) {
                   <span class="font-label-md">SLEEPING</span>
                 </div>
                 <div class="sleeping-content">
-                  ${e.roomName || 'Room'}: ${e.participants.join(' & ')}
+                  ${escapeHtml(e.roomName || 'Room')}: ${escapeHtml(e.participants.join(' & '))}
                 </div>
               </div>
             `;
@@ -122,16 +123,16 @@ export function scheduleView(state) {
               const p = state.config.partners.find(part => part.name === pName);
               const color = pName === 'Alex' ? 'var(--primary-fixed-dim)' : pName === 'Sam' ? 'var(--secondary-fixed-dim)' : 'var(--tertiary-fixed-dim)';
               if (p && p.avatar) {
-                avatarsHtml += `<div class="avatar-stack-item" style="background-color: ${color};"><img src="${p.avatar}" alt="${pName}"/></div>`;
+                avatarsHtml += `<div class="avatar-stack-item" style="background-color: ${color};"><img src="${escapeHtml(p.avatar)}" alt="${escapeHtml(pName)}"/></div>`;
               } else {
-                avatarsHtml += `<div class="avatar-stack-item" style="background-color: var(--outline-variant); font-size: 8px; color: var(--on-surface-variant); display: flex; align-items: center; justify-content: center; font-weight: bold;">${pName[0]}</div>`;
+                avatarsHtml += `<div class="avatar-stack-item" style="background-color: var(--outline-variant); font-size: 8px; color: var(--on-surface-variant); display: flex; align-items: center; justify-content: center; font-weight: bold;">${escapeHtml(pName[0])}</div>`;
               }
             });
 
             const timeStr = new Date(e.start).toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit', hour12: true });
             cardsHtml += `
               <div class="card-event${proposedClass}" data-id="${e.id}">
-                <div class="event-title">${e.title}</div>
+                <div class="event-title">${escapeHtml(e.title)}</div>
                 <div class="event-meta font-label-sm">${timeStr} • ${e.participants.length} Attendees</div>
                 <div class="avatar-stack">${avatarsHtml}</div>
               </div>
@@ -152,11 +153,11 @@ export function scheduleView(state) {
     }
 
     const partnerOptions = (state.config?.partners || []).map(p => 
-      `<option value="${p.name}" ${state.filterPartner === p.name ? 'selected' : ''}>${p.name}</option>`
+      `<option value="${escapeHtml(p.name)}" ${state.filterPartner === p.name ? 'selected' : ''}>${escapeHtml(p.name)}</option>`
     ).join('');
 
     const residenceOptions = (state.config?.residences || []).map(r => 
-      `<option value="${r.id}" ${state.filterResidence === r.id ? 'selected' : ''}>${r.name}</option>`
+      `<option value="${escapeHtml(r.id)}" ${state.filterResidence === r.id ? 'selected' : ''}>${escapeHtml(r.name)}</option>`
     ).join('');
 
     return `

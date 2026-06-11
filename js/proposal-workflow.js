@@ -74,10 +74,7 @@ export function normalizeParticipantRoles(participants, config, proposalType = '
     if (isPassivePerson(name, config)) {
       return { name, role: 'optional' };
     }
-    const sleepingTypes = proposalType === 'sleeping' || proposalType === 'batch_sleeping';
-    const partner = findPartnerByName(config, name);
-    const isSleepingPartner = sleepingTypes && partner?.rules?.partnerLimits && Object.keys(partner.rules.partnerLimits).length > 0;
-    return { name, role: isSleepingPartner ? 'required' : 'required' };
+    return { name, role: 'required' };
   });
 }
 
@@ -260,7 +257,7 @@ export function filterProposalsForTab(events, tab, userName, config) {
 }
 
 export function cloneProposalAsDraft(source, config) {
-  const id = `prop_${Date.now()}`;
+  const id = `prop_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
   const participantRoles = (source.participantRoles || []).map(p => ({ ...p }));
   return {
     ...JSON.parse(JSON.stringify(source)),

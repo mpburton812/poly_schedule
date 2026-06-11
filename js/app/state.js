@@ -18,6 +18,46 @@ export const state = {
     : []
 };
 
+const listeners = [];
+
+export function subscribe(listener) {
+  listeners.push(listener);
+  return () => {
+    const idx = listeners.indexOf(listener);
+    if (idx > -1) listeners.splice(idx, 1);
+  };
+}
+
+export function dispatch(action) {
+  switch (action.type) {
+    case 'SYNC_EVENTS':
+      state.events = action.payload;
+      break;
+    case 'SYNC_CONFIG':
+      state.config = action.payload;
+      break;
+    case 'SET_VIEW':
+      state.currentView = action.payload;
+      break;
+    case 'SET_USER':
+      state.currentUser = action.payload;
+      break;
+    case 'UPDATE_FILTERS':
+      Object.assign(state, action.payload);
+      break;
+    case 'ADD_LOG':
+      state.logs.push(action.payload);
+      break;
+    case 'ADD_NOTIFICATION':
+      state.notifications.push(action.payload);
+      break;
+    default:
+      console.warn('Unknown action:', action.type);
+  }
+  listeners.forEach(l => l(state, action));
+}
+
+
 /** Mutable cross-module UI flow state (import bindings are read-only in ES modules). */
 export const flowState = {
   activeProposalsTab: 'proposed',

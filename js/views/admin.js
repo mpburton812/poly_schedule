@@ -1,4 +1,5 @@
 import { RulesEngine } from '../rules.js';
+import { escapeHtml } from '../escape.js';
 import {
   DEFAULT_AVATARS,
   isPartnerPassive,
@@ -45,7 +46,7 @@ export function adminView(state) {
 
     const logsHtml = (state.logs || []).map(log => {
       const color = log.type === 'error' ? 'var(--error)' : log.type === 'warning' ? 'var(--tertiary)' : 'inherit';
-      return `<p class="console-line"><span class="console-time">[${log.time}]</span> <span class="system-log-message" style="color: ${color};">${log.message}</span></p>`;
+      return `<p class="console-line"><span class="console-time">[${escapeHtml(log.time)}]</span> <span class="system-log-message" style="color: ${color};">${escapeHtml(log.message)}</span></p>`;
     }).join('') || '<p class="console-line system-log-empty">No system events logged yet.</p>';
 
     return `

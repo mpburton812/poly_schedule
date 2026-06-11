@@ -4,6 +4,7 @@
 
 import { normalizePronouns } from './pronouns.js';
 import { DEFAULT_AVATARS, migrateAvatarUrl, isCustomAvatar } from './avatar.js';
+import { escapeHtml } from './escape.js';
 
 export { DEFAULT_AVATARS, migrateAvatarUrl, isCustomAvatar };
 
@@ -293,7 +294,7 @@ export function normalizeConfigPartners(config, defaultConfig) {
 export function renderHomeSelectOptions(residences, selectedId = '') {
   const blankSelected = !selectedId ? 'selected' : '';
   const options = (residences || []).map(h =>
-    `<option value="${h.id}" ${h.id === selectedId ? 'selected' : ''}>${h.name}</option>`
+    `<option value="${escapeHtml(h.id)}" ${h.id === selectedId ? 'selected' : ''}>${escapeHtml(h.name)}</option>`
   ).join('');
   return `<option value="" ${blankSelected}>— None —</option>${options}<option value="${CREATE_NEW_HOME}">+ Create New Home</option>`;
 }
@@ -485,22 +486,19 @@ export function removeHomeReferences(config, events, homeId) {
     if (partner.defaultHome === homeId) partner.defaultHome = '';
   });
 
-  (config?.residences || []).forEach(home => {
-    if (home.id === homeId) return;
-    if (Array.isArray(home.associatedPeople)) {
-      home.associatedPeople = home.associatedPeople.filter(() => true);
-    }
-  });
-
   (events || []).forEach(event => {
     if (event.homeId === homeId) {
       event.homeName = event.homeName ? `${event.homeName} (removed)` : '(removed home)';
+      event.homeId = '';
+      event.roomId = '';
     }
     if (event.type === 'batch_sleeping' && Array.isArray(event.batchNights)) {
       event.batchNights.forEach(night => {
         (night.assignments || []).forEach(assign => {
           if (assign.homeId === homeId) {
             assign.homeName = assign.homeName ? `${assign.homeName} (removed)` : '(removed home)';
+            assign.homeId = '';
+            assign.roomId = '';
           }
         });
       });
@@ -638,8 +636,8 @@ export function renderBatchNightsReviewHtml(batchNights = []) {
       day: 'numeric'
     });
     const assignmentRows = (night.assignments || []).map(assign => {
-      const people = (assign.participants || []).map(partnerDisplayFirstName).join(', ') || 'No one assigned';
-      const location = `${assign.homeName || 'Home'} · ${assign.roomName || 'Room'}`;
+      const people = escapeHtml((assign.participants || []).map(partnerDisplayFirstName).join(', ') || 'No one assigned');
+      const location = `${escapeHtml(assign.homeName || 'Home')} · ${escapeHtml(assign.roomName || 'Room')}`;
       return `<li>${location} — ${people}</li>`;
     }).join('');
 
@@ -690,8 +688,8 @@ export { renderAvatarPickerHtml } from './avatar.js';
 
 export function formatPersonConflictNotice(conflicts = []) {
   if (!conflicts?.length) return '';
-  if (conflicts.length === 1) return `<p>${conflicts[0].message}</p>`;
-  return `<ul class="banner-alert-list">${conflicts.map(c => `<li>${c.message}</li>`).join('')}</ul>`;
+  if (conflicts.length === 1) return `<p>${escapeHtml(conflicts[0].message)}</p>`;
+  return `<ul class="banner-alert-list">${conflicts.map(c => `<li>${escapeHtml(c.message)}</li>`).join('')}</ul>`;
 }
 
 export function parseHashParams() {

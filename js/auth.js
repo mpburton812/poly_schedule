@@ -66,16 +66,19 @@ export const AuthManager = {
     if (!this.clientId) return;
 
     // Dynamically load Google APIs if not present
-    if (!window.gapiScriptLoaded) {
+    if (!window.gapiScriptLoaded && !window.gapiScriptLoading) {
+      window.gapiScriptLoading = true;
       const gapiScript = document.createElement('script');
       gapiScript.src = 'https://apis.google.com/js/api.js';
       gapiScript.async = true;
       gapiScript.defer = true;
       gapiScript.onload = () => { window.gapiScriptLoaded = true; };
+      gapiScript.onerror = () => { window.gapiScriptLoading = false; };
       document.head.appendChild(gapiScript);
     }
 
-    if (!window.gisScriptLoaded) {
+    if (!window.gisScriptLoaded && !window.gisScriptLoading) {
+      window.gisScriptLoading = true;
       const gisScript = document.createElement('script');
       gisScript.src = 'https://accounts.google.com/gsi/client';
       gisScript.async = true;
@@ -84,8 +87,9 @@ export const AuthManager = {
         window.gisScriptLoaded = true;
         this.initTokenClient();
       };
+      gisScript.onerror = () => { window.gisScriptLoading = false; };
       document.head.appendChild(gisScript);
-    } else {
+    } else if (window.gisScriptLoaded) {
       this.initTokenClient();
     }
   },

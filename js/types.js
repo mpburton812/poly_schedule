@@ -22,7 +22,7 @@
  * @property {string} id Stable partner identifier (preferred for references).
  * @property {string} name Display name shown in the UI.
  * @property {string} [username] Login username; absent for passive partners.
- * @property {string} [password] Demo-only local auth secret.
+ * @property {string} [passwordHash] Hashed password.
  * @property {boolean} [passive] Passive partners do not vote on proposals.
  * @property {string} [avatar] Avatar image URL.
  * @property {PartnerPronouns} [pronouns] Subject/object/possessive forms for generated text.

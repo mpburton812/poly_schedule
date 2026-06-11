@@ -20,6 +20,7 @@ import {
 } from './context.js';
 import { getCurrentUserPartner, formatAppDateTime } from '../helpers.js';
 import { renderPronounPickerHtml, bindPronounPicker } from '../pronouns.js';
+import { escapeHtml } from '../escape.js';
 
 function openModalOverlay(box, ariaLabel) {
   const modal = document.getElementById('app-modal');
@@ -60,10 +61,10 @@ export function openNotificationsModal() {
     listHtml = state.notifications.map(n => `
       <div style="padding: var(--space-sm) 0; border-bottom: 1px solid var(--outline-variant);">
         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;">
-          <strong class="font-title-lg" style="font-size: 0.95rem; color: var(--primary);">${n.title}</strong>
-          <span class="font-label-sm" style="color: var(--on-surface-variant);">${n.timestamp}</span>
+          <strong class="font-title-lg" style="font-size: 0.95rem; color: var(--primary);">${escapeHtml(n.title)}</strong>
+          <span class="font-label-sm" style="color: var(--on-surface-variant);">${escapeHtml(n.timestamp)}</span>
         </div>
-        <p class="font-body-md" style="color: var(--on-surface); font-size: 0.875rem; line-height: 1.4;">${n.description}</p>
+        <p class="font-body-md" style="color: var(--on-surface); font-size: 0.875rem; line-height: 1.4;">${escapeHtml(n.description)}</p>
       </div>
     `).reverse().join('');
   }
@@ -113,7 +114,7 @@ export function openUserProfileModal() {
           <img src="${state.currentUser?.picture || 'https://lh3.googleusercontent.com/a/default-user'}" alt="Profile Image" style="width: 100%; height: 100%; object-fit: cover;"/>
         </div>
         <div>
-          <h3 class="font-title-lg" style="font-weight: 700; line-height: 1.2;">${getCurrentUserName()}</h3>
+          <h3 class="font-title-lg" style="font-weight: 700; line-height: 1.2;">${escapeHtml(getCurrentUserName())}</h3>
         </div>
       </div>
       <button class="btn-icon-only" id="modal-close-btn" style="margin-top: -6px;">
@@ -152,7 +153,7 @@ export function openUserProfileModal() {
           </div>
           <div class="form-group" style="margin-bottom: 0;">
             <label class="form-label" for="setting-password" style="font-size: 0.8rem;">Password</label>
-            <input class="form-input" id="setting-password" type="password" value="${state.currentUser?.password || ''}" style="padding: 6px 12px; font-size: 0.85rem;"/>
+            <input class="form-input" id="setting-password" type="password" value="" placeholder="Leave blank to keep unchanged" style="padding: 6px 12px; font-size: 0.85rem;"/>
           </div>
         </div>
 
@@ -236,7 +237,7 @@ export function openUserProfileModal() {
 
   const btnSaveProfile = box.querySelector('#btn-save-profile');
   if (btnSaveProfile) {
-    btnSaveProfile.addEventListener('click', () => {
+    btnSaveProfile.addEventListener('click', async () => {
       const dispName = displayNameInput.value.trim();
       const userName = box.querySelector('#setting-username').value.trim();
       const pwd = box.querySelector('#setting-password').value.trim();
@@ -295,14 +296,14 @@ export function openEventDetailsModal(event) {
     locationOrRoom = `
       <div style="display: flex; gap: var(--space-base); align-items: center; color: var(--on-surface-variant); margin-bottom: var(--space-md);">
         <span class="material-symbols-outlined">bed</span>
-        <span>${event.homeName}: ${event.roomName}</span>
+        <span>${escapeHtml(event.homeName)}: ${escapeHtml(event.roomName)}</span>
       </div>
     `;
   } else {
     locationOrRoom = `
       <div style="display: flex; gap: var(--space-base); align-items: center; color: var(--on-surface-variant); margin-bottom: var(--space-md);">
         <span class="material-symbols-outlined">location_on</span>
-        <span>${event.location || 'No location set'}</span>
+        <span>${escapeHtml(event.location || 'No location set')}</span>
       </div>
     `;
   }
@@ -311,7 +312,7 @@ export function openEventDetailsModal(event) {
     <div style="display: flex; justify-content: space-between; align-items: start; margin-bottom: var(--space-md);">
       <div>
         <span class="proposal-badge ${event.type}" style="margin-bottom: var(--space-xs); display: inline-block;">${event.type.toUpperCase()}</span>
-        <h3 class="font-headline-lg" style="font-size: 1.5rem; font-weight: 700; line-height: 1.2;">${event.title}</h3>
+        <h3 class="font-headline-lg" style="font-size: 1.5rem; font-weight: 700; line-height: 1.2;">${escapeHtml(event.title)}</h3>
       </div>
       <button class="btn-icon-only" id="modal-close-btn" style="margin-top: -6px;">
         <span class="material-symbols-outlined">close</span>
@@ -331,7 +332,7 @@ export function openEventDetailsModal(event) {
 
     <h4 class="font-title-lg" style="font-size: 0.95rem; font-weight: 700; margin-bottom: var(--space-xs);">Participants</h4>
     <div style="display: flex; flex-wrap: wrap; gap: var(--space-base); margin-bottom: var(--space-lg);">
-      ${event.participants.map(p => `<span class="chip active" style="font-size: 11px; padding: 2px 12px; pointer-events: none;">${p}</span>`).join('')}
+      ${event.participants.map(p => `<span class="chip active" style="font-size: 11px; padding: 2px 12px; pointer-events: none;">${escapeHtml(p)}</span>`).join('')}
     </div>
 
     <button class="btn btn-error" id="modal-delete-btn" style="width: 100%;">Cancel / Delete Booking</button>

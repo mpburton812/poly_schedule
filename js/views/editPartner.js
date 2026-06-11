@@ -1,4 +1,5 @@
 import { RulesEngine } from '../rules.js';
+import { escapeHtml } from '../escape.js';
 import {
   DEFAULT_AVATARS,
   isPartnerPassive,
@@ -38,8 +39,8 @@ export function editPartnerView(state, partnerId) {
         partnersCheckHtml += `
           <div style="border: 1px solid var(--outline-variant); padding: var(--space-md); border-radius: var(--radius-md);">
             <label style="display: flex; align-items: center; gap: var(--space-md); font-weight: bold; cursor: pointer;">
-              <input type="checkbox" class="sleeping-partner-checkbox" data-partner-name="${p.name}" ${checked} style="accent-color: var(--primary); width: 18px; height: 18px;"/>
-              <span>${p.name}</span>
+              <input type="checkbox" class="sleeping-partner-checkbox" data-partner-name="${escapeHtml(p.name)}" ${checked} style="accent-color: var(--primary); width: 18px; height: 18px;"/>
+              <span>${escapeHtml(p.name)}</span>
             </label>
             <div class="sleeping-partner-details" style="display: ${checked ? 'flex' : 'none'}; flex-direction: column; gap: var(--space-xs); margin-left: 28px; margin-top: var(--space-xs);">
               <div style="display: flex; gap: var(--space-md);">
@@ -72,11 +73,11 @@ export function editPartnerView(state, partnerId) {
       <div class="grid grid-cols-2 gap-md" style="display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-md);">
         <div class="form-group" style="margin-bottom: 0;">
           <label class="form-label" for="edit-partner-username">Username</label>
-          <input class="form-input" id="edit-partner-username" type="text" value="${partner.username || ''}"/>
+          <input class="form-input" id="edit-partner-username" type="text" value="${escapeHtml(partner.username || '')}"/>
         </div>
         <div class="form-group" style="margin-bottom: 0;">
           <label class="form-label" for="edit-partner-password">Password</label>
-          <input class="form-input" id="edit-partner-password" type="password" value="${partner.password || ''}"/>
+          <input class="form-input" id="edit-partner-password" type="password" value="" placeholder="Leave blank to keep unchanged"/>
         </div>
       </div>
       <div class="form-group">
@@ -92,7 +93,7 @@ export function editPartnerView(state, partnerId) {
       <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: var(--space-lg);">
         <div style="display: flex; align-items: center; gap: var(--space-base);">
           <button class="btn-icon-only" id="btn-edit-partner-back"><span class="material-symbols-outlined">arrow_back</span></button>
-          <h2 class="font-title-lg">Edit Partner: ${partner.name}</h2>
+          <h2 class="font-title-lg">Edit Partner: ${escapeHtml(partner.name)}</h2>
         </div>
         <div style="display: flex; gap: var(--space-sm);">
           <button class="btn btn-outline" id="btn-delete-edit-partner" style="color: var(--error); border-color: var(--error);">Delete Partner</button>
@@ -103,10 +104,10 @@ export function editPartnerView(state, partnerId) {
       <div style="display: grid; gap: var(--space-xl); max-width: 900px;">
         <div class="bento-card" style="padding: var(--space-lg); display: flex; flex-direction: column; gap: var(--space-md);">
           <div class="form-group"><label class="form-label" for="edit-partner-name">Display Name</label>
-            <input class="form-input" id="edit-partner-name" type="text" value="${partner.name}"/></div>
+            <input class="form-input" id="edit-partner-name" type="text" value="${escapeHtml(partner.name)}"/></div>
           <div class="form-group">
             <label class="form-label" for="edit-partner-notification-email">Notification email (optional)</label>
-            <input class="form-input" id="edit-partner-notification-email" type="email" placeholder="partner@example.com" value="${partner.notificationEmail || ''}"/>
+            <input class="form-input" id="edit-partner-notification-email" type="email" placeholder="partner@example.com" value="${escapeHtml(partner.notificationEmail || '')}"/>
             <p class="font-label-sm" style="color: var(--on-surface-variant); margin-top: var(--space-xs);">Email backup when push is unavailable.</p>
           </div>
           ${activeFields}
