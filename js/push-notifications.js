@@ -42,7 +42,7 @@ export function getPushTypePrefs() {
 }
 
 export function isPushTypeEnabled(type) {
-  if (!type || type === 'test') return true;
+  if (!type || type === 'test' || type === 'household-sync') return true;
   return getPushTypePrefs()[type] !== false;
 }
 
@@ -256,13 +256,26 @@ export function buildProposalWithdrawnPushPayload(proposal, config, options = {}
 
 async function registerSubscriptionWithServer(partnerId, subscription) {
   const { url, secret } = getPushConfig();
+  let householdId = null;
+  try {
+    const config = JSON.parse(localStorage.getItem('polyschedule_local_config') || 'null');
+    householdId = config?.householdId || null;
+  } catch {
+    householdId = null;
+  }
+  const { getDeviceId } = await import('./household-sync.js');
   const res = await fetch(`${url}/v1/subscriptions`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
       'X-Notify-Secret': secret
     },
-    body: JSON.stringify({ partnerId, subscription })
+    body: JSON.stringify({
+      partnerId,
+      subscription,
+      householdId,
+      deviceId: getDeviceId()
+    })
   });
   if (!res.ok) throw new Error('Failed to register push subscription');
 }

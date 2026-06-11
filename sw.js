@@ -3,7 +3,7 @@
  * Handles offline resource caching and native device notification event mapping.
  */
 
-const CACHE_NAME = 'polyschedule-v5';
+const CACHE_NAME = 'polyschedule-v6';
 const ASSETS_TO_CACHE = [
   './',
   './index.html',
@@ -29,6 +29,7 @@ const ASSETS_TO_CACHE = [
   './js/proposal-workflow.js',
   './js/rules.js',
   './js/push-notifications.js',
+  './js/household-sync.js',
   './js/views.js',
   './version.json',
   './release-notes.json',
@@ -133,6 +134,24 @@ self.addEventListener('push', event => {
     }
   }
 
+  const notifyClients = clients.matchAll({ type: 'window', includeUncontrolled: true }).then(clientList => {
+    return Promise.all(clientList.map(client => {
+      client.postMessage({
+        type: 'household-sync',
+        householdId: payload.householdId,
+        revision: payload.revision,
+        scopes: payload.scopes,
+        excludeDeviceId: payload.excludeDeviceId,
+        actorPartnerId: payload.actorPartnerId
+      });
+    }));
+  });
+
+  if (payload.type === 'household-sync' && payload.silent) {
+    event.waitUntil(notifyClients);
+    return;
+  }
+
   const options = {
     body: payload.body,
     icon: 'icons/icon-192.png',
@@ -144,7 +163,7 @@ self.addEventListener('push', event => {
   };
 
   event.waitUntil(
-    self.registration.showNotification(payload.title, options)
+    notifyClients.then(() => self.registration.showNotification(payload.title, options))
   );
 });
 

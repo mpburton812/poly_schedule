@@ -118,6 +118,24 @@ export const CalendarSync = {
       }
     }
 
+    const syncMod = await import('./household-sync.js');
+    const identityChanged = syncMod.ensureHouseholdIdentity(this.config);
+    if (this.config?.syncRevision != null) {
+      localStorage.setItem('polyschedule_last_sync_revision', String(this.config.syncRevision));
+    }
+    if (identityChanged) {
+      if (this.mode === 'offline') {
+        localStorage.setItem(LOCAL_CONFIG_KEY, JSON.stringify(this.config));
+      } else {
+        try {
+          await this.saveGCalConfigEvent(this.config);
+          localStorage.setItem(LOCAL_CONFIG_KEY, JSON.stringify(this.config));
+        } catch (e) {
+          console.warn('[sync] Failed to persist household identity to GCal', e);
+        }
+      }
+    }
+
     await this.normalizeAndPersistConfig();
   },
 
@@ -139,18 +157,28 @@ export const CalendarSync = {
   },
 
   async saveConfig(newConfig) {
+    const syncMod = await import('./household-sync.js');
+    syncMod.ensureHouseholdIdentity(newConfig);
+    syncMod.bumpSyncRevision(newConfig);
+
     this.config = newConfig;
     if (this.mode === 'offline') {
       localStorage.setItem(LOCAL_CONFIG_KEY, JSON.stringify(newConfig));
     } else {
       try {
         await this.saveGCalConfigEvent(newConfig);
+        await syncMod.afterHouseholdWrite(['config'], {
+          config: newConfig,
+          events: this.events,
+          revision: newConfig.syncRevision
+        });
+        localStorage.setItem(LOCAL_CONFIG_KEY, JSON.stringify(newConfig));
       } catch (e) {
         console.error('Failed to save config to GCal', e);
         throw e;
       }
     }
-    
+
     if (this.onStateUpdate) {
       this.onStateUpdate();
     }
@@ -289,15 +317,32 @@ export const CalendarSync = {
       return;
     }
     const ids = eventIds || this.events.map(e => e.id);
-    this.syncEventsToGCal(ids);
+    void this.syncEventsToGCal(ids);
   },
 
-  syncEventsToGCal(eventIds) {
-    Promise.all((eventIds || []).map(async (id) => {
+  async syncEventsToGCal(eventIds) {
+    await Promise.all((eventIds || []).map(async (id) => {
       const event = this.events.find(e => e.id === id);
       if (!event || !shouldSyncEventToGCal(event)) return;
       await this.upsertGCalEvent(id, event);
-    })).catch(err => console.error('Failed to sync events to Google Calendar', err));
+    }));
+    localStorage.setItem(LOCAL_EVENTS_KEY, JSON.stringify(this.events));
+
+    try {
+      const syncMod = await import('./household-sync.js');
+      if (this.config) {
+        syncMod.bumpSyncRevision(this.config);
+        await this.saveGCalConfigEvent(this.config);
+        localStorage.setItem(LOCAL_CONFIG_KEY, JSON.stringify(this.config));
+      }
+      await syncMod.afterHouseholdWrite(['events', 'config'], {
+        config: this.config,
+        events: this.events,
+        revision: this.config?.syncRevision
+      });
+    } catch (err) {
+      console.warn('[sync] Failed to notify after event sync', err);
+    }
   },
 
   /** Create or update a GCal event; remaps local prop_/e_ ids to Google ids. */

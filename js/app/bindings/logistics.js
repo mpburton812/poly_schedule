@@ -1,7 +1,15 @@
 import { AuthManager } from '../../auth.js';
+import { CalendarSync } from '../../calendar.js';
 import { probeGoogleCalendarConnection } from '../../gcal-sync.js';
 import { state } from '../state.js';
 import { logUserAction, showToast, logoutGoogleSync, getCurrentUserId } from '../context.js';
+import {
+  generateHouseholdId,
+  generateHouseholdSyncToken,
+  registerGCalWatchOnServer,
+  setHouseholdSyncToken,
+  isSyncHubConfigured
+} from '../../household-sync.js';
 import {
   NOTIFY_URL_KEY,
   NOTIFY_SECRET_KEY,
@@ -168,6 +176,96 @@ export function bindSettingsEvents(container = document) {
   }
 
   bindPushSettingsEvents(container);
+}
+
+export function bindHouseholdSyncEvents(container = document) {
+  const btnGenerate = container.querySelector('#btn-generate-household-id');
+  if (btnGenerate) {
+    btnGenerate.addEventListener('click', async () => {
+      if (!state.config) {
+        showToast('Load household config first (sync or offline mode).', 'warning');
+        return;
+      }
+      if (state.config.householdId) {
+        showToast('Household ID already exists.', 'info');
+        return;
+      }
+      state.config.householdId = generateHouseholdId();
+      if (typeof state.config.syncRevision !== 'number') state.config.syncRevision = 0;
+      try {
+        await CalendarSync.saveConfig(state.config);
+        const input = container.querySelector('#admin-household-id');
+        if (input) input.value = state.config.householdId;
+        const rev = container.querySelector('#admin-sync-revision');
+        if (rev) rev.textContent = String(state.config.syncRevision);
+        const watchBtn = container.querySelector('#btn-register-gcal-watch');
+        if (watchBtn) watchBtn.disabled = false;
+        logUserAction(`Household ID created: ${state.config.householdId}`, 'info');
+        showToast('Household ID saved to calendar config.', 'success');
+      } catch (err) {
+        showToast(err.message || 'Failed to save household ID.', 'error');
+      }
+    });
+  }
+
+  const btnSaveToken = container.querySelector('#btn-save-household-sync-token');
+  if (btnSaveToken) {
+    btnSaveToken.addEventListener('click', () => {
+      const token = container.querySelector('#admin-household-sync-token')?.value.trim();
+      if (!token) {
+        showToast('Enter a sync token or click Generate Token.', 'warning');
+        return;
+      }
+      setHouseholdSyncToken(token);
+      logUserAction('Household sync token saved on this device.', 'info');
+      showToast('Household sync token saved.', 'success');
+    });
+  }
+
+  const btnGenToken = container.querySelector('#btn-generate-household-sync-token');
+  if (btnGenToken) {
+    btnGenToken.addEventListener('click', () => {
+      const token = generateHouseholdSyncToken();
+      const input = container.querySelector('#admin-household-sync-token');
+      if (input) input.value = token;
+      setHouseholdSyncToken(token);
+      showToast('Generated a new sync token.', 'success');
+    });
+  }
+
+  const btnWatch = container.querySelector('#btn-register-gcal-watch');
+  if (btnWatch) {
+    btnWatch.addEventListener('click', async () => {
+      if (!isSyncHubConfigured()) {
+        showToast('Configure the notify service first.', 'warning');
+        return;
+      }
+      const householdId = state.config?.householdId;
+      if (!householdId) {
+        showToast('Generate a household ID first.', 'warning');
+        return;
+      }
+      AuthManager.reloadFromStorage();
+      if (!AuthManager.accessToken || !AuthManager.apiKey) {
+        showToast('Connect Google Calendar first (Sync Google).', 'warning');
+        return;
+      }
+      const calendarId = localStorage.getItem('polyschedule_calendar_id') || 'primary';
+      try {
+        const result = await registerGCalWatchOnServer({
+          householdId,
+          calendarId,
+          accessToken: AuthManager.accessToken,
+          apiKey: AuthManager.apiKey
+        });
+        logUserAction(`GCal webhook registered (channel ${result.watch?.channelId || 'ok'}).`, 'info');
+        showToast('Google Calendar webhook registered on notify service.', 'success');
+      } catch (err) {
+        logUserAction(`GCal webhook registration failed: ${err.message}`, 'error');
+        showToast(err.message, 'error');
+      }
+    });
+  }
 }
 
 export function bindNotifyCredentialsEvents(container = document) {

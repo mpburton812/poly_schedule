@@ -544,6 +544,17 @@ export function establishSession(partner) {
   import('../push-notifications.js').then(({ syncPushSubscriptionIfEnabled }) => {
     syncPushSubscriptionIfEnabled(partner.id);
   });
+  import('../household-sync.js').then(({ startHouseholdSyncHub }) => {
+    import('../calendar.js').then(({ CalendarSync }) => {
+      import('./router.js').then(({ router }) => {
+        startHouseholdSyncHub({
+          CalendarSync,
+          state,
+          renderView: () => router()
+        });
+      });
+    });
+  });
 }
 
 export function attemptLogin(username, password) {

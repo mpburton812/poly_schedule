@@ -31,7 +31,7 @@ import {
   updatePartnerProfile
 } from '../context.js';
 import { renderView } from '../router.js';
-import { bindLogisticsEvents, bindGoogleCredentialsEvents, bindNotifyCredentialsEvents, bindAdminDevicesEvents } from './logistics.js';
+import { bindLogisticsEvents, bindGoogleCredentialsEvents, bindHouseholdSyncEvents, bindNotifyCredentialsEvents, bindAdminDevicesEvents } from './logistics.js';
 
 export function bindAdminEvents() {
   const btnSave = document.getElementById('btn-save-group-name');
@@ -58,6 +58,7 @@ export function bindAdminEvents() {
 
   bindLogisticsEvents(document);
   bindGoogleCredentialsEvents(document);
+  bindHouseholdSyncEvents(document);
   bindNotifyCredentialsEvents(document);
   bindAdminDevicesEvents(document);
 }

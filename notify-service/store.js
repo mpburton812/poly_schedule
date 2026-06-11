@@ -29,7 +29,7 @@ export function saveSubscriptions(data) {
   writeJson(STORE_PATH, data);
 }
 
-export function upsertSubscription(partnerId, subscription, userAgent = '') {
+export function upsertSubscription(partnerId, subscription, userAgent = '', meta = {}) {
   const data = loadSubscriptions();
   const endpoint = subscription?.endpoint;
   if (!partnerId || !endpoint) return null;
@@ -41,6 +41,8 @@ export function upsertSubscription(partnerId, subscription, userAgent = '') {
     partnerId,
     subscription,
     userAgent,
+    householdId: meta.householdId || null,
+    deviceId: meta.deviceId || null,
     updatedAt: new Date().toISOString()
   };
   if (existingIdx >= 0) {

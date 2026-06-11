@@ -33,7 +33,11 @@ export function adminView(state) {
     const calendarId = localStorage.getItem('polyschedule_calendar_id') || 'primary';
     const notifyUrl = localStorage.getItem('polyschedule_notify_url') || '';
     const notifySecret = localStorage.getItem('polyschedule_notify_secret') || '';
+    const householdId = state.config?.householdId || '';
+    const syncRevision = state.config?.syncRevision ?? 0;
+    const householdSyncToken = localStorage.getItem('polyschedule_household_sync_token') || '';
     const credentialsConfigured = !!(clientId && apiKey);
+    const syncHubConfigured = !!(notifyUrl && notifySecret);
     const changeLogHtml = renderChangeLogHtml(state.changeLog || []);
 
     const logsHtml = (state.logs || []).map(log => {
@@ -100,6 +104,40 @@ export function adminView(state) {
             <p class="font-label-sm" style="color: var(--on-surface-variant); margin: 0;">
               After saving, click <strong>Sync Google</strong> in the top bar, then <strong>Test Calendar API</strong>. The system log will show the exact HTTP status and Google error message.
             </p>
+          </div>
+        </div>
+
+        <div class="bento-card" style="padding: var(--space-lg); border: 1px solid var(--outline-variant);">
+          <h3 class="font-title-lg" style="font-weight: 700; margin-bottom: var(--space-xs); display: flex; align-items: center; gap: var(--space-sm);">
+            <span class="material-symbols-outlined text-primary">hub</span> Household Sync Hub
+          </h3>
+          <p class="font-body-md" style="color: var(--on-surface-variant); margin-bottom: var(--space-md);">
+            Near-real-time coordination via the notify service. Google Calendar remains the source of truth; other devices pull updates within seconds.
+          </p>
+          ${syncHubConfigured
+            ? '<p class="font-label-sm" style="color: var(--secondary); margin-bottom: var(--space-md);">Notify service is configured for sync hub.</p>'
+            : '<p class="font-label-sm" style="color: var(--tertiary); margin-bottom: var(--space-md);">Configure the notify service below before enabling household sync.</p>'}
+
+          <div style="display: flex; flex-direction: column; gap: var(--space-md);">
+            <div class="form-group" style="margin-bottom: 0;">
+              <label class="form-label" for="admin-household-id">Household ID</label>
+              <input class="form-input" id="admin-household-id" type="text" readonly value="${householdId}" placeholder="Not assigned yet"/>
+              <p class="font-label-sm" style="color: var(--on-surface-variant); margin-top: var(--space-xs);">
+                Stored in your Google Calendar config event. Revision: <strong id="admin-sync-revision">${syncRevision}</strong>
+              </p>
+            </div>
+            <div style="display: flex; gap: var(--space-sm); flex-wrap: wrap;">
+              <button class="btn btn-outline" id="btn-generate-household-id" type="button">Generate Household ID</button>
+              <button class="btn btn-outline" id="btn-register-gcal-watch" type="button" ${!householdId || !credentialsConfigured ? 'disabled' : ''}>Register GCal Webhook</button>
+            </div>
+            <div class="form-group" style="margin-bottom: 0;">
+              <label class="form-label" for="admin-household-sync-token">Household sync token (optional)</label>
+              <input class="form-input" id="admin-household-sync-token" type="password" value="${householdSyncToken}" placeholder="Per-household secret for future device pairing"/>
+            </div>
+            <div style="display: flex; gap: var(--space-sm); flex-wrap: wrap;">
+              <button class="btn btn-outline" id="btn-generate-household-sync-token" type="button">Generate Token</button>
+              <button class="btn btn-filled" id="btn-save-household-sync-token" type="button">Save Sync Token</button>
+            </div>
           </div>
         </div>
 

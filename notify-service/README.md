@@ -20,6 +20,25 @@ Configure the PolySchedule **Admin** page with notify URL and secret.
 
 Each user enables push under **Settings → Mobile notifications**.
 
+## Household sync hub (Phases 0–3)
+
+Google Calendar stays the source of truth. The notify service coordinates near-real-time updates:
+
+| Endpoint | Purpose |
+|----------|---------|
+| `POST /v1/sync/register` | Register a device for a household |
+| `GET /v1/sync/status` | Current revision for polling fallback |
+| `GET /v1/sync/config` | Cached config (204 if unchanged) |
+| `GET /v1/sync/events` | Cached events (204 if unchanged) |
+| `POST /v1/sync/push` | Writer pushes cache + broadcasts SSE/Web Push |
+| `GET /v1/sync/stream` | SSE stream per `householdId` |
+| `POST /v1/gcal/watch` | Register Google Calendar `channels.watch` |
+| `POST /v1/gcal/webhook` | Google push notification callback |
+
+Set `PUBLIC_BASE_URL` to your Render HTTPS URL so GCal webhooks can reach `/v1/gcal/webhook`.
+
+On the PolySchedule **Admin** page: configure notify URL/secret, generate a **Household ID**, then **Register GCal Webhook** after Google sync is connected.
+
 ## Event types
 
 The client POSTs to `/v1/events` with:

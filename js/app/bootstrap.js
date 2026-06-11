@@ -25,6 +25,14 @@ import {
 } from './modals.js';
 import { router } from './router.js';
 
+function createSyncHooks() {
+  return {
+    CalendarSync,
+    state,
+    renderView: () => router()
+  };
+}
+
 /** @returns {Promise<{ ok: boolean, mode: string, error?: Error }>} */
 export async function bootstrapData(mode) {
   addLog(`Sync: Initializing client state in ${mode} mode.`);
@@ -63,6 +71,11 @@ export async function bootstrapData(mode) {
         `Google Calendar aligned (${alignStats.deleted} removed, ${alignStats.upserted} updated).`,
         'success'
       );
+    }
+
+    if (mode === 'sync') {
+      const syncMod = await import('../household-sync.js');
+      await syncMod.startHouseholdSyncHub(createSyncHooks());
     }
 
     return { ok: true, mode };
@@ -188,6 +201,9 @@ export function init() {
     }
 
     migrateLegacySession();
+
+    const { bindHouseholdSyncMessageHandler } = await import('../household-sync.js');
+    bindHouseholdSyncMessageHandler(createSyncHooks());
 
     bindImpersonationBanner();
 

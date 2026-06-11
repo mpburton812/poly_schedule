@@ -8,6 +8,8 @@ import {
   listRegisteredDevices
 } from './store.js';
 import { sendPushToPartners } from './send.js';
+import { mountSyncRoutes } from './sync-routes.js';
+import { startWatchRenewalLoop } from './gcal-watch.js';
 
 dotenv.config();
 
@@ -65,12 +67,12 @@ app.get('/v1/devices', requireSecret, (_req, res) => {
 });
 
 app.post('/v1/subscriptions', requireSecret, (req, res) => {
-  const { partnerId, subscription } = req.body || {};
+  const { partnerId, subscription, householdId, deviceId } = req.body || {};
   if (!partnerId || !subscription?.endpoint) {
     res.status(400).json({ error: 'partnerId and subscription are required' });
     return;
   }
-  upsertSubscription(partnerId, subscription, req.get('user-agent') || '');
+  upsertSubscription(partnerId, subscription, req.get('user-agent') || '', { householdId, deviceId });
   res.json({ ok: true });
 });
 
@@ -109,6 +111,9 @@ app.post('/v1/events', requireSecret, async (req, res) => {
   res.json(result);
 });
 
+mountSyncRoutes(app, { requireSecret });
+
 app.listen(PORT, () => {
   console.log(`[notify] listening on http://127.0.0.1:${PORT}`);
+  startWatchRenewalLoop(async () => null);
 });
