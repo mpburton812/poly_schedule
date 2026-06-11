@@ -71,6 +71,14 @@ export function adminView(state) {
             : '<p class="font-label-sm" style="color: var(--tertiary); margin-bottom: var(--space-md);">Not configured yet — enter credentials below.</p>'}
 
           <div style="display: flex; flex-direction: column; gap: var(--space-md);">
+            <p class="font-label-sm" style="color: var(--on-surface-variant); margin-bottom: var(--space-sm); padding: var(--space-sm); background: var(--surface-container-low); border-radius: var(--radius-md);">
+              <strong>Google Cloud checklist</strong> (same project for OAuth client and API key):<br>
+              1. Enable <strong>Google Calendar API</strong> (APIs &amp; Services → Library).<br>
+              2. OAuth client → <strong>Authorized JavaScript origins</strong>: <code>${typeof window !== 'undefined' ? window.location.origin : ''}</code><br>
+              3. API key → <strong>HTTP referrers</strong>: <code>${typeof window !== 'undefined' ? window.location.origin : ''}/*</code><br>
+              4. API key → <strong>API restrictions</strong>: allow <strong>Google Calendar API</strong> only.<br>
+              OAuth can succeed while Calendar API calls still fail if steps 1, 3, or 4 are missing.
+            </p>
             <div class="form-group" style="margin-bottom: 0;">
               <label class="form-label" for="admin-google-client-id">OAuth 2.0 Client ID</label>
               <input class="form-input" id="admin-google-client-id" placeholder="xxxxxx.apps.googleusercontent.com" type="text" value="${clientId}"/>
@@ -86,8 +94,12 @@ export function adminView(state) {
             </div>
             <div style="display: flex; gap: var(--space-sm); flex-wrap: wrap;">
               <button class="btn btn-filled" id="btn-save-google-credentials" type="button">Save Google Credentials</button>
+              <button class="btn btn-outline" id="btn-test-google-calendar" type="button">Test Calendar API</button>
               <button class="btn btn-outline" id="btn-disconnect-google" type="button">Disconnect Google Sync</button>
             </div>
+            <p class="font-label-sm" style="color: var(--on-surface-variant); margin: 0;">
+              After saving, click <strong>Sync Google</strong> in the top bar, then <strong>Test Calendar API</strong>. The system log will show the exact HTTP status and Google error message.
+            </p>
           </div>
         </div>
 
@@ -143,7 +155,7 @@ export function adminView(state) {
             <span class="material-symbols-outlined text-primary">history</span> Change Control Log
           </h3>
           <p class="font-body-md" style="color: var(--on-surface-variant); margin-bottom: var(--space-md);">
-            Audit trail of configuration and workflow changes (${(state.changeLog || []).length} entries).
+            Build history and release notes (${(state.changeLog || []).length} releases).
           </p>
           <div class="change-log-panel">
             <div class="change-log-body" id="change-log-body">

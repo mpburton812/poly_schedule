@@ -10,7 +10,6 @@
     "emulator:mobile": "node scripts/web-emulator.js --preset=mobile",
     "emulator:tablet": "node scripts/web-emulator.js --preset=tablet",
     "emulator:desktop": "node scripts/web-emulator.js --preset=desktop",
-    "reset": "node generate-version.js && echo Open http://127.0.0.1:8080/?reset=1 to reset local app data",
     "test:unit": "vitest run",
     "generate:avatars": "node scripts/generate-avatar-icons.js",
     "test:e2e": "playwright test",

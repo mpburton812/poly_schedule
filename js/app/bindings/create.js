@@ -33,7 +33,6 @@ import {
   getCurrentUserName,
   getCurrentUserId,
   notifyProposalReviewers,
-  addChangeLog,
   logOperationError
 } from '../context.js';
 import { renderView } from '../router.js';
@@ -558,14 +557,12 @@ export async function submitCurrentProposal() {
       } else {
         showToast('Proposal approved and added to your calendar.', 'success');
       }
-      addChangeLog('Proposal approved', finalEvent.title);
       flowState.currentDraftId = null;
       flowState.soloEventMode = false;
       window.location.hash = '#schedule';
     } else {
       if (finalEvent) notifyProposalReviewers(finalEvent, state.config, { actingUserId: getCurrentUserId() });
       showToast('Proposal submitted successfully!', 'success');
-      addChangeLog('Proposal submitted', finalEvent?.title || data.title);
       flowState.currentDraftId = null;
       flowState.soloEventMode = false;
       flowState.activeProposalsTab = 'proposed';

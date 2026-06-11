@@ -1,6 +1,7 @@
 import { AuthManager } from '../../auth.js';
+import { probeGoogleCalendarConnection } from '../../gcal-sync.js';
 import { state } from '../state.js';
-import { logUserAction, showToast, logoutGoogleSync, addChangeLog, getCurrentUserId } from '../context.js';
+import { logUserAction, showToast, logoutGoogleSync, getCurrentUserId } from '../context.js';
 import {
   NOTIFY_URL_KEY,
   NOTIFY_SECRET_KEY,
@@ -43,7 +44,37 @@ export function bindLogisticsEvents(container = document) {
   });
 }
 
+export async function runGoogleCalendarConnectionTest({ showSuccessToast = true } = {}) {
+  AuthManager.reloadFromStorage();
+  const calendarId = localStorage.getItem('polyschedule_calendar_id') || 'primary';
+  const result = await probeGoogleCalendarConnection({
+    accessToken: AuthManager.accessToken,
+    apiKey: AuthManager.apiKey,
+    calendarId
+  });
+
+  if (result.ok) {
+    logUserAction(`Google Calendar API test succeeded (HTTP ${result.status}).`, 'info');
+    if (showSuccessToast) showToast('Google Calendar API connection OK.', 'success');
+    return result;
+  }
+
+  const hint = result.code === 'GOOGLE_CREDENTIALS_INCOMPLETE'
+    ? result.error
+    : `${result.error} — enable Google Calendar API and check API key referrers for ${window.location.origin}`;
+  logUserAction(`Google Calendar API test failed · ${hint}`, 'error');
+  showToast(hint, 'error');
+  return result;
+}
+
 export function bindGoogleCredentialsEvents(container = document) {
+  const btnTest = container.querySelector('#btn-test-google-calendar');
+  if (btnTest) {
+    btnTest.addEventListener('click', () => {
+      void runGoogleCalendarConnectionTest();
+    });
+  }
+
   const btnSave = container.querySelector('#btn-save-google-credentials');
   if (btnSave) {
     btnSave.addEventListener('click', () => {
@@ -61,16 +92,18 @@ export function bindGoogleCredentialsEvents(container = document) {
       localStorage.setItem('polyschedule_mode', 'sync');
       state.isOffline = false;
 
-      showToast('Google credentials saved. Use Sync Google in the top bar to connect.', 'success');
+      showToast('Google credentials saved. Click Sync Google, then Test Calendar API.', 'success');
       logUserAction('Google Calendar API credentials updated.', 'info');
-      addChangeLog('Updated Google Calendar credentials', calid || 'primary');
 
       const loginBtn = document.getElementById('btn-google-login');
       if (loginBtn) loginBtn.style.display = 'inline-flex';
 
       if (AuthManager.accessToken) {
-        import('../bootstrap.js').then(({ handleGoogleAuthState }) => {
-          handleGoogleAuthState({ loggedIn: true, user: AuthManager.userProfile, mode: 'sync' });
+        void runGoogleCalendarConnectionTest({ showSuccessToast: false }).then((result) => {
+          if (!result.ok) return;
+          import('../bootstrap.js').then(({ handleGoogleAuthState }) => {
+            handleGoogleAuthState({ loggedIn: true, user: AuthManager.userProfile, mode: 'sync' });
+          });
         });
       }
     });
@@ -80,7 +113,6 @@ export function bindGoogleCredentialsEvents(container = document) {
   if (btnDisconnect) {
     btnDisconnect.addEventListener('click', () => {
       logoutGoogleSync();
-      addChangeLog('Disconnected Google Calendar sync', '');
       const loginBtn = document.getElementById('btn-google-login');
       if (loginBtn) loginBtn.style.display = 'inline-flex';
     });
@@ -111,17 +143,6 @@ export function bindSettingsEvents(container = document) {
       }
     });
   });
-  const btnReset = container.querySelector('#btn-reset-app');
-  if (btnReset) {
-    btnReset.addEventListener('click', () => {
-      if (confirm('Are you sure you want to delete all local storage cache, custom settings, and credentials?')) {
-        localStorage.clear();
-        showToast('All local storage data cleared. Reloading...', 'warning');
-        setTimeout(() => window.location.reload(), 1500);
-      }
-    });
-  }
-
   const btnForceUpdate = container.querySelector('#btn-force-update');
   if (btnForceUpdate) {
     btnForceUpdate.addEventListener('click', () => {
@@ -163,7 +184,6 @@ export function bindNotifyCredentialsEvents(container = document) {
       localStorage.setItem(NOTIFY_SECRET_KEY, secret);
       showToast('Notify service settings saved.', 'success');
       logUserAction('Mobile notify service settings updated.', 'info');
-      addChangeLog('Updated notify service settings', url);
     });
   }
 }

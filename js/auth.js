@@ -12,6 +12,7 @@ export const AuthManager = {
   accessToken: localStorage.getItem('polyschedule_access_token') || '',
   userProfile: JSON.parse(localStorage.getItem(GOOGLE_PROFILE_KEY) || localStorage.getItem(LEGACY_PROFILE_KEY) || 'null'),
   onAuthStateChange: null,
+  onAuthError: null,
 
   init(callback) {
     this.onAuthStateChange = callback;
@@ -25,14 +26,23 @@ export const AuthManager = {
     }
   },
 
+  reloadFromStorage() {
+    this.clientId = localStorage.getItem('polyschedule_client_id') || '';
+    this.apiKey = localStorage.getItem('polyschedule_api_key') || '';
+    this.accessToken = localStorage.getItem('polyschedule_access_token') || '';
+  },
+
   setCredentials(clientId, apiKey) {
+    const clientChanged = !!(this.clientId && this.clientId !== clientId);
     this.clientId = clientId;
     this.apiKey = apiKey;
     localStorage.setItem('polyschedule_client_id', clientId);
     localStorage.setItem('polyschedule_api_key', apiKey);
-    this.accessToken = '';
-    localStorage.removeItem('polyschedule_access_token');
-    
+    if (clientChanged) {
+      this.accessToken = '';
+      localStorage.removeItem('polyschedule_access_token');
+    }
+
     this.loadGapiAndGis();
   },
 
@@ -89,6 +99,10 @@ export const AuthManager = {
       callback: (tokenResponse) => {
         if (tokenResponse.error !== undefined) {
           console.error('Google Auth Error:', tokenResponse);
+          const hint = tokenResponse.error === 'popup_closed_by_user'
+            ? 'Google sign-in was cancelled.'
+            : `Google sign-in failed (${tokenResponse.error}${tokenResponse.error_description ? `: ${tokenResponse.error_description}` : ''}). Check OAuth JavaScript origins for this site in Google Cloud Console.`;
+          if (this.onAuthError) this.onAuthError(hint);
           return;
         }
         this.accessToken = tokenResponse.access_token;

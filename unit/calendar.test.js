@@ -22,13 +22,11 @@ const storage = vi.hoisted(() => {
 
 import { CalendarSync } from '../js/calendar.js';
 import { WORKFLOW } from '../js/proposal-workflow.js';
-import { SEED_REFRESH_NOTICE_KEY } from '../js/helpers.js';
 
 describe('CalendarSync offline workflow', () => {
   beforeEach(async () => {
     localStorage.clear();
     sessionStorage.clear();
-    localStorage.setItem('polyschedule_seed_version', '2');
     localStorage.setItem('polyschedule_local_config', JSON.stringify({
       groupName: 'Test',
       partners: [{ id: 'p1', name: 'Alex Rivera', username: 'alex' }],
@@ -189,12 +187,24 @@ describe('CalendarSync offline workflow', () => {
   });
 });
 
-describe('CalendarSync seed refresh', () => {
-  it('records a session notice when seed version is stale', async () => {
+describe('CalendarSync first install', () => {
+  it('starts with an empty household when no saved config exists', async () => {
     localStorage.clear();
-    sessionStorage.clear();
-    localStorage.setItem('polyschedule_seed_version', '1');
     await CalendarSync.init('offline', null, () => {});
-    expect(sessionStorage.getItem(SEED_REFRESH_NOTICE_KEY)).toBe('1');
+    expect(CalendarSync.config.partners).toEqual([]);
+    expect(CalendarSync.config.residences).toEqual([]);
+    expect(CalendarSync.events).toEqual([]);
+  });
+
+  it('keeps saved config on subsequent loads', async () => {
+    localStorage.clear();
+    localStorage.setItem('polyschedule_local_config', JSON.stringify({
+      residences: [],
+      partners: [{ id: 'custom', name: 'Custom User', username: 'custom', password: 'x', role: 'Admin' }]
+    }));
+    localStorage.setItem('polyschedule_local_events', '[]');
+    await CalendarSync.init('offline', null, () => {});
+    const config = JSON.parse(localStorage.getItem('polyschedule_local_config'));
+    expect(config.partners[0].id).toBe('custom');
   });
 });

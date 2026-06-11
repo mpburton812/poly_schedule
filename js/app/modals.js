@@ -228,7 +228,6 @@ export function openUserProfileModal() {
           <button class="btn btn-outline" id="btn-force-update" style="border-color: var(--primary); color: var(--primary); padding: 6px 16px; font-size: 0.8rem; flex: 1;">
             <span class="material-symbols-outlined" style="font-size: 16px; vertical-align: middle; margin-right: 4px;">system_update_alt</span> Force Update Software
           </button>
-          <button class="btn btn-outline" id="btn-reset-app" style="border-color: var(--error-container); color: var(--error); padding: 6px 16px; font-size: 0.8rem; flex: 1;">Clear Local Data</button>
         </div>
       </div>
 

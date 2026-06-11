@@ -388,6 +388,12 @@ body {
   font-style: italic;
 }
 
+.change-log-notes {
+  margin: var(--space-xs) 0 0;
+  padding-left: 1.2rem;
+  color: #1a1a1a;
+}
+
 .console-body .system-log-empty {
   color: rgba(255, 255, 255, 0.5);
 }

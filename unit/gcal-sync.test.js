@@ -16,6 +16,7 @@ import {
   GCAL_COLOR_EVENT_APPROVED,
   GCAL_COLOR_SLEEPING_APPROVED,
   resolveSyncBootstrapMode,
+  googleApiErrorFromResponse,
   isLocalEventId,
   mergeGCalWithLocalEvents,
   GCAL_CONFIG_SUMMARY
@@ -284,5 +285,20 @@ describe('resolveSyncBootstrapMode', () => {
     localStorage.setItem('polyschedule_client_id', 'client');
     localStorage.setItem('polyschedule_api_key', 'key');
     expect(resolveSyncBootstrapMode()).toBe('offline');
+  });
+});
+
+describe('googleApiErrorFromResponse', () => {
+  it('maps 403 responses to GOOGLE_FORBIDDEN with API message', async () => {
+    const res = new Response(JSON.stringify({
+      error: {
+        message: 'Google Calendar API has not been used in project 123 before or it is disabled.',
+        errors: [{ reason: 'accessNotConfigured' }]
+      }
+    }), { status: 403 });
+    const err = await googleApiErrorFromResponse(res, 'fallback');
+    expect(err.code).toBe('GOOGLE_FORBIDDEN');
+    expect(err.message).toContain('Google Calendar API');
+    expect(err.message).toContain('HTTP 403');
   });
 });

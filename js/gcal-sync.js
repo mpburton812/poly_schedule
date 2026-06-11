@@ -7,6 +7,62 @@ import { WORKFLOW, getWorkflowState } from './proposal-workflow.js';
 
 export const GCAL_CONFIG_SUMMARY = '[CONFIG] PolySchedule Core Settings';
 
+/** Parse a failed Google REST response into a short, user-facing message. */
+export async function googleApiErrorFromResponse(res, fallback) {
+  let detail = '';
+  try {
+    const text = await res.text();
+    if (text) {
+      try {
+        const data = JSON.parse(text);
+        const err = data?.error;
+        if (err?.message) detail = err.message;
+        const reason = err?.errors?.[0]?.reason;
+        if (reason && !detail.includes(reason)) {
+          detail = detail ? `${detail} (${reason})` : reason;
+        }
+      } catch {
+        detail = text.slice(0, 240);
+      }
+    }
+  } catch {
+    // ignore read failures
+  }
+  const base = detail || fallback || 'Google Calendar API error';
+  const message = `${base} (HTTP ${res.status})`;
+  const error = new Error(message);
+  error.status = res.status;
+  if (res.status === 401) error.code = 'GOOGLE_AUTH_EXPIRED';
+  if (res.status === 403) error.code = 'GOOGLE_FORBIDDEN';
+  if (res.status === 404) error.code = 'GOOGLE_NOT_FOUND';
+  if (res.status === 400) error.code = 'GOOGLE_BAD_REQUEST';
+  return error;
+}
+
+/** Lightweight Calendar API probe for admin diagnostics. */
+export async function probeGoogleCalendarConnection({ accessToken, apiKey, calendarId = 'primary' }) {
+  if (!accessToken || !apiKey) {
+    return {
+      ok: false,
+      status: 0,
+      error: 'Missing Google access token or API key. Click Sync Google after saving credentials.',
+      code: 'GOOGLE_CREDENTIALS_INCOMPLETE'
+    };
+  }
+
+  const params = new URLSearchParams({ maxResults: '1', key: apiKey });
+  const url = `https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(calendarId)}/events?${params}`;
+
+  try {
+    const res = await fetch(url, { headers: { Authorization: `Bearer ${accessToken}` } });
+    if (res.ok) return { ok: true, status: res.status };
+    const err = await googleApiErrorFromResponse(res, 'Calendar API test failed');
+    return { ok: false, status: res.status, error: err.message, code: err.code };
+  } catch (e) {
+    return { ok: false, status: 0, error: e.message, code: 'NETWORK_ERROR' };
+  }
+}
+
 /** Google Calendar preset colors (calendar colorId). */
 export const GCAL_COLOR_PROPOSED = '5';
 export const GCAL_COLOR_EVENT_APPROVED = '10';

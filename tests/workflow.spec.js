@@ -1,4 +1,5 @@
 const { test, expect } = require('@playwright/test');
+const { installE2EHouseholdSeed } = require('./helpers');
 
 async function loginAs(page, username, password) {
   await page.fill('#login-username', username);
@@ -163,6 +164,7 @@ test.describe('Proposal Workflow Unit Tests', () => {
 
 test.describe('Proposal Workflow UI', () => {
   test.beforeEach(async ({ page }) => {
+    await installE2EHouseholdSeed(page);
     await page.goto('/');
     await page.waitForSelector('#login-form, .week-grid', { timeout: 10000 });
     if (await page.locator('#login-form').isVisible()) {

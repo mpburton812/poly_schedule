@@ -4,7 +4,6 @@
  */
 
 import {
-  DEFAULT_AVATARS,
   renamePartnerReferences,
   expandBatchSleepingToEvents,
   dedupeDuplicateSleepingEvents,
@@ -14,7 +13,8 @@ import {
   normalizeConfigPartners,
   syncAllHomeAssociationDefaults,
   findPartnerByRef,
-  SEED_REFRESH_NOTICE_KEY
+  LOCAL_CONFIG_KEY,
+  LOCAL_EVENTS_KEY
 } from './helpers.js';
 import {
   WORKFLOW,
@@ -32,6 +32,7 @@ import {
 } from './proposal-workflow.js';
 import {
   GCAL_CONFIG_SUMMARY,
+  googleApiErrorFromResponse,
   parseGCalEventItem,
   formatGCalResource as buildGCalResource,
   isLocalEventId,
@@ -50,257 +51,13 @@ import {
 
 import { flowState } from './app/state.js';
 
-// Local Storage Keys
-const LOCAL_EVENTS_KEY = 'polyschedule_local_events';
-const LOCAL_CONFIG_KEY = 'polyschedule_local_config';
-const LOCAL_SEED_VERSION_KEY = 'polyschedule_seed_version';
-const CURRENT_SEED_VERSION = 3;
-
-// Default Fallback Mock Data
-const DEFAULT_CONFIG = {
-  residences: [
-    {
-      id: 'h1',
-      name: "Michael's Place",
-      address: '',
-      bedrooms: 1,
-      bedroomDetails: [
-        { id: 'r1', name: "Michael's Bedroom" }
-      ],
-      associatedPeople: ['Michael Burton']
-    },
-    {
-      id: 'h2',
-      name: "Katie's Place",
-      address: '',
-      bedrooms: 1,
-      bedroomDetails: [
-        { id: 'r1', name: "Katie's Bedroom" }
-      ],
-      associatedPeople: ['Katie Thompson']
-    },
-    {
-      id: 'h3',
-      name: 'The Lake House',
-      address: '',
-      bedrooms: 1,
-      bedroomDetails: [
-        { id: 'r1', name: 'The Lakehouse Bedroom' }
-      ],
-      associatedPeople: ['Katie Thompson']
-    }
-  ],
-  partners: [
-    {
-      id: 'p1',
-      name: 'Michael Burton',
-      username: 'mpburton',
-      password: 'password',
-      role: 'Admin',
-      defaultHome: 'h1',
-      avatar: DEFAULT_AVATARS[0],
-      pronouns: { preset: 'he/him' },
-      rules: {
-        minSoloNights: 2,
-        partnerLimits: {
-          'Katie Thompson': { min: 1, max: 4 }
-        }
-      }
-    },
-    {
-      id: 'p2',
-      name: 'Katie Thompson',
-      username: 'kthompson',
-      password: 'password',
-      role: 'Admin',
-      defaultHome: 'h2',
-      avatar: DEFAULT_AVATARS[1],
-      pronouns: { preset: 'she/her' },
-      rules: {
-        minSoloNights: 2,
-        partnerLimits: {
-          'Michael Burton': { min: 1, max: 4 }
-        }
-      }
-    },
-    {
-      id: 'p3',
-      name: 'Zachery',
-      passive: true,
-      defaultHome: 'h3',
-      avatar: DEFAULT_AVATARS[3],
-      pronouns: { preset: 'he/him' },
-      rules: {}
-    },
-    {
-      id: 'p4',
-      name: 'Bailey',
-      passive: true,
-      defaultHome: '',
-      avatar: DEFAULT_AVATARS[2],
-      pronouns: { preset: 'they/them' },
-      rules: {}
-    },
-    {
-      id: 'p5',
-      name: 'Jordan Lee',
-      username: 'jordan',
-      password: 'password',
-      role: 'User',
-      defaultHome: 'h3',
-      avatar: DEFAULT_AVATARS[4],
-      pronouns: { preset: 'they/them' },
-      rules: { minSoloNights: 2 }
-    }
-  ]
+const EMPTY_HOUSEHOLD = {
+  residences: [],
+  partners: []
 };
 
-function cloneDefaultConfig() {
-  return JSON.parse(JSON.stringify(DEFAULT_CONFIG));
-}
-
-function applyDefaultSeed() {
-  const config = cloneDefaultConfig();
-  const events = generateMockEvents();
-  localStorage.setItem(LOCAL_CONFIG_KEY, JSON.stringify(config));
-  localStorage.setItem(LOCAL_EVENTS_KEY, JSON.stringify(events));
-  localStorage.setItem(LOCAL_SEED_VERSION_KEY, String(CURRENT_SEED_VERSION));
-  localStorage.removeItem('polyschedule_local_session');
-  localStorage.removeItem('polyschedule_google_profile');
-  localStorage.removeItem('polyschedule_user_profile');
-  sessionStorage.setItem(SEED_REFRESH_NOTICE_KEY, '1');
-  return { config, events };
-}
-
-function needsSeedRefresh() {
-  return localStorage.getItem(LOCAL_SEED_VERSION_KEY) !== String(CURRENT_SEED_VERSION);
-}
-
-// Generates some mock events relative to current date (ensures demo calendar is always populated)
-function generateMockEvents() {
-  const today = new Date();
-  
-  // Helper to construct dates relative to today
-  const getRelDate = (offsetDays, hour = 0, minute = 0) => {
-    const d = new Date(today);
-    d.setDate(today.getDate() + offsetDays);
-    d.setHours(hour, minute, 0, 0);
-    return d.toISOString();
-  };
-
-  return [
-    {
-      id: 'e1',
-      title: 'Date Night',
-      type: 'event',
-      start: getRelDate(0, 19, 0),
-      end: getRelDate(0, 21, 30),
-      location: "Michael's Place",
-      participants: ['Michael Burton', 'Katie Thompson'],
-      participantRoles: [
-        { name: 'Michael Burton', role: 'required' },
-        { name: 'Katie Thompson', role: 'required' }
-      ],
-      workflowState: WORKFLOW.APPROVED,
-      status: 'confirmed',
-      revision: 1
-    },
-    {
-      id: 'e2',
-      title: 'Lake House Game Night',
-      type: 'event',
-      start: getRelDate(2, 20, 0),
-      end: getRelDate(2, 23, 0),
-      location: 'The Lake House',
-      participants: ['Michael Burton', 'Katie Thompson', 'Zachery'],
-      participantRoles: [
-        { name: 'Michael Burton', role: 'required' },
-        { name: 'Katie Thompson', role: 'required' },
-        { name: 'Zachery', role: 'optional' }
-      ],
-      workflowState: WORKFLOW.APPROVED,
-      status: 'confirmed',
-      revision: 1
-    },
-    {
-      id: 's1',
-      title: "SLEEP: Michael's Bedroom: Michael Burton",
-      type: 'sleeping',
-      start: getRelDate(0, 22, 0),
-      end: getRelDate(1, 8, 0),
-      homeId: 'h1',
-      roomId: 'r1',
-      roomName: "Michael's Bedroom",
-      homeName: "Michael's Place",
-      participants: ['Michael Burton'],
-      participantRoles: [{ name: 'Michael Burton', role: 'required' }],
-      workflowState: WORKFLOW.APPROVED,
-      status: 'confirmed',
-      revision: 1
-    },
-    {
-      id: 's2',
-      title: "SLEEP: Katie's Bedroom: Katie Thompson",
-      type: 'sleeping',
-      start: getRelDate(1, 22, 0),
-      end: getRelDate(2, 8, 0),
-      homeId: 'h2',
-      roomId: 'r1',
-      roomName: "Katie's Bedroom",
-      homeName: "Katie's Place",
-      participants: ['Katie Thompson'],
-      participantRoles: [{ name: 'Katie Thompson', role: 'required' }],
-      workflowState: WORKFLOW.APPROVED,
-      status: 'confirmed',
-      revision: 1
-    },
-    {
-      id: 'p_e1',
-      title: 'Weekend at The Lake House',
-      type: 'event',
-      start: getRelDate(5, 12, 0),
-      end: getRelDate(5, 18, 0),
-      location: 'The Lake House',
-      participants: ['Michael Burton', 'Katie Thompson'],
-      participantRoles: [
-        { name: 'Michael Burton', role: 'required' },
-        { name: 'Katie Thompson', role: 'required' }
-      ],
-      proposer: 'Michael Burton',
-      workflowState: WORKFLOW.PROPOSED,
-      status: 'pending',
-      revision: 1,
-      responses: {
-        'Michael Burton': { status: 'accept', comment: 'Already packing the cooler.' },
-        'Katie Thompson': { status: 'pending', comment: '' }
-      }
-    },
-    {
-      id: 'p_s1',
-      title: "Sleeping : Katie : The Lake House The Lakehouse Bedroom",
-      type: 'sleeping',
-      start: getRelDate(4, 22, 0),
-      end: getRelDate(6, 8, 0),
-      homeId: 'h3',
-      roomId: 'r1',
-      roomName: 'The Lakehouse Bedroom',
-      homeName: 'The Lake House',
-      participants: ['Michael Burton', 'Katie Thompson', 'Zachery'],
-      participantRoles: [
-        { name: 'Michael Burton', role: 'required' },
-        { name: 'Katie Thompson', role: 'required' },
-        { name: 'Zachery', role: 'optional' }
-      ],
-      proposer: 'Michael Burton',
-      workflowState: WORKFLOW.PROPOSED,
-      status: 'pending',
-      revision: 1,
-      responses: {
-        'Michael Burton': { status: 'accept', comment: '' },
-        'Katie Thompson': { status: 'accept', comment: 'Sounds cozy!' }
-      }
-    }
-  ];
+function createEmptyHousehold() {
+  return JSON.parse(JSON.stringify(EMPTY_HOUSEHOLD));
 }
 
 export const CalendarSync = {
@@ -336,21 +93,12 @@ export const CalendarSync = {
 
   async loadConfig() {
     if (this.mode === 'offline') {
-      if (needsSeedRefresh()) {
-        const seeded = applyDefaultSeed();
-        this.config = seeded.config;
-        this.events = seeded.events;
-        return;
-      }
-
       const saved = localStorage.getItem(LOCAL_CONFIG_KEY);
       if (saved) {
         this.config = JSON.parse(saved);
       } else {
-        const seeded = applyDefaultSeed();
-        this.config = seeded.config;
-        this.events = seeded.events;
-        return;
+        this.config = createEmptyHousehold();
+        localStorage.setItem(LOCAL_CONFIG_KEY, JSON.stringify(this.config));
       }
     } else {
       // Fetch Config from Google Calendar configuration event description
@@ -360,13 +108,13 @@ export const CalendarSync = {
           this.config = JSON.parse(configEvent.description);
         } else {
           // Create a new config event in Google Calendar
-          this.config = cloneDefaultConfig();
+          this.config = createEmptyHousehold();
           await this.saveGCalConfigEvent(this.config);
           return;
         }
       } catch (e) {
         console.error('Failed to load config from GCal, falling back to local', e);
-        this.config = cloneDefaultConfig();
+        this.config = createEmptyHousehold();
       }
     }
 
@@ -374,7 +122,7 @@ export const CalendarSync = {
   },
 
   async normalizeAndPersistConfig() {
-    let changed = normalizeConfigPartners(this.config, DEFAULT_CONFIG);
+    let changed = normalizeConfigPartners(this.config, EMPTY_HOUSEHOLD);
     if (syncAllHomeAssociationDefaults(this.config)) changed = true;
     if (!changed) return;
 
@@ -410,17 +158,12 @@ export const CalendarSync = {
 
   async loadEvents() {
     if (this.mode === 'offline') {
-      if (this.events?.length) {
-        this.migrateAndNormalizeEvents();
-        return;
-      }
-
       const saved = localStorage.getItem(LOCAL_EVENTS_KEY);
       if (saved) {
         this.events = JSON.parse(saved);
       } else {
-        this.events = generateMockEvents();
-        localStorage.setItem(LOCAL_EVENTS_KEY, JSON.stringify(this.events));
+        this.events = [];
+        localStorage.setItem(LOCAL_EVENTS_KEY, '[]');
       }
       this.migrateAndNormalizeEvents();
     } else {
@@ -1050,7 +793,7 @@ export const CalendarSync = {
         headers: { Authorization: `Bearer ${this.accessToken}` }
       });
 
-      if (!res.ok) throw new Error('Failed to fetch calendar events from Google Calendar API');
+      if (!res.ok) throw await googleApiErrorFromResponse(res, 'Failed to fetch calendar events from Google Calendar API');
 
       const data = await res.json();
       items.push(...(data.items || []));
@@ -1086,7 +829,7 @@ export const CalendarSync = {
       body: JSON.stringify(resource)
     });
 
-    if (!res.ok) throw new Error('Failed to create calendar event on Google Calendar');
+    if (!res.ok) throw await googleApiErrorFromResponse(res, 'Failed to create calendar event on Google Calendar');
     return await res.json();
   },
 
@@ -1103,7 +846,7 @@ export const CalendarSync = {
       body: JSON.stringify(resource)
     });
 
-    if (!res.ok) throw new Error('Failed to update calendar event on Google Calendar');
+    if (!res.ok) throw await googleApiErrorFromResponse(res, 'Failed to update calendar event on Google Calendar');
     return await res.json();
   },
 
@@ -1118,7 +861,7 @@ export const CalendarSync = {
     });
 
     if (res.status === 404 || res.status === 410) return;
-    if (!res.ok) throw new Error('Failed to delete calendar event from Google Calendar');
+    if (!res.ok) throw await googleApiErrorFromResponse(res, 'Failed to delete calendar event from Google Calendar');
   },
 
   formatGCalResource(event) {
@@ -1169,6 +912,6 @@ export const CalendarSync = {
       body: JSON.stringify(resource)
     });
 
-    if (!res.ok) throw new Error('Failed to save configuration settings to Google Calendar');
+    if (!res.ok) throw await googleApiErrorFromResponse(res, 'Failed to save configuration settings to Google Calendar');
   }
 };

@@ -21,7 +21,6 @@ import {
   logUserAction,
   showToast,
   saveConfig,
-  addChangeLog,
   attemptLogin,
   bindHomeSelectCreateNew,
   saveAddPartnerDraft,
@@ -42,7 +41,6 @@ export function bindAdminEvents() {
       const name = familyInput.value.trim() || 'The Poly Circle';
       localStorage.setItem('polyschedule_poly_family_name', name);
       logUserAction(`Group name updated to "${name}".`, 'info');
-      addChangeLog('Updated group name', name);
       showToast('Group name saved.', 'success');
     });
   }
@@ -54,7 +52,6 @@ export function bindAdminEvents() {
       const days = parseInt(archiveInput.value, 10);
       setAutoArchiveDays(Number.isFinite(days) ? days : 7);
       logUserAction(`Auto-archive set to ${getAutoArchiveDays()} day(s).`, 'info');
-      addChangeLog('Updated auto-archive setting', `${getAutoArchiveDays()} day(s)`);
       showToast('Archive setting saved.', 'success');
     });
   }

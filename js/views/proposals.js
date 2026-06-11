@@ -32,6 +32,7 @@ import {
 export function proposalsView(state, activeTab = 'proposed') {
     const userName = state.currentUser?.name;
     const userRef = state.currentUser?.id || userName;
+    const isAdmin = state.config?.partners?.find((p) => p.id === state.currentUser?.id)?.role === 'Admin';
     const filtered = filterProposalsForTab(state.events, activeTab, userName, state.config);
 
     const tabLabels = {
@@ -126,7 +127,7 @@ export function proposalsView(state, activeTab = 'proposed') {
               </div>
             `;
           }
-        } else if (ws === WORKFLOW.APPROVED && isProposer) {
+        } else if (ws === WORKFLOW.APPROVED && (isProposer || isAdmin)) {
           actionsHtml = `
             <div style="display: flex; gap: var(--space-base); margin-top: var(--space-md);">
               <button class="btn btn-outline archive-proposal-btn" data-id="${p.id}" style="flex: 1;">Archive</button>

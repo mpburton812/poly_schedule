@@ -1,7 +1,17 @@
-import { describe, expect, it } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { LEGACY_PRESET_AVATARS } from '../js/avatar.js';
 import { dedupeDuplicateSleepingEvents, normalizeConfigPartners, parseLocalDateString, renderBatchNightsReviewHtml } from '../js/helpers.js';
 import { DEFAULT_AVATARS } from '../js/helpers.js';
+
+vi.hoisted(() => {
+  const local = {};
+  vi.stubGlobal('localStorage', {
+    getItem: (key) => (key in local ? local[key] : null),
+    setItem: (key, value) => { local[key] = String(value); },
+    removeItem: (key) => { delete local[key]; },
+    clear: () => { Object.keys(local).forEach((key) => { delete local[key]; }); }
+  });
+});
 
 describe('normalizeConfigPartners', () => {
   it('restores empty sleeping rules from defaults', () => {

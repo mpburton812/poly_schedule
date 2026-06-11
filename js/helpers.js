@@ -15,10 +15,11 @@ export const ADD_PARTNER_DRAFT_KEY = 'polyschedule_add_partner_draft';
 export const LOCAL_SESSION_KEY = 'polyschedule_local_session';
 export const GOOGLE_PROFILE_KEY = 'polyschedule_google_profile';
 export const LEGACY_PROFILE_KEY = 'polyschedule_user_profile';
-export const SEED_REFRESH_NOTICE_KEY = 'polyschedule_seed_refreshed';
 export const CHANGE_LOG_STORAGE_KEY = 'polyschedule_change_log';
 export const NOTIFICATIONS_BY_USER_KEY = 'polyschedule_notifications_by_user';
 export const LEGACY_NOTIFICATIONS_KEY = 'polyschedule_notifications';
+export const LOCAL_CONFIG_KEY = 'polyschedule_local_config';
+export const LOCAL_EVENTS_KEY = 'polyschedule_local_events';
 
 export function partnerDisplayFirstName(name) {
   if (!name) return '';

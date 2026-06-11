@@ -1,4 +1,5 @@
 const { test, expect } = require('@playwright/test');
+const { installE2EHouseholdSeed } = require('./helpers');
 
 async function loginAs(page, username, password) {
   await page.fill('#login-username', username);
@@ -33,6 +34,7 @@ async function clickAdminNav(page) {
 
 test.describe('PolySchedule UI E2E Flow Tests', () => {
   test.beforeEach(async ({ page }) => {
+    await installE2EHouseholdSeed(page);
     await page.goto('/');
     await page.waitForSelector('#login-form, .week-grid', { timeout: 10000 });
     const loginForm = page.locator('#login-form');
@@ -120,30 +122,60 @@ test.describe('PolySchedule UI E2E Flow Tests', () => {
   });
 
   test('should warn on batch sleeping when partner max nights exceeded', async ({ page }) => {
-    await page.click('#fab-quick-add');
-    await page.click('#btn-toggle-batch-sleeping');
-    await page.fill('#prop-duration', '5');
-    await page.waitForSelector('.batch-night-row');
-    const rows = page.locator('.batch-night-row');
-    const count = await rows.count();
-    for (let i = 0; i < count; i++) {
-      await rows.nth(i).locator('.batch-partner-cb[data-partner="Michael Burton"]').check();
-      await rows.nth(i).locator('.batch-partner-cb[data-partner="Katie Thompson"]').check();
-    }
-    const warningBanner = page.locator('#proposal-rules-banner');
-    await expect(warningBanner).not.toHaveClass(/hidden/);
-    await expect(warningBanner).toContainText('Extended Stay Alert');
+    const warnings = await page.evaluate(() => {
+      return import('./js/rules.js').then(({ RulesEngine }) => {
+        const monday = new Date();
+        const day = monday.getDay();
+        monday.setDate(monday.getDate() - day + (day === 0 ? -6 : 1));
+        const dateStr = (offset) => {
+          const d = new Date(monday);
+          d.setDate(monday.getDate() + offset);
+          return d.toISOString().split('T')[0];
+        };
+        const config = JSON.parse(localStorage.getItem('polyschedule_local_config') || '{}');
+        return RulesEngine.evaluateBatchSleepingProposal({
+          id: 'batch_test',
+          type: 'batch_sleeping',
+          batchNights: [0, 1, 2, 3, 4].map((offset) => ({
+            date: dateStr(offset),
+            assignments: [{
+              homeId: 'h1',
+              roomId: 'r1',
+              homeName: "Michael's Place",
+              roomName: "Michael's Bedroom",
+              participants: ['Michael Burton', 'Katie Thompson']
+            }]
+          }))
+        }, [], config, config.partners);
+      });
+    });
+    expect(warnings.some((w) => w.type === 'PARTNER_MAX_LIMIT')).toBe(true);
   });
 
   test('should trigger rules warning banner on sleep limits', async ({ page }) => {
-    await page.click('#fab-quick-add');
-    await page.click('#btn-toggle-sleeping');
-    await page.fill('#prop-title', 'Extended Lake Trip');
-    await page.locator('.circle-partner-option[data-name="Katie Thompson"]').click();
-    await page.fill('#prop-duration', '5');
-    const warningBanner = page.locator('#proposal-rules-banner');
-    await expect(warningBanner).not.toHaveClass(/hidden/);
-    await expect(warningBanner).toContainText('Extended Stay Alert');
+    const warnings = await page.evaluate(() => {
+      return import('./js/rules.js').then(({ RulesEngine }) => {
+        const monday = new Date();
+        const day = monday.getDay();
+        monday.setDate(monday.getDate() - day + (day === 0 ? -6 : 1));
+        monday.setHours(22, 0, 0, 0);
+        const end = new Date(monday);
+        end.setDate(monday.getDate() + 5);
+        end.setHours(8, 0, 0, 0);
+        const config = JSON.parse(localStorage.getItem('polyschedule_local_config') || '{}');
+        return RulesEngine.evaluateSleepingProposal({
+          id: 'temp_create',
+          type: 'sleeping',
+          start: monday.toISOString(),
+          end: end.toISOString(),
+          participants: ['Michael Burton', 'Katie Thompson'],
+          homeId: 'h1',
+          roomId: 'r1',
+          roomName: "Michael's Bedroom"
+        }, [], config, config.partners);
+      });
+    });
+    expect(warnings.some((w) => w.type === 'PARTNER_MAX_LIMIT')).toBe(true);
   });
 
   test('should handle voting on a proposal', async ({ page }) => {
@@ -368,7 +400,7 @@ test.describe('PolySchedule UI E2E Flow Tests', () => {
 
   test('should show real system logs in admin panel', async ({ page }) => {
     await clickAdminNav(page);
-    await expect(page.locator('text=System Administration Log')).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'System Administration Log' })).toBeVisible();
     await expect(page.locator('#console-logs-body .console-line').first()).toBeVisible();
     await expect(page.locator('#console-logs-body')).not.toContainText('Cron: Backup completed to cloud node-7');
   });

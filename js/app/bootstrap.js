@@ -1,6 +1,6 @@
 import { AuthManager } from '../auth.js';
 import { CalendarSync } from '../calendar.js';
-import { isPartnerPassive, LEGACY_PROFILE_KEY, SEED_REFRESH_NOTICE_KEY } from '../helpers.js';
+import { isPartnerPassive, LEGACY_PROFILE_KEY } from '../helpers.js';
 import { resolveSyncBootstrapMode } from '../gcal-sync.js';
 import {
   state,
@@ -25,11 +25,18 @@ import {
 } from './modals.js';
 import { router } from './router.js';
 
+/** @returns {Promise<{ ok: boolean, mode: string, error?: Error }>} */
 export async function bootstrapData(mode) {
   addLog(`Sync: Initializing client state in ${mode} mode.`);
 
   let credentials = null;
   if (mode === 'sync') {
+    AuthManager.reloadFromStorage();
+    if (!AuthManager.accessToken || !AuthManager.apiKey) {
+      const err = new Error('Google Calendar credentials are incomplete. Save API Key on Admin, then click Sync Google.');
+      err.code = 'GOOGLE_CREDENTIALS_INCOMPLETE';
+      throw err;
+    }
     credentials = {
       accessToken: AuthManager.accessToken,
       apiKey: AuthManager.apiKey
@@ -57,13 +64,29 @@ export async function bootstrapData(mode) {
         'success'
       );
     }
+
+    return { ok: true, mode };
   } catch (err) {
     logOperationError('Google Calendar sync init', err);
-    showToast('Failed to connect to Google Calendar. Operating in Offline Mode.', 'error');
+
+    if (err?.code === 'GOOGLE_AUTH_EXPIRED') {
+      AuthManager.accessToken = '';
+      localStorage.removeItem('polyschedule_access_token');
+      showToast('Google sign-in expired. Click Sync Google in the top bar to reconnect.', 'warning');
+    } else if (err?.code === 'GOOGLE_NOT_FOUND') {
+      showToast('Calendar not found. Check Calendar ID on the Admin page.', 'error');
+    } else if (err?.code === 'GOOGLE_FORBIDDEN') {
+      showToast(`Google Calendar access denied: ${err.message}`, 'error');
+    } else if (err?.code === 'GOOGLE_CREDENTIALS_INCOMPLETE') {
+      showToast(err.message, 'warning');
+    } else {
+      showToast(`Failed to connect to Google Calendar: ${err.message}`, 'error');
+    }
 
     state.isOffline = true;
     localStorage.setItem('polyschedule_mode', 'offline');
-    bootstrapData('offline');
+    await bootstrapData('offline');
+    return { ok: false, mode: 'offline', error: err };
   }
 }
 
@@ -90,11 +113,9 @@ export async function handleGoogleAuthState(authState) {
   if (authState.loggedIn && authState.mode === 'sync') {
     state.isOffline = false;
     localStorage.setItem('polyschedule_mode', 'sync');
-    try {
-      await bootstrapData('sync');
+    const result = await bootstrapData('sync');
+    if (result.ok) {
       showToast('Connected to Google Calendar.', 'success');
-    } catch (err) {
-      logOperationError('Google sync handoff', err);
     }
     return;
   }
@@ -166,26 +187,16 @@ export function init() {
       });
     }
 
-    if (new URLSearchParams(window.location.search).get('reset') === '1') {
-      localStorage.clear();
-      window.history.replaceState({}, '', window.location.pathname);
-      addLog('System: Application data reset to defaults.', 'warning');
-    }
-
     migrateLegacySession();
 
     bindImpersonationBanner();
 
+    AuthManager.onAuthError = (message) => showToast(message, 'error');
     AuthManager.init((authState) => {
       updateGoogleLoginButton(authState);
     });
 
     await bootstrapData(resolveSyncBootstrapMode());
-
-    if (sessionStorage.getItem(SEED_REFRESH_NOTICE_KEY)) {
-      sessionStorage.removeItem(SEED_REFRESH_NOTICE_KEY);
-      showToast('Demo database updated to the latest defaults. Please log in again.', 'warning');
-    }
 
     const savedProfile = JSON.parse(localStorage.getItem(LOCAL_SESSION_KEY) || 'null');
     if (savedProfile?.sessionActive) {

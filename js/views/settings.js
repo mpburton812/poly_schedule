@@ -151,14 +151,6 @@ export function settingsView(state) {
             `}
         </div>
 
-        <!-- App Reset Details -->
-        <div class="bento-card" style="padding: var(--space-lg); border: 1px solid var(--error-container); background-color: rgba(186, 26, 26, 0.02);">
-          <h3 class="font-title-lg" style="font-weight: 700; color: var(--error);">Reset Data</h3>
-          <p class="font-body-md" style="color: var(--on-surface-variant); margin-bottom: var(--space-md);">
-            Clears all local storage settings, cached events, profiles, and API credentials, resetting the app to default.
-          </p>
-          <button class="btn btn-error" id="btn-reset-app" style="align-self: flex-start;">Clear Local Data</button>
-        </div>
       </section>
     `;
   }

@@ -1,5 +1,5 @@
 /**
- * Change control log grouped by dev promotion (version.json commit).
+ * Build promotion audit trail (version.json + release-notes.json).
  */
 
 import { CHANGE_LOG_STORAGE_KEY, formatAppDateTime } from './helpers.js';
@@ -21,25 +21,36 @@ export function isPromotionGroup(entry) {
   return entry?.type === 'promotion';
 }
 
-/** Normalize legacy flat entries into promotion groups. */
+function normalizeChanges(group) {
+  if (Array.isArray(group.changes) && group.changes.length) return group.changes;
+  if (!Array.isArray(group.entries)) return [];
+  return group.entries.map((entry) => {
+    const detail = entry.detail ? ` — ${entry.detail}` : '';
+    return `${entry.action || ''}${detail}`.trim();
+  }).filter(Boolean);
+}
+
+/** Normalize legacy flat entries and user-action logs into promotion groups. */
 export function migrateChangeLog(raw) {
   if (!Array.isArray(raw) || !raw.length) return [];
-  if (raw.some(isPromotionGroup)) return raw;
+  if (raw.some(isPromotionGroup)) {
+    return raw.map((group) => ({
+      ...group,
+      changes: normalizeChanges(group)
+    }));
+  }
 
   return [{
     type: 'promotion',
     id: 'legacy',
     branch: 'legacy',
     commit: '—',
-    summary: 'Earlier changes (before promotion grouping)',
+    summary: 'Earlier releases',
     promotedAt: raw[raw.length - 1]?.timestamp || Date.now(),
-    entries: raw.map((e) => ({
-      time: e.time,
-      actor: e.actor || 'System',
-      action: e.action,
-      detail: e.detail || '',
-      timestamp: e.timestamp || Date.now()
-    }))
+    changes: raw.map((entry) => {
+      const detail = entry.detail ? ` — ${entry.detail}` : '';
+      return `${entry.action || ''}${detail}`.trim();
+    }).filter(Boolean)
   }];
 }
 
@@ -64,23 +75,23 @@ export function ensurePromotionGroup(changeLog, promotionId, meta = {}) {
     id: promotionId,
     branch: meta.branch || 'dev',
     commit: meta.commit || '—',
-    summary: meta.summary || `Promotion ${meta.commit || promotionId}`,
+    summary: meta.summary || `Build ${meta.commit || promotionId}`,
     promotedAt: meta.promotedAt || new Date().toISOString(),
-    entries: Array.isArray(meta.seedChanges) ? meta.seedChanges : []
+    changes: Array.isArray(meta.changes) ? meta.changes : []
   };
   changeLog.unshift(group);
   return group;
 }
 
-/**
- * Register a new dev promotion when version.json commit changes.
- * @returns {boolean} true when a new promotion was recorded
- */
 function resolveReleaseNote(releaseNotes, versionInfo) {
   if (!releaseNotes || !versionInfo?.commit) return null;
   return releaseNotes[versionInfo.commit] || releaseNotes.latest || null;
 }
 
+/**
+ * Register a new build promotion when version.json commit changes.
+ * @returns {boolean} true when a new promotion was recorded
+ */
 export function recordPromotionIfNeeded(changeLog, versionInfo, releaseNotes = null) {
   if (!versionInfo?.commit) return false;
 
@@ -97,35 +108,17 @@ export function recordPromotionIfNeeded(changeLog, versionInfo, releaseNotes = n
   }
 
   const releaseNote = resolveReleaseNote(releaseNotes, versionInfo);
-  const seedChanges = (releaseNote?.changes || []).map((text) => ({
-    time: formatAppDateTime(new Date()),
-    actor: 'Release',
-    action: text,
-    detail: '',
-    timestamp: Date.now()
-  }));
 
   ensurePromotionGroup(changeLog, promotionId, {
     branch: versionInfo.branch,
     commit: versionInfo.commit,
     summary: releaseNote?.summary || `Build ${versionInfo.commit} on ${versionInfo.branch}`,
     promotedAt: new Date().toISOString(),
-    seedChanges
+    changes: releaseNote?.changes || []
   });
 
   setActivePromotionKey(promotionId);
   return true;
-}
-
-export function appendChangeEntry(changeLog, entry) {
-  const promotionId = getActivePromotionKey();
-  const group = ensurePromotionGroup(changeLog, promotionId, {
-    branch: promotionId.split('#')[0] || 'dev',
-    commit: promotionId.split('#')[1] || '—',
-    summary: promotionId === 'legacy' ? 'Earlier changes' : `Promotion ${promotionId.split('#')[1]}`
-  });
-  group.entries.unshift(entry);
-  if (group.entries.length > 100) group.entries.pop();
 }
 
 export function persistChangeLog(changeLog) {
@@ -143,23 +136,21 @@ export function refreshChangeLogDom(changeLog) {
 export function renderChangeLogHtml(changeLog) {
   const groups = migrateChangeLog(changeLog);
   if (!groups.length) {
-    return '<p class="change-log-line change-log-empty">No configuration changes recorded yet.</p>';
+    return '<p class="change-log-line change-log-empty">No releases recorded yet.</p>';
   }
 
   return groups.map((group) => {
     const promoted = formatAppDateTime(group.promotedAt);
-    const entries = (group.entries || []).map((entry) => `
-      <p class="change-log-line change-log-entry">
-        <span class="change-log-time">[${entry.time}]</span>
-        <strong>${entry.actor}</strong>: ${entry.action}${entry.detail ? ` — ${entry.detail}` : ''}
-      </p>
-    `).join('') || '<p class="change-log-line change-log-empty">No changes recorded for this promotion yet.</p>';
+    const changes = normalizeChanges(group);
+    const notesHtml = changes.length
+      ? `<ul class="change-log-notes">${changes.map((line) => `<li>${line}</li>`).join('')}</ul>`
+      : '<p class="change-log-line change-log-empty">No release notes for this build.</p>';
 
     return `
       <section class="change-log-promotion">
         <h4 class="change-log-promotion-title">${group.summary}</h4>
-        <p class="change-log-promotion-meta">${group.branch} · ${group.commit} · promoted ${promoted}</p>
-        <div class="change-log-promotion-entries">${entries}</div>
+        <p class="change-log-promotion-meta">Build ${group.commit} · ${group.branch} · ${promoted}</p>
+        <div class="change-log-promotion-entries">${notesHtml}</div>
       </section>
     `;
   }).join('');

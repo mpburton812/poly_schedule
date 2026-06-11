@@ -33,7 +33,6 @@ import {
 } from '../helpers.js';
 import { normalizePronouns } from '../pronouns.js';
 import {
-  appendChangeEntry,
   persistChangeLog,
   refreshChangeLogDom,
   migrateChangeLog,
@@ -104,6 +103,12 @@ export function logOperationError(operation, err, context = {}) {
   if (error.name && error.name !== 'Error') {
     detailParts.push(`type=${error.name}`);
   }
+  if (error.status) {
+    detailParts.push(`httpStatus=${error.status}`);
+  }
+  if (error.code) {
+    detailParts.push(`code=${error.code}`);
+  }
   Object.entries(support).forEach(([key, value]) => {
     if (value == null || value === '') return;
     detailParts.push(`${key}=${String(value)}`);
@@ -140,8 +145,7 @@ export async function syncPromotionChangeLog() {
     if (!versionRes.ok) return;
     const versionInfo = await versionRes.json();
     const releaseNotes = notesRes.ok ? await notesRes.json() : {};
-    const note = releaseNotes[versionInfo.commit] || null;
-    if (recordPromotionIfNeeded(state.changeLog, versionInfo, note)) {
+    if (recordPromotionIfNeeded(state.changeLog, versionInfo, releaseNotes)) {
       persistChangeLog(state.changeLog);
       refreshChangeLogDom(state.changeLog);
     }
@@ -150,14 +154,6 @@ export async function syncPromotionChangeLog() {
   }
 }
 
-export function addChangeLog(action, detail = '') {
-  const actor = getCurrentUserName();
-  const time = formatAppDateTime();
-  appendChangeEntry(state.changeLog, { time, actor, action, detail, timestamp: Date.now() });
-  if (state.changeLog.length > 50) state.changeLog.pop();
-  persistChangeLog(state.changeLog);
-  refreshChangeLogDom(state.changeLog);
-}
 
 /** System log line attributed to the signed-in user (not a generic "Admin" label). */
 export function logUserAction(message, type = 'info') {
@@ -420,9 +416,8 @@ export function getCurrentUserName() {
   return state.currentUser?.name || 'User';
 }
 
-export function saveConfig(auditAction = null, auditDetail = '') {
+export function saveConfig() {
   CalendarSync.saveConfig(state.config);
-  if (auditAction) addChangeLog(auditAction, auditDetail);
 }
 
 /**
@@ -483,7 +478,6 @@ export function impersonatePartner(partnerId) {
   resetCreateFlowForUserSwitch();
   establishSession(partner);
   addLog(`${actorName}: Impersonating user "${partner.name}".`, 'warning');
-  addChangeLog('Impersonated user', partner.name);
   showToast(`Viewing as ${partner.name.split(' ')[0]}`, 'info');
   import('./router.js').then(({ router }) => router());
 }
