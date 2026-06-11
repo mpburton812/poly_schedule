@@ -305,7 +305,7 @@ test.describe('PolySchedule UI E2E Flow Tests', () => {
     await page.locator('.sleeping-partner-checkbox[data-partner-name="Katie Thompson"]').locator('xpath=ancestor::div[contains(@style,"border")]').locator('.partner-max-nights').fill('5');
     await page.fill('#new-partner-solo-nights', '3');
     await page.click('#btn-submit-partner');
-    await expect(page.url()).toContain('#logistics');
+    await page.waitForURL(/#logistics/, { timeout: 10000 });
     await expect(page.getByRole('heading', { name: 'Robin Williams' })).toBeVisible();
   });
 
@@ -315,7 +315,7 @@ test.describe('PolySchedule UI E2E Flow Tests', () => {
     await page.click('#btn-partner-type-passive');
     await page.fill('#new-partner-name', 'Taylor Passive');
     await page.click('#btn-submit-partner');
-    await expect(page.url()).toContain('#logistics');
+    await page.waitForURL(/#logistics/, { timeout: 10000 });
     await expect(page.getByRole('heading', { name: 'Taylor Passive' })).toBeVisible();
     await expect(page.locator('text=PASSIVE').first()).toBeVisible();
   });
@@ -394,7 +394,7 @@ test.describe('PolySchedule UI E2E Flow Tests', () => {
     await page.fill('#activate-username', 'pat');
     await page.fill('#activate-password', 'password123');
     await page.click('#btn-submit-activate');
-    await expect(page.url()).toContain('#logistics');
+    await page.waitForURL(/#logistics/, { timeout: 10000 });
     await expect(page.getByRole('heading', { name: 'Pat ToActivate' })).toBeVisible();
   });
 

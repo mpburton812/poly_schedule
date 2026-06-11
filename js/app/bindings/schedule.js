@@ -21,13 +21,6 @@ export function bindScheduleEvents() {
     });
   });
 
-  document.querySelectorAll('.proposal-summary-card').forEach(card => {
-    card.addEventListener('click', () => {
-      flowState.activeProposalsTab = 'proposed';
-      window.location.hash = '#proposals';
-    });
-  });
-
   const weekInput = document.getElementById('input-week-selector');
   if (weekInput) {
     weekInput.addEventListener('change', (e) => {

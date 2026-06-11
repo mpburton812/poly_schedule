@@ -11,7 +11,6 @@ import {
   logOperationError,
   showToast,
   updateNotificationsBadge,
-  isAdmin,
   logoutUser,
   getCurrentUserName,
   updatePartnerProfile,
@@ -104,35 +103,6 @@ export function openUserProfileModal() {
 
   const isOffline = state.isOffline;
   const credentialsConfigured = !!(localStorage.getItem('polyschedule_client_id') && localStorage.getItem('polyschedule_api_key'));
-
-  const logsHtml = state.logs.map(log => {
-    const color = log.type === 'error' ? 'var(--error)' : log.type === 'warning' ? 'var(--tertiary)' : 'inherit';
-    return `<p class="console-line"><span class="console-time">[${log.time}]</span> <span style="color: ${color};">${log.message}</span></p>`;
-  }).join('');
-
-  const adminPanelHtml = isAdmin() ? `
-      <div style="display: flex; flex-direction: column; gap: var(--space-md);">
-        <h4 class="font-title-lg" style="font-weight: 700; font-size: 1.1rem; border-bottom: 1px solid rgba(138,113,112,0.1); padding-bottom: var(--space-xs);">System Administration Log</h4>
-        
-        <div class="console-container">
-          <div class="console-header">
-            <span class="font-label-sm">Live System Logs</span>
-            <div style="display: flex; align-items: center; gap: 6px;">
-              <span style="width: 8px; height: 8px; border-radius: var(--radius-full); background-color: #4ade80; display: inline-block; animation: pulse-animation 1s infinite;"></span>
-              <span class="font-label-sm" style="color: #4ade80;">Stable</span>
-            </div>
-          </div>
-          <div class="console-body" id="console-logs-body" style="max-height: 120px; overflow-y: auto;">
-            ${logsHtml}
-          </div>
-          <div class="console-action-row">
-            <button class="btn-outline" id="btn-export-logs" style="background: transparent; border: none; font-family: var(--font-mono); font-size: 0.75rem; color: rgba(255,255,255,0.6); cursor: pointer; display: flex; align-items: center; gap: 4px;">
-              <span class="material-symbols-outlined" style="font-size: 16px;">download</span> Export Logs
-            </button>
-          </div>
-        </div>
-      </div>
-  ` : '';
 
   const profilePartner = getCurrentUserPartner(state.config, state.currentUser);
 
@@ -230,8 +200,6 @@ export function openUserProfileModal() {
           </button>
         </div>
       </div>
-
-      ${adminPanelHtml}
     </div>
   `;
 

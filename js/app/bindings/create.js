@@ -12,7 +12,8 @@ import {
   normalizeBatchNight,
   getBedroomOptionsForHome,
   buildBatchNightsPayload,
-  formatAppTime
+  formatAppTime,
+  mustIncludeCurrentUserInSleepingProposal
 } from '../../helpers.js';
 import { pastScheduleWarning } from '../../gcal-sync.js';
 import {
@@ -36,6 +37,19 @@ import {
   logOperationError
 } from '../context.js';
 import { renderView } from '../router.js';
+
+function requireCurrentUserInSleepingProposal() {
+  return mustIncludeCurrentUserInSleepingProposal(state.config, state.currentUser);
+}
+
+function ensureCurrentUserSelectedForSleeping() {
+  if (flowState.currentCreateType !== 'sleeping' || !requireCurrentUserInSleepingProposal()) return;
+  const currentUserName = getCurrentUserName();
+  if (!newProposalState.participants.includes(currentUserName)) {
+    newProposalState.participants.unshift(currentUserName);
+    syncParticipantRolesFromParticipants();
+  }
+}
 
 export function updateSleepingArrangementTitle() {
   if (flowState.currentCreateType !== 'sleeping') return;
@@ -329,7 +343,9 @@ export function collectProposalFormData() {
     batchNights.forEach(night => {
       (night.assignments || []).forEach(a => (a.participants || []).forEach(p => participantSet.add(p)));
     });
-    if (!participantSet.has(currentUserName)) participantSet.add(currentUserName);
+    if (requireCurrentUserInSleepingProposal() && !participantSet.has(currentUserName)) {
+      participantSet.add(currentUserName);
+    }
     const participants = Array.from(participantSet);
     return {
       title: titleInput?.value.trim() || 'Untitled Batch',
@@ -351,9 +367,7 @@ export function collectProposalFormData() {
   }
   let endD = new Date(startD);
   if (flowState.currentCreateType === 'sleeping') {
-    const durationVal = document.getElementById('prop-duration')?.value || '1';
-    const nights = parseInt(durationVal, 10) || 1;
-    endD.setDate(startD.getDate() + nights);
+    endD.setDate(startD.getDate() + 1);
   } else {
     const startTime = read12HourTime('prop-start');
     const endTime = read12HourTime('prop-end');
@@ -362,8 +376,12 @@ export function collectProposalFormData() {
     if (endD <= startD) endD = new Date(startD.getTime() + 3600000);
   }
 
-  if (!newProposalState.participants.includes(currentUserName)) {
-    newProposalState.participants.push(currentUserName);
+  if (
+    (flowState.currentCreateType === 'sleeping' || flowState.currentCreateType === 'event')
+    && requireCurrentUserInSleepingProposal()
+    && !newProposalState.participants.includes(currentUserName)
+  ) {
+    newProposalState.participants.unshift(currentUserName);
   }
   if (flowState.currentCreateType === 'event' && flowState.soloEventMode) {
     newProposalState.participants = [currentUserName];
@@ -474,11 +492,34 @@ export async function submitCurrentProposal() {
       showToast(`Night ${emptyNight + 1} needs at least one room with people assigned.`, 'warning');
       return;
     }
+    const currentUserName = getCurrentUserName();
+    const batchParticipants = new Set();
+    batchNights.forEach(night => {
+      (night.assignments || []).forEach(a => (a.participants || []).forEach(p => batchParticipants.add(p)));
+    });
+    if (batchParticipants.size === 0) {
+      showToast('Assign at least one person to the batch schedule.', 'warning');
+      return;
+    }
+    if (requireCurrentUserInSleepingProposal() && !batchParticipants.has(currentUserName)) {
+      showToast('You must assign yourself to at least one night.', 'warning');
+      return;
+    }
     const batchWarnings = evaluateCurrentBatchProposalWarnings();
     if (RulesEngine.hasBatchRoomConflicts(batchWarnings)) {
       showProposalRulesBanner(batchWarnings);
       highlightBatchRowErrors(batchWarnings);
       showToast('Cannot submit until all room conflicts are resolved.', 'error');
+      return;
+    }
+  } else if (flowState.currentCreateType === 'sleeping') {
+    ensureCurrentUserSelectedForSleeping();
+    if (newProposalState.participants.length === 0) {
+      showToast('Select at least one person for this sleeping arrangement.', 'warning');
+      return;
+    }
+    if (requireCurrentUserInSleepingProposal() && !newProposalState.participants.includes(getCurrentUserName())) {
+      showToast('You must include yourself in this sleeping arrangement.', 'warning');
       return;
     }
   } else if (flowState.currentCreateType === 'event') {
@@ -602,7 +643,6 @@ export function runRulesChecks() {
   if (flowState.currentCreateType === 'sleeping' || flowState.currentCreateType === 'batch_sleeping') {
     const pastWarning = pastScheduleWarning(data);
     const startInput = document.getElementById('prop-start-date');
-    const durationVal = document.getElementById('prop-duration')?.value || '1';
     if (!startInput) {
       showProposalRulesBanner(pastWarning ? [pastWarning] : []);
       return;
@@ -616,9 +656,11 @@ export function runRulesChecks() {
       const currentUserName = getCurrentUserName();
       const startD = parseLocalDateString(startInput.value, 22, 0, 0, 0);
       const endD = parseLocalDateString(startInput.value, 0, 0, 0, 0);
-      endD.setDate(startD.getDate() + (parseInt(durationVal, 10) || 1));
+      endD.setDate(startD.getDate() + 1);
       const participants = [...newProposalState.participants];
-      if (!participants.includes(currentUserName)) participants.push(currentUserName);
+      if (requireCurrentUserInSleepingProposal() && !participants.includes(currentUserName)) {
+        participants.unshift(currentUserName);
+      }
 
       const tempProposal = {
         id: 'temp_create',
@@ -667,7 +709,9 @@ export function evaluateCurrentBatchProposalWarnings() {
   batchNights.forEach(night => {
     (night.assignments || []).forEach(a => (a.participants || []).forEach(p => participantSet.add(p)));
   });
-  if (!participantSet.has(currentUserName)) participantSet.add(currentUserName);
+  if (requireCurrentUserInSleepingProposal() && !participantSet.has(currentUserName)) {
+    participantSet.add(currentUserName);
+  }
 
   const tempProposal = {
     id: flowState.currentDraftId || 'temp_create',
@@ -732,12 +776,21 @@ export function bindCreateEvents() {
         if (soloCb) soloCb.checked = false;
       }
       const name = opt.dataset.name;
+      const currentUserName = getCurrentUserName();
       const idx = newProposalState.participants.indexOf(name);
 
       if (idx === -1) {
         newProposalState.participants.push(name);
         opt.classList.add('selected');
       } else {
+        if (
+          flowState.currentCreateType === 'sleeping'
+          && requireCurrentUserInSleepingProposal()
+          && name === currentUserName
+        ) {
+          showToast('You must stay included in this sleeping arrangement.', 'info');
+          return;
+        }
         newProposalState.participants.splice(idx, 1);
         newProposalState.participantRoles = newProposalState.participantRoles.filter(p => p.name !== name);
         opt.classList.remove('selected');
@@ -890,7 +943,11 @@ export function bindCreateEvents() {
     });
   });
 
-  if (flowState.currentCreateType === 'batch_sleeping') {
+  if (flowState.currentCreateType === 'sleeping') {
+    ensureCurrentUserSelectedForSleeping();
+    updateSleepingArrangementTitle();
+    runRulesChecks();
+  } else if (flowState.currentCreateType === 'batch_sleeping') {
     updateBatchPartnerLocks();
     runRulesChecks();
   } else if (flowState.currentCreateType === 'event') {

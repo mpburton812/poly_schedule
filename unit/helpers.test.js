@@ -2,9 +2,12 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { LEGACY_PRESET_AVATARS } from '../js/avatar.js';
 import {
   canPartnerLogin,
+  canCreateSleepingProposals,
   dedupeDuplicateSleepingEvents,
+  mustIncludeCurrentUserInSleepingProposal,
   needsHouseholdSetup,
   pickNewerHouseholdConfig,
+  sortPartnersWithCurrentUserFirst,
   normalizeConfigPartners,
   parseLocalDateString,
   renderBatchNightsReviewHtml
@@ -162,6 +165,35 @@ describe('pickNewerHouseholdConfig', () => {
     const picked = pickNewerHouseholdConfig(local, remote);
     expect(picked.source).toBe('remote');
     expect(picked.config.syncRevision).toBe(4);
+  });
+});
+
+describe('sleeping proposal helpers', () => {
+  const config = {
+    partners: [
+      { id: 'p1', name: 'Alex Rivera', username: 'alex', role: 'Admin' },
+      { id: 'p2', name: 'Sam Lee', username: 'sam', role: 'User', rules: { partnerLimits: { 'Alex Rivera': { min: 1, max: 3 } } } }
+    ]
+  };
+
+  it('lets admins create sleeping proposals without partner limits', () => {
+    expect(canCreateSleepingProposals(config, { id: 'p1', name: 'Alex Rivera' })).toBe(true);
+  });
+
+  it('requires sleeping connections for non-admin users', () => {
+    expect(canCreateSleepingProposals(config, { id: 'p2', name: 'Sam Lee' })).toBe(true);
+    const noRules = { partners: [{ id: 'p3', name: 'Jordan', username: 'jordan', role: 'User', rules: {} }] };
+    expect(canCreateSleepingProposals(noRules, { id: 'p3', name: 'Jordan' })).toBe(false);
+  });
+
+  it('requires non-admins but not admins to be invitees', () => {
+    expect(mustIncludeCurrentUserInSleepingProposal(config, { id: 'p1' })).toBe(false);
+    expect(mustIncludeCurrentUserInSleepingProposal(config, { id: 'p2' })).toBe(true);
+  });
+
+  it('sorts the current user to the front of partner lists', () => {
+    const sorted = sortPartnersWithCurrentUserFirst(config.partners, config, { id: 'p2' });
+    expect(sorted[0].id).toBe('p2');
   });
 });
 

@@ -209,6 +209,30 @@ export function hasSleepingPartnerConnections(partner) {
   return !!(partner?.rules?.partnerLimits && Object.keys(partner.rules.partnerLimits).length > 0);
 }
 
+/** Admins may propose sleeping arrangements; others need sleeping partner rules configured. */
+export function canCreateSleepingProposals(config, currentUser) {
+  const partner = getCurrentUserPartner(config, currentUser);
+  if (partner?.role === 'Admin') return true;
+  return hasSleepingPartnerConnections(partner);
+}
+
+/** Non-admins must be included in sleeping proposal invitees. */
+export function mustIncludeCurrentUserInSleepingProposal(config, currentUser) {
+  const partner = getCurrentUserPartner(config, currentUser);
+  return partner?.role !== 'Admin';
+}
+
+/** Keep the signed-in partner first in invitee pickers. */
+export function sortPartnersWithCurrentUserFirst(partners, config, currentUser) {
+  const list = [...(partners || [])];
+  const current = getCurrentUserPartner(config, currentUser);
+  if (!current) return list;
+  const idx = list.findIndex(p => p.id === current.id);
+  if (idx <= 0) return list;
+  const [me] = list.splice(idx, 1);
+  return [me, ...list];
+}
+
 /**
  * Restore seed sleeping rules when a partner profile lost its connections.
  * Returns true when config was modified.

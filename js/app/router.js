@@ -4,7 +4,7 @@ import {
   parseHashParams,
   getRouteBase,
   getCurrentUserPartner,
-  hasSleepingPartnerConnections,
+  canCreateSleepingProposals,
   ADD_PARTNER_DRAFT_KEY,
   SELECT_HOME_KEY
 } from '../helpers.js';
@@ -114,10 +114,9 @@ export function renderView() {
       resetCreateFlowForNavigation();
     }
 
-    const currentUserProfile = getCurrentUserPartner(state.config, state.currentUser);
-    const hasSleepingPartners = hasSleepingPartnerConnections(currentUserProfile);
+    const canUseSleepingProposals = canCreateSleepingProposals(state.config, state.currentUser);
 
-    if ((flowState.currentCreateType === 'sleeping' || flowState.currentCreateType === 'batch_sleeping') && !hasSleepingPartners) {
+    if ((flowState.currentCreateType === 'sleeping' || flowState.currentCreateType === 'batch_sleeping') && !canUseSleepingProposals) {
       flowState.currentCreateType = 'event';
     }
     if (flowState.currentCreateType === 'batch_sleeping') {

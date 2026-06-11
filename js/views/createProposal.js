@@ -11,7 +11,8 @@ import {
   normalizeBatchNight,
   getBedroomOptionsForHome,
   getCurrentUserPartner,
-  hasSleepingPartnerConnections
+  canCreateSleepingProposals,
+  sortPartnersWithCurrentUserFirst
 } from '../helpers.js';
 import {
   WORKFLOW,
@@ -26,12 +27,16 @@ import {
 
 export function createProposalView(state, type = 'event', formState = {}) {
     // Check if current user has sleeping partner connections
-    const currentUserProfile = getCurrentUserPartner(state.config, state.currentUser);
-    const hasSleepingPartners = hasSleepingPartnerConnections(currentUserProfile);
+    const canUseSleepingProposals = canCreateSleepingProposals(state.config, state.currentUser);
+    const orderedPartners = sortPartnersWithCurrentUserFirst(
+      state.config.partners,
+      state.config,
+      state.currentUser
+    );
 
     // Populate partner options (checkboxes or select)
     let circleHtml = '';
-    state.config.partners.forEach(partner => {
+    orderedPartners.forEach(partner => {
       if (partner.name === 'Guest User' || partner.username === 'guest') return;
       const passive = isPartnerPassive(partner);
       const selected = (formState.participants || []).includes(partner.name);
@@ -105,7 +110,12 @@ export function createProposalView(state, type = 'event', formState = {}) {
         const roomOptions = bedrooms.map(r =>
           `<option value="${r.id}" ${r.id === assign.roomId ? 'selected' : ''}>${r.name}</option>`
         ).join('');
-        const partnerChecks = state.config.partners.map(p => {
+        const batchPartners = sortPartnersWithCurrentUserFirst(
+          state.config.partners,
+          state.config,
+          state.currentUser
+        );
+        const partnerChecks = batchPartners.map(p => {
           const checked = (assign.participants || []).includes(p.name) ? 'checked' : '';
           const takenElsewhere = priorParticipants.has(p.name);
           const disabled = takenElsewhere ? 'disabled' : '';
@@ -196,7 +206,7 @@ export function createProposalView(state, type = 'event', formState = {}) {
     contextWeekStart.setDate(contextStart.getDate() - contextStart.getDay());
     const contextNightCount = type === 'batch_sleeping'
       ? (formState.batchNightCount || 3)
-      : (type === 'sleeping' ? (formState.batchNightCount || 1) : 1);
+      : (type === 'sleeping' ? 1 : 1);
     const proposedDateKeys = new Set();
     for (let n = 0; n < contextNightCount; n++) {
       const d = new Date(contextStart);
@@ -228,7 +238,7 @@ export function createProposalView(state, type = 'event', formState = {}) {
       <!-- Toggle Switch Event/Sleep/Batch -->
       <div class="switch-selector" style="flex-wrap: wrap;">
         <button class="switch-btn ${type === 'event' ? 'active' : ''}" id="btn-toggle-event">Event</button>
-        ${hasSleepingPartners ? `
+        ${canUseSleepingProposals ? `
           <button class="switch-btn ${type === 'sleeping' ? 'active' : ''}" id="btn-toggle-sleeping">Sleeping Arrangement</button>
           <button class="switch-btn ${type === 'batch_sleeping' ? 'active' : ''}" id="btn-toggle-batch-sleeping">Batch Sleeping</button>
         ` : `
@@ -289,17 +299,17 @@ export function createProposalView(state, type = 'event', formState = {}) {
             <label class="form-label" for="prop-start-date">Start Date</label>
             <input class="form-input" id="prop-start-date" type="date" value="${formState.batchStartDate || new Date().toISOString().split('T')[0]}"/>
           </div>
-          ${type === 'sleeping' || type === 'batch_sleeping' ? `
+          ${type === 'batch_sleeping' ? `
           <div class="form-group" style="margin-bottom: 0;">
             <label class="form-label" for="prop-duration">Number of Nights</label>
-            <input class="form-input" id="prop-duration" placeholder="e.g. 2" type="number" min="1" max="14" value="${formState.batchNightCount || (type === 'batch_sleeping' ? 3 : 1)}"/>
+            <input class="form-input" id="prop-duration" placeholder="e.g. 2" type="number" min="1" max="14" value="${formState.batchNightCount || 3}"/>
           </div>
-          ` : `
+          ` : type === 'event' ? `
           <div style="display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-md);">
             ${render12HourTimePicker('prop-start', 'Start Time', 7, '00', 'PM')}
             ${render12HourTimePicker('prop-end', 'End Time', 10, '00', 'PM')}
           </div>
-          `}
+          ` : ''}
         </div>
 
         <!-- Dynamic Location block -->

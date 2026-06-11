@@ -11,8 +11,7 @@ import {
   normalizeBatchNight,
   getBedroomOptionsForHome,
   getCurrentUserPartner,
-  hasSleepingPartnerConnections,
-  partnerRefsMatch
+  hasSleepingPartnerConnections
 } from '../helpers.js';
 import {
   WORKFLOW,
@@ -79,13 +78,6 @@ export function scheduleView(state) {
 
       return true;
     });
-
-    // Extract pending proposals for summary
-    const pendingProposals = state.events.filter(e =>
-      getWorkflowState(e) === WORKFLOW.PROPOSED &&
-      (e.proposer === state.currentUser?.name ||
-        (e.participantRoles || []).some(p => partnerRefsMatch(state.config, p.name, state.currentUser?.id || state.currentUser?.name)))
-    );
 
     let daysHtml = '';
 
@@ -159,35 +151,6 @@ export function scheduleView(state) {
       `;
     }
 
-    // Proposals Center mini summary
-    let proposalsListHtml = '';
-    if (pendingProposals.length === 0) {
-      proposalsListHtml = `
-        <div style="grid-column: span 3; text-align: center; padding: var(--space-lg) 0; border: 1px dashed var(--outline-variant); border-radius: var(--radius-md); color: var(--on-surface-variant); font-size: 0.85rem;">
-          No pending proposals. You're all caught up!
-        </div>
-      `;
-    } else {
-      pendingProposals.slice(0, 3).forEach(p => {
-        const countAccepted = Object.values(p.responses || {}).filter(r => r.status === 'accept').length;
-        const totalVotes = Object.keys(p.responses || {}).length;
-        const awaitName = Object.keys(p.responses || {}).find(k => p.responses[k].status === 'pending') || 'Others';
-        const typeBadge = p.type === 'sleeping' ? 'bed' : p.type === 'batch_sleeping' ? 'date_range' : 'forum';
-        
-        proposalsListHtml += `
-          <div class="bento-card proposal-summary-card" data-id="${p.id}" style="cursor: pointer; flex-direction: row; gap: var(--space-md); align-items: center; border: 1px solid var(--outline-variant); background-color: var(--surface); transition: background-color 0.2s;">
-            <div style="background-color: rgba(166,57,58,0.1); color: var(--primary); padding: 12px; border-radius: var(--radius-md); display: flex; align-items: center; justify-content: center;">
-              <span class="material-symbols-outlined">${typeBadge}</span>
-            </div>
-            <div>
-              <h4 class="font-title-lg" style="font-size: 1rem; font-weight: 700;">${p.title}</h4>
-              <p class="font-body-md" style="color: var(--on-surface-variant); margin-top: 2px;">${countAccepted}/${totalVotes} voted. Awaiting ${awaitName}.</p>
-            </div>
-          </div>
-        `;
-      });
-    }
-
     const partnerOptions = (state.config?.partners || []).map(p => 
       `<option value="${p.name}" ${state.filterPartner === p.name ? 'selected' : ''}>${p.name}</option>`
     ).join('');
@@ -225,14 +188,6 @@ export function scheduleView(state) {
       <!-- Weekly Schedule (vertical) -->
       <section class="week-grid">
         ${daysHtml}
-      </section>
-
-      <!-- Active Proposals Section -->
-      <section style="margin-top: var(--space-xl);">
-        <h3 class="font-headline-lg" style="margin-bottom: var(--space-md); font-size: 1.5rem; font-weight: 700; color: var(--on-surface);">Active Proposals</h3>
-        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: var(--space-md);">
-          ${proposalsListHtml}
-        </div>
       </section>
     `;
 }
