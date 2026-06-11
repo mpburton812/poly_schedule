@@ -16,6 +16,7 @@ import {
   GCAL_COLOR_EVENT_APPROVED,
   GCAL_COLOR_SLEEPING_APPROVED,
   resolveSyncBootstrapMode,
+  canWriteToGoogleCalendar,
   googleApiErrorFromResponse,
   isLocalEventId,
   mergeGCalWithLocalEvents,
@@ -264,6 +265,14 @@ describe('formatSleepingAllDayDates', () => {
     expect(start.date).toBeTruthy();
     expect(end.date).toBeTruthy();
     expect(end.date > start.date).toBe(true);
+  });
+});
+
+describe('canWriteToGoogleCalendar', () => {
+  it('requires sync mode, access token, and api key', () => {
+    expect(canWriteToGoogleCalendar({ mode: 'offline', accessToken: 't', apiKey: 'k' })).toBe(false);
+    expect(canWriteToGoogleCalendar({ mode: 'sync', accessToken: '', apiKey: 'k' })).toBe(false);
+    expect(canWriteToGoogleCalendar({ mode: 'sync', accessToken: 't', apiKey: 'k' })).toBe(true);
   });
 });
 

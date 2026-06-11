@@ -240,6 +240,11 @@ export function parseGCalEventItem(item) {
   return event;
 }
 
+/** Whether Calendar API writes can be attempted (sync mode + credentials). */
+export function canWriteToGoogleCalendar({ mode, accessToken, apiKey } = {}) {
+  return mode === 'sync' && !!accessToken && !!apiKey;
+}
+
 /** Whether the app should boot connected to Google Calendar. */
 export function resolveSyncBootstrapMode() {
   const wantsSync = localStorage.getItem('polyschedule_mode') === 'sync';

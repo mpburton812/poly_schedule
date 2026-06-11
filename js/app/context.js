@@ -620,8 +620,9 @@ export async function createFirstAdminPartner({ name, username, password }) {
   state.config.partners = state.config.partners || [];
   state.config.partners.push(partner);
 
+  let saveResult;
   try {
-    await CalendarSync.saveConfig(state.config);
+    saveResult = await CalendarSync.saveConfig(state.config);
   } catch (err) {
     state.config.partners.pop();
     showToast(`Failed to save household: ${err.message}`, 'error');
@@ -630,7 +631,16 @@ export async function createFirstAdminPartner({ name, username, password }) {
 
   addLog(`${partner.name}: Created first admin account.`, 'info');
   establishSession(partner);
-  showToast(`Welcome, ${partner.name.split(' ')[0]}!`, 'success');
+  if (saveResult?.needsAuth) {
+    showToast(
+      'Account created. Click Sync Google in the top bar to back up to Google Calendar.',
+      'info'
+    );
+    const loginBtn = document.getElementById('btn-google-login');
+    if (loginBtn) loginBtn.style.display = 'inline-flex';
+  } else {
+    showToast(`Welcome, ${partner.name.split(' ')[0]}!`, 'success');
+  }
   window.location.hash = '#schedule';
   import('./router.js').then(({ router }) => router());
   return true;

@@ -161,30 +161,53 @@ export const CalendarSync = {
 
   async saveConfig(newConfig) {
     const syncMod = await import('./household-sync.js');
+    const { canWriteToGoogleCalendar } = await import('./gcal-sync.js');
     syncMod.ensureHouseholdIdentity(newConfig);
     syncMod.bumpSyncRevision(newConfig);
 
     this.config = newConfig;
-    if (this.mode === 'offline') {
-      localStorage.setItem(LOCAL_CONFIG_KEY, JSON.stringify(newConfig));
-    } else {
+    localStorage.setItem(LOCAL_CONFIG_KEY, JSON.stringify(newConfig));
+
+    let gcalSynced = false;
+    let needsAuth = false;
+
+    if (canWriteToGoogleCalendar(this)) {
       try {
         await this.saveGCalConfigEvent(newConfig);
+        gcalSynced = true;
+      } catch (e) {
+        if (e.code === 'GOOGLE_AUTH_EXPIRED' || e.status === 401) {
+          console.warn('[GCal] Config saved locally; Google sign-in required to sync.', e);
+          needsAuth = true;
+        } else {
+          console.error('Failed to save config to GCal', e);
+          throw e;
+        }
+      }
+    } else if (this.mode === 'sync') {
+      needsAuth = true;
+    }
+
+    if (
+      gcalSynced
+      || (syncMod.isSyncHubConfigured() && localStorage.getItem('polyschedule_mode') === 'sync')
+    ) {
+      try {
         await syncMod.afterHouseholdWrite(['config'], {
           config: newConfig,
           events: this.events,
           revision: newConfig.syncRevision
         });
-        localStorage.setItem(LOCAL_CONFIG_KEY, JSON.stringify(newConfig));
-      } catch (e) {
-        console.error('Failed to save config to GCal', e);
-        throw e;
+      } catch (err) {
+        console.warn('[sync] Failed to notify after config save', err);
       }
     }
 
     if (this.onStateUpdate) {
       this.onStateUpdate();
     }
+
+    return { gcalSynced, needsAuth };
   },
 
   async loadEvents() {
