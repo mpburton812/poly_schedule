@@ -25,6 +25,7 @@ import {
   LOCAL_SESSION_KEY,
   LEGACY_PROFILE_KEY,
   isPartnerPassive,
+  needsHouseholdSetup,
   findPartnerByRef,
   partnerRefsMatch,
   getCurrentUserPartner,
@@ -558,17 +559,78 @@ export function establishSession(partner) {
 }
 
 export function attemptLogin(username, password) {
+  const trimmedUser = username.trim();
+  const trimmedPassword = password.trim();
   const partner = state.config?.partners?.find(p =>
-    !isPartnerPassive(p) && p.username === username.trim() && p.password === password
+    !isPartnerPassive(p) && p.username === trimmedUser && p.password === trimmedPassword
   );
   if (!partner) {
-    showToast('Invalid username or password.', 'error');
-    addLog(`${username.trim()}: Failed login attempt.`, 'warning');
+    const hint = needsHouseholdSetup(state.config)
+      ? 'No household accounts exist yet — create the first admin account.'
+      : 'Invalid username or password.';
+    showToast(hint, 'error');
+    addLog(`${trimmedUser}: Failed login attempt.`, 'warning');
     return false;
   }
   establishSession(partner);
   addLog(`${partner.name}: Logged in successfully.`, 'info');
   showToast(`Welcome back, ${partner.name.split(' ')[0]}!`, 'success');
+  window.location.hash = '#schedule';
+  import('./router.js').then(({ router }) => router());
+  return true;
+}
+
+export async function createFirstAdminPartner({ name, username, password }) {
+  const trimmedName = name.trim();
+  const trimmedUser = username.trim();
+  const trimmedPassword = password.trim();
+
+  if (!trimmedName || !trimmedUser || !trimmedPassword) {
+    showToast('Name, username, and password are required.', 'warning');
+    return false;
+  }
+
+  if (!state.config) {
+    showToast('Household config is not loaded yet. Refresh and try again.', 'error');
+    return false;
+  }
+
+  if (!needsHouseholdSetup(state.config)) {
+    showToast('This household already has login accounts.', 'warning');
+    return false;
+  }
+
+  const duplicate = state.config.partners?.find(p => p.username === trimmedUser);
+  if (duplicate) {
+    showToast('That username is already taken.', 'warning');
+    return false;
+  }
+
+  const partner = {
+    id: `p_${crypto.randomUUID?.() || Date.now()}`,
+    name: trimmedName,
+    username: trimmedUser,
+    password: trimmedPassword,
+    role: 'Admin',
+    avatar: DEFAULT_AVATARS[0],
+    pronouns: normalizePronouns(null),
+    rules: {}
+  };
+
+  state.config.partners = state.config.partners || [];
+  state.config.partners.push(partner);
+
+  try {
+    await CalendarSync.saveConfig(state.config);
+  } catch (err) {
+    state.config.partners.pop();
+    showToast(`Failed to save household: ${err.message}`, 'error');
+    return false;
+  }
+
+  addLog(`${partner.name}: Created first admin account.`, 'info');
+  establishSession(partner);
+  showToast(`Welcome, ${partner.name.split(' ')[0]}!`, 'success');
   window.location.hash = '#schedule';
   import('./router.js').then(({ router }) => router());
   return true;

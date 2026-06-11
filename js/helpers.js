@@ -94,6 +94,18 @@ export function isPartnerActive(partner) {
   return partner && !isPartnerPassive(partner);
 }
 
+/** Whether this partner can sign in with username and password. */
+export function canPartnerLogin(partner) {
+  return isPartnerActive(partner)
+    && !!String(partner.username || '').trim()
+    && !!String(partner.password || '').length;
+}
+
+/** True when the household has no login-capable partners yet. */
+export function needsHouseholdSetup(config) {
+  return !(config?.partners || []).some(canPartnerLogin);
+}
+
 export function getPartnerById(config, partnerId) {
   if (!partnerId || !config?.partners) return null;
   return config.partners.find(p => p.id === partnerId) || null;

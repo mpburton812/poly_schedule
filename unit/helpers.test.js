@@ -1,6 +1,13 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { LEGACY_PRESET_AVATARS } from '../js/avatar.js';
-import { dedupeDuplicateSleepingEvents, normalizeConfigPartners, parseLocalDateString, renderBatchNightsReviewHtml } from '../js/helpers.js';
+import {
+  canPartnerLogin,
+  dedupeDuplicateSleepingEvents,
+  needsHouseholdSetup,
+  normalizeConfigPartners,
+  parseLocalDateString,
+  renderBatchNightsReviewHtml
+} from '../js/helpers.js';
 import { DEFAULT_AVATARS } from '../js/helpers.js';
 
 vi.hoisted(() => {
@@ -123,5 +130,23 @@ describe('renderBatchNightsReviewHtml', () => {
     expect(html).toContain('Night 1');
     expect(html).toContain('Lake House · North Bedroom');
     expect(html).toContain('Michael, Katie');
+  });
+});
+
+describe('household login readiness', () => {
+  it('detects when setup is required', () => {
+    expect(needsHouseholdSetup({ partners: [] })).toBe(true);
+    expect(needsHouseholdSetup({
+      partners: [{ id: 'p1', name: 'Passive', passive: true }]
+    })).toBe(true);
+    expect(needsHouseholdSetup({
+      partners: [{ id: 'p1', name: 'Admin', username: 'admin', password: 'secret' }]
+    })).toBe(false);
+  });
+
+  it('requires username and password for login', () => {
+    expect(canPartnerLogin({ username: 'a', password: 'b' })).toBe(true);
+    expect(canPartnerLogin({ username: 'a' })).toBe(false);
+    expect(canPartnerLogin({ passive: true, username: 'a', password: 'b' })).toBe(false);
   });
 });

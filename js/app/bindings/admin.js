@@ -22,6 +22,7 @@ import {
   showToast,
   saveConfig,
   attemptLogin,
+  createFirstAdminPartner,
   bindHomeSelectCreateNew,
   saveAddPartnerDraft,
   restoreAddPartnerDraft,
@@ -64,6 +65,18 @@ export function bindAdminEvents() {
 }
 
 export function bindLoginEvents() {
+  const btnSetup = document.getElementById('btn-setup-household');
+  if (btnSetup) {
+    btnSetup.addEventListener('click', () => {
+      void createFirstAdminPartner({
+        name: document.getElementById('setup-name')?.value || '',
+        username: document.getElementById('setup-username')?.value || '',
+        password: document.getElementById('setup-password')?.value || ''
+      });
+    });
+    return;
+  }
+
   const btnLogin = document.getElementById('btn-login');
   const usernameInput = document.getElementById('login-username');
   const passwordInput = document.getElementById('login-password');
