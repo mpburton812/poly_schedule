@@ -186,6 +186,8 @@ export async function refreshHouseholdFromCloud(scopes = ['config', 'events'], {
           state.config = cached.config;
           localStorage.setItem(LOCAL_CONFIG_KEY, JSON.stringify(cached.config));
           localStorage.setItem(LAST_SYNC_REVISION_KEY, String(cached.revision));
+          const { applySyncedAdminSettingsFromConfig } = await import('./household-config-apply.js');
+          applySyncedAdminSettingsFromConfig(cached.config, { CalendarSync });
           applied = true;
         }
       }
@@ -212,6 +214,10 @@ export async function refreshHouseholdFromCloud(scopes = ['config', 'events'], {
     }
     if (CalendarSync.config?.syncRevision != null) {
       localStorage.setItem(LAST_SYNC_REVISION_KEY, String(CalendarSync.config.syncRevision));
+    }
+    if (scopes.includes('config')) {
+      const { applySyncedAdminSettingsFromConfig } = await import('./household-config-apply.js');
+      applySyncedAdminSettingsFromConfig(CalendarSync.config, { CalendarSync });
     }
     applied = true;
   }

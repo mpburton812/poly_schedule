@@ -137,6 +137,9 @@ export const CalendarSync = {
     }
 
     await this.normalizeAndPersistConfig();
+
+    const { applySyncedAdminSettingsFromConfig } = await import('./household-config-apply.js');
+    applySyncedAdminSettingsFromConfig(this.config, { CalendarSync: this });
   },
 
   async normalizeAndPersistConfig() {

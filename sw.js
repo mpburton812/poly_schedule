@@ -3,7 +3,7 @@
  * Handles offline resource caching and native device notification event mapping.
  */
 
-const CACHE_NAME = 'polyschedule-v6';
+const CACHE_NAME = 'polyschedule-v8';
 const ASSETS_TO_CACHE = [
   './',
   './index.html',
@@ -30,6 +30,9 @@ const ASSETS_TO_CACHE = [
   './js/rules.js',
   './js/push-notifications.js',
   './js/household-sync.js',
+  './js/google-integration.js',
+  './js/household-services.js',
+  './js/household-config-apply.js',
   './js/views.js',
   './version.json',
   './release-notes.json',

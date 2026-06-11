@@ -10,6 +10,11 @@ import {
   setHouseholdSyncToken,
   isSyncHubConfigured
 } from '../../household-sync.js';
+import { setGoogleIntegrationOnConfig } from '../../google-integration.js';
+import {
+  setNotifyServiceOnConfig,
+  setSyncHubOnConfig
+} from '../../household-services.js';
 import {
   NOTIFY_URL_KEY,
   NOTIFY_SECRET_KEY,
@@ -86,34 +91,49 @@ export function bindGoogleCredentialsEvents(container = document) {
   const btnSave = container.querySelector('#btn-save-google-credentials');
   if (btnSave) {
     btnSave.addEventListener('click', () => {
-      const cid = container.querySelector('#admin-google-client-id')?.value.trim();
-      const akey = container.querySelector('#admin-google-api-key')?.value.trim();
-      const calid = container.querySelector('#admin-google-calendar-id')?.value.trim();
+      void (async () => {
+        const cid = container.querySelector('#admin-google-client-id')?.value.trim();
+        const akey = container.querySelector('#admin-google-api-key')?.value.trim();
+        const calid = container.querySelector('#admin-google-calendar-id')?.value.trim() || 'primary';
 
-      if (!cid || !akey) {
-        showToast('OAuth Client ID and API Key are required.', 'warning');
-        return;
-      }
+        if (!cid || !akey) {
+          showToast('OAuth Client ID and API Key are required.', 'warning');
+          return;
+        }
 
-      AuthManager.setCredentials(cid, akey);
-      localStorage.setItem('polyschedule_calendar_id', calid || 'primary');
-      localStorage.setItem('polyschedule_mode', 'sync');
-      state.isOffline = false;
+        AuthManager.setCredentials(cid, akey);
+        localStorage.setItem('polyschedule_calendar_id', calid);
+        localStorage.setItem('polyschedule_mode', 'sync');
+        state.isOffline = false;
+        CalendarSync.calendarId = calid;
+        CalendarSync.apiKey = akey;
 
-      showToast('Google credentials saved. Click Sync Google, then Test Calendar API.', 'success');
-      logUserAction('Google Calendar API credentials updated.', 'info');
-
-      const loginBtn = document.getElementById('btn-google-login');
-      if (loginBtn) loginBtn.style.display = 'inline-flex';
-
-      if (AuthManager.accessToken) {
-        void runGoogleCalendarConnectionTest({ showSuccessToast: false }).then((result) => {
-          if (!result.ok) return;
-          import('../bootstrap.js').then(({ handleGoogleAuthState }) => {
-            handleGoogleAuthState({ loggedIn: true, user: AuthManager.userProfile, mode: 'sync' });
+        if (state.config) {
+          setGoogleIntegrationOnConfig(state.config, {
+            clientId: cid,
+            apiKey: akey,
+            calendarId: calid
           });
-        });
-      }
+          try {
+            await CalendarSync.saveConfig(state.config);
+          } catch (err) {
+            showToast(`Saved locally but failed to sync credentials: ${err.message}`, 'warning');
+          }
+        }
+
+        showToast('Google credentials saved and synced to household config.', 'success');
+        logUserAction('Google Calendar API credentials updated and synced to household.', 'info');
+
+        const loginBtn = document.getElementById('btn-google-login');
+        if (loginBtn) loginBtn.style.display = 'inline-flex';
+
+        if (AuthManager.accessToken) {
+          const result = await runGoogleCalendarConnectionTest({ showSuccessToast: false });
+          if (!result.ok) return;
+          const { handleGoogleAuthState } = await import('../bootstrap.js');
+          handleGoogleAuthState({ loggedIn: true, user: AuthManager.userProfile, mode: 'sync' });
+        }
+      })();
     });
   }
 
@@ -211,25 +231,48 @@ export function bindHouseholdSyncEvents(container = document) {
   const btnSaveToken = container.querySelector('#btn-save-household-sync-token');
   if (btnSaveToken) {
     btnSaveToken.addEventListener('click', () => {
-      const token = container.querySelector('#admin-household-sync-token')?.value.trim();
-      if (!token) {
-        showToast('Enter a sync token or click Generate Token.', 'warning');
-        return;
-      }
-      setHouseholdSyncToken(token);
-      logUserAction('Household sync token saved on this device.', 'info');
-      showToast('Household sync token saved.', 'success');
+      void (async () => {
+        const token = container.querySelector('#admin-household-sync-token')?.value.trim();
+        if (!token) {
+          showToast('Enter a sync token or click Generate Token.', 'warning');
+          return;
+        }
+        setHouseholdSyncToken(token);
+        if (state.config) {
+          setSyncHubOnConfig(state.config, { token });
+          try {
+            await CalendarSync.saveConfig(state.config);
+          } catch (err) {
+            showToast(`Saved locally but failed to sync token: ${err.message}`, 'warning');
+            return;
+          }
+        }
+        logUserAction('Household sync token saved and synced to household.', 'info');
+        showToast('Household sync token saved and synced.', 'success');
+      })();
     });
   }
 
   const btnGenToken = container.querySelector('#btn-generate-household-sync-token');
   if (btnGenToken) {
     btnGenToken.addEventListener('click', () => {
-      const token = generateHouseholdSyncToken();
-      const input = container.querySelector('#admin-household-sync-token');
-      if (input) input.value = token;
-      setHouseholdSyncToken(token);
-      showToast('Generated a new sync token.', 'success');
+      void (async () => {
+        const token = generateHouseholdSyncToken();
+        const input = container.querySelector('#admin-household-sync-token');
+        if (input) input.value = token;
+        setHouseholdSyncToken(token);
+        if (state.config) {
+          setSyncHubOnConfig(state.config, { token });
+          try {
+            await CalendarSync.saveConfig(state.config);
+            showToast('Generated and synced a new household sync token.', 'success');
+          } catch (err) {
+            showToast('Token generated locally but failed to sync.', 'warning');
+          }
+        } else {
+          showToast('Generated a new sync token.', 'success');
+        }
+      })();
     });
   }
 
@@ -272,16 +315,29 @@ export function bindNotifyCredentialsEvents(container = document) {
   const btnSave = container.querySelector('#btn-save-notify-credentials');
   if (btnSave) {
     btnSave.addEventListener('click', () => {
-      const url = container.querySelector('#admin-notify-url')?.value.trim().replace(/\/$/, '');
-      const secret = container.querySelector('#admin-notify-secret')?.value.trim();
-      if (!url || !secret) {
-        showToast('Notify service URL and secret are required.', 'warning');
-        return;
-      }
-      localStorage.setItem(NOTIFY_URL_KEY, url);
-      localStorage.setItem(NOTIFY_SECRET_KEY, secret);
-      showToast('Notify service settings saved.', 'success');
-      logUserAction('Mobile notify service settings updated.', 'info');
+      void (async () => {
+        const url = container.querySelector('#admin-notify-url')?.value.trim().replace(/\/$/, '');
+        const secret = container.querySelector('#admin-notify-secret')?.value.trim();
+        if (!url || !secret) {
+          showToast('Notify service URL and secret are required.', 'warning');
+          return;
+        }
+        localStorage.setItem(NOTIFY_URL_KEY, url);
+        localStorage.setItem(NOTIFY_SECRET_KEY, secret);
+
+        if (state.config) {
+          setNotifyServiceOnConfig(state.config, { url, secret });
+          try {
+            await CalendarSync.saveConfig(state.config);
+          } catch (err) {
+            showToast(`Saved locally but failed to sync notify settings: ${err.message}`, 'warning');
+            return;
+          }
+        }
+
+        showToast('Notify service settings saved and synced to household.', 'success');
+        logUserAction('Mobile notify service settings updated and synced to household.', 'info');
+      })();
     });
   }
 }

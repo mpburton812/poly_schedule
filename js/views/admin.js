@@ -28,14 +28,17 @@ import { renderChangeLogHtml } from '../change-log.js';
 export function adminView(state) {
     const polyFamilyName = localStorage.getItem('polyschedule_poly_family_name') || 'The Poly Circle';
     const autoArchiveDays = getAutoArchiveDays();
-    const clientId = localStorage.getItem('polyschedule_client_id') || '';
-    const apiKey = localStorage.getItem('polyschedule_api_key') || '';
-    const calendarId = localStorage.getItem('polyschedule_calendar_id') || 'primary';
-    const notifyUrl = localStorage.getItem('polyschedule_notify_url') || '';
-    const notifySecret = localStorage.getItem('polyschedule_notify_secret') || '';
+    const googleIntegration = state.config?.googleIntegration || {};
+    const clientId = googleIntegration.clientId || localStorage.getItem('polyschedule_client_id') || '';
+    const apiKey = googleIntegration.apiKey || localStorage.getItem('polyschedule_api_key') || '';
+    const calendarId = googleIntegration.calendarId || localStorage.getItem('polyschedule_calendar_id') || 'primary';
+    const notifyService = state.config?.notifyService || {};
+    const syncHub = state.config?.syncHub || {};
+    const notifyUrl = notifyService.url || localStorage.getItem('polyschedule_notify_url') || '';
+    const notifySecret = notifyService.secret || localStorage.getItem('polyschedule_notify_secret') || '';
     const householdId = state.config?.householdId || '';
     const syncRevision = state.config?.syncRevision ?? 0;
-    const householdSyncToken = localStorage.getItem('polyschedule_household_sync_token') || '';
+    const householdSyncToken = syncHub.token || localStorage.getItem('polyschedule_household_sync_token') || '';
     const credentialsConfigured = !!(clientId && apiKey);
     const syncHubConfigured = !!(notifyUrl && notifySecret);
     const changeLogHtml = renderChangeLogHtml(state.changeLog || []);
@@ -68,7 +71,7 @@ export function adminView(state) {
             <span class="material-symbols-outlined text-primary">cloud_sync</span> Google Calendar Integration
           </h3>
           <p class="font-body-md" style="color: var(--on-surface-variant); margin-bottom: var(--space-md);">
-            One-time setup for the whole household. After saving credentials, members can use <strong>Sync Google</strong> in the top bar to connect their account.
+            One-time setup for the whole household. Credentials are saved to the shared calendar config and sync to other devices automatically. Each member still uses <strong>Sync Google</strong> once to connect their own Google account.
           </p>
           ${credentialsConfigured
             ? '<p class="font-label-sm" style="color: var(--secondary); margin-bottom: var(--space-md);">Credentials are configured.</p>'
@@ -112,7 +115,7 @@ export function adminView(state) {
             <span class="material-symbols-outlined text-primary">hub</span> Household Sync Hub
           </h3>
           <p class="font-body-md" style="color: var(--on-surface-variant); margin-bottom: var(--space-md);">
-            Near-real-time coordination via the notify service. Google Calendar remains the source of truth; other devices pull updates within seconds.
+            Near-real-time coordination via the notify service. Google Calendar remains the source of truth; household ID and sync token sync to other devices automatically.
           </p>
           ${syncHubConfigured
             ? '<p class="font-label-sm" style="color: var(--secondary); margin-bottom: var(--space-md);">Notify service is configured for sync hub.</p>'
@@ -146,7 +149,7 @@ export function adminView(state) {
             <span class="material-symbols-outlined text-primary">notifications_active</span> Mobile Push Notifications
           </h3>
           <p class="font-body-md" style="color: var(--on-surface-variant); margin-bottom: var(--space-md);">
-            One-time setup for the notify service that delivers Web Push alerts to Android and iPhone PWAs when proposals need review.
+            One-time setup for the notify service that delivers Web Push alerts to Android and iPhone PWAs when proposals need review. URL and secret sync to all household devices; each person still enables push under Settings.
           </p>
           ${notifyUrl && notifySecret
             ? '<p class="font-label-sm" style="color: var(--secondary); margin-bottom: var(--space-md);">Notify service is configured.</p>'

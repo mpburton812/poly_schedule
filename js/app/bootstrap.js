@@ -231,6 +231,27 @@ export function init() {
     AuthManager.onAuthStateChange = (authState) => {
       handleGoogleAuthState(authState);
     };
+
+    window.addEventListener('polyschedule:google-integration', (event) => {
+      updateGoogleLoginButton({
+        loggedIn: !!AuthManager.accessToken,
+        user: AuthManager.userProfile,
+        mode: localStorage.getItem('polyschedule_mode')
+      });
+      if (event.detail?.needsGoogleLogin && state.currentUser) {
+        showToast('Google credentials synced — click Sync Google to connect your account.', 'info');
+      }
+    });
+
+    window.addEventListener('polyschedule:household-services', async (event) => {
+      const { startHouseholdSyncHub } = await import('../household-sync.js');
+      await startHouseholdSyncHub(createSyncHooks());
+      if (event.detail?.notifyApplied && state.currentUser) {
+        import('../push-notifications.js').then(({ syncPushSubscriptionIfEnabled }) => {
+          syncPushSubscriptionIfEnabled(state.currentUser.id);
+        });
+      }
+    });
   };
 
   if (document.readyState === 'loading') {
