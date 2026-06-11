@@ -1,3 +1,9 @@
+import {
+  CLIENT_ID_KEY,
+  API_KEY_KEY,
+  ACCESS_TOKEN_KEY,
+  MODE_KEY
+} from './storage-keys.js';
 /**
  * Google Calendar ↔ PolySchedule event serialization helpers.
  */
@@ -247,10 +253,10 @@ export function canWriteToGoogleCalendar({ mode, accessToken, apiKey } = {}) {
 
 /** Whether the app should boot connected to Google Calendar. */
 export function resolveSyncBootstrapMode() {
-  const wantsSync = localStorage.getItem('polyschedule_mode') === 'sync';
-  const hasToken = !!localStorage.getItem('polyschedule_access_token');
-  const hasCreds = !!localStorage.getItem('polyschedule_client_id')
-    && !!localStorage.getItem('polyschedule_api_key');
+  const wantsSync = localStorage.getItem(MODE_KEY) === 'sync';
+  const hasToken = !!localStorage.getItem(ACCESS_TOKEN_KEY);
+  const hasCreds = !!localStorage.getItem(CLIENT_ID_KEY)
+    && !!localStorage.getItem(API_KEY_KEY);
   return wantsSync && hasCreds && hasToken ? 'sync' : 'offline';
 }
 

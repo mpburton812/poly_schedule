@@ -1,3 +1,8 @@
+import {
+  CLIENT_ID_KEY,
+  API_KEY_KEY,
+  ACCESS_TOKEN_KEY
+} from './storage-keys.js';
 /**
  * PolySchedule Google Authentication Helper
  * Manages Google Identity Services OAuth 2.0 flow and local credentials configurations.
@@ -6,10 +11,10 @@
 import { GOOGLE_PROFILE_KEY, LEGACY_PROFILE_KEY } from './helpers.js';
 
 export const AuthManager = {
-  clientId: localStorage.getItem('polyschedule_client_id') || '',
-  apiKey: localStorage.getItem('polyschedule_api_key') || '',
+  clientId: localStorage.getItem(CLIENT_ID_KEY) || '',
+  apiKey: localStorage.getItem(API_KEY_KEY) || '',
   tokenClient: null,
-  accessToken: localStorage.getItem('polyschedule_access_token') || '',
+  accessToken: localStorage.getItem(ACCESS_TOKEN_KEY) || '',
   userProfile: JSON.parse(localStorage.getItem(GOOGLE_PROFILE_KEY) || localStorage.getItem(LEGACY_PROFILE_KEY) || 'null'),
   onAuthStateChange: null,
   onAuthError: null,
@@ -27,20 +32,20 @@ export const AuthManager = {
   },
 
   reloadFromStorage() {
-    this.clientId = localStorage.getItem('polyschedule_client_id') || '';
-    this.apiKey = localStorage.getItem('polyschedule_api_key') || '';
-    this.accessToken = localStorage.getItem('polyschedule_access_token') || '';
+    this.clientId = localStorage.getItem(CLIENT_ID_KEY) || '';
+    this.apiKey = localStorage.getItem(API_KEY_KEY) || '';
+    this.accessToken = localStorage.getItem(ACCESS_TOKEN_KEY) || '';
   },
 
   setCredentials(clientId, apiKey) {
     const clientChanged = !!(this.clientId && this.clientId !== clientId);
     this.clientId = clientId;
     this.apiKey = apiKey;
-    localStorage.setItem('polyschedule_client_id', clientId);
-    localStorage.setItem('polyschedule_api_key', apiKey);
+    localStorage.setItem(CLIENT_ID_KEY, clientId);
+    localStorage.setItem(API_KEY_KEY, apiKey);
     if (clientChanged) {
       this.accessToken = '';
-      localStorage.removeItem('polyschedule_access_token');
+      localStorage.removeItem(ACCESS_TOKEN_KEY);
     }
 
     this.loadGapiAndGis();
@@ -51,9 +56,9 @@ export const AuthManager = {
     this.apiKey = '';
     this.accessToken = '';
     this.userProfile = null;
-    localStorage.removeItem('polyschedule_client_id');
-    localStorage.removeItem('polyschedule_api_key');
-    localStorage.removeItem('polyschedule_access_token');
+    localStorage.removeItem(CLIENT_ID_KEY);
+    localStorage.removeItem(API_KEY_KEY);
+    localStorage.removeItem(ACCESS_TOKEN_KEY);
     localStorage.removeItem(GOOGLE_PROFILE_KEY);
     localStorage.removeItem(LEGACY_PROFILE_KEY);
     
@@ -110,7 +115,7 @@ export const AuthManager = {
           return;
         }
         this.accessToken = tokenResponse.access_token;
-        localStorage.setItem('polyschedule_access_token', this.accessToken);
+        localStorage.setItem(ACCESS_TOKEN_KEY, this.accessToken);
         
         // Fetch user profile info
         this.fetchUserProfile();
@@ -145,7 +150,7 @@ export const AuthManager = {
     }
     this.accessToken = '';
     this.userProfile = null;
-    localStorage.removeItem('polyschedule_access_token');
+    localStorage.removeItem(ACCESS_TOKEN_KEY);
     localStorage.removeItem(GOOGLE_PROFILE_KEY);
     localStorage.removeItem(LEGACY_PROFILE_KEY);
 

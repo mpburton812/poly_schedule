@@ -1,3 +1,15 @@
+import {
+  LOCAL_SESSION_KEY,
+  GOOGLE_PROFILE_KEY,
+  LEGACY_PROFILE_KEY,
+  LOGS_STORAGE_KEY,
+  CHANGE_LOG_KEY,
+  NOTIFICATIONS_BY_USER_KEY,
+  LEGACY_NOTIFICATIONS_KEY,
+  RETURN_ADD_PARTNER_KEY,
+  SELECT_HOME_KEY,
+  ADD_PARTNER_DRAFT_KEY
+} from './storage-keys.js';
 /**
  * Shared PolySchedule helpers
  */
@@ -8,19 +20,7 @@ import { escapeHtml } from './escape.js';
 
 export { DEFAULT_AVATARS, migrateAvatarUrl, isCustomAvatar };
 
-export const LOGS_STORAGE_KEY = 'polyschedule_system_logs';
 export const CREATE_NEW_HOME = '__create_new__';
-export const RETURN_ADD_PARTNER_KEY = 'polyschedule_return_add_partner';
-export const SELECT_HOME_KEY = 'polyschedule_select_home_id';
-export const ADD_PARTNER_DRAFT_KEY = 'polyschedule_add_partner_draft';
-export const LOCAL_SESSION_KEY = 'polyschedule_local_session';
-export const GOOGLE_PROFILE_KEY = 'polyschedule_google_profile';
-export const LEGACY_PROFILE_KEY = 'polyschedule_user_profile';
-export const CHANGE_LOG_STORAGE_KEY = 'polyschedule_change_log';
-export const NOTIFICATIONS_BY_USER_KEY = 'polyschedule_notifications_by_user';
-export const LEGACY_NOTIFICATIONS_KEY = 'polyschedule_notifications';
-export const LOCAL_CONFIG_KEY = 'polyschedule_local_config';
-export const LOCAL_EVENTS_KEY = 'polyschedule_local_events';
 
 export function partnerDisplayFirstName(name) {
   if (!name) return '';

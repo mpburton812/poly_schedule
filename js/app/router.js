@@ -29,6 +29,7 @@ import {
 } from './bindings/create.js';
 import { bindLogisticsEvents, bindSettingsEvents } from './bindings/logistics.js';
 import {
+import {
   bindAdminEvents,
   bindAddPartnerEvents,
   bindAddHomeEvents,
@@ -36,6 +37,9 @@ import {
   bindEditHomeEvents,
   bindActivatePartnerEvents
 } from './bindings/admin.js';
+import { onRenderRequest } from './render-bus.js';
+
+onRenderRequest(() => renderView());
 
 export function router() {
   if (!isLoggedIn()) {
@@ -96,69 +100,76 @@ export function renderView() {
   if (!container) return;
 
   const fab = document.getElementById('fab-quick-add');
-  if (state.currentView === 'create' || state.currentView === 'settings' || state.currentView === 'add-partner' || state.currentView === 'add-home' || state.currentView === 'edit-partner' || state.currentView === 'edit-home' || state.currentView === 'activate-partner') {
-    if (fab) fab.style.display = 'none';
-  } else {
-    if (fab) fab.style.display = 'flex';
+  const noFabViews = new Set(['create', 'settings', 'add-partner', 'add-home', 'edit-partner', 'edit-home', 'activate-partner']);
+  if (fab) {
+    fab.style.display = noFabViews.has(state.currentView) ? 'none' : 'flex';
   }
 
-  if (state.currentView === 'schedule') {
-    container.innerHTML = Views.schedule(state);
-    bindScheduleEvents();
-  } else if (state.currentView === 'proposals') {
-    container.innerHTML = Views.proposals(state, flowState.activeProposalsTab);
-    bindProposalsEvents();
-  } else if (state.currentView === 'create') {
-    const params = parseHashParams();
-    if (!params.draft) {
-      resetCreateFlowForNavigation();
+  const dispatchTable = {
+    'schedule': () => {
+      container.innerHTML = Views.schedule(state);
+      bindScheduleEvents();
+    },
+    'proposals': () => {
+      container.innerHTML = Views.proposals(state, flowState.activeProposalsTab);
+      bindProposalsEvents();
+    },
+    'create': () => {
+      const params = parseHashParams();
+      if (!params.draft) resetCreateFlowForNavigation();
+      const canUseSleepingProposals = canCreateSleepingProposals(state.config, state.currentUser);
+      if ((flowState.currentCreateType === 'sleeping' || flowState.currentCreateType === 'batch_sleeping') && !canUseSleepingProposals) {
+        flowState.currentCreateType = 'event';
+      }
+      if (flowState.currentCreateType === 'batch_sleeping') ensureBatchAssignments(newProposalState.batchNightCount);
+      ensureCreateDraftSync();
+      container.innerHTML = Views.createProposal(state, flowState.currentCreateType, {
+        ...newProposalState,
+        soloEventMode: flowState.soloEventMode
+      });
+      bindCreateEvents();
+    },
+    'logistics': () => {
+      container.innerHTML = Views.logistics(state);
+      bindLogisticsEvents();
+    },
+    'settings': () => {
+      container.innerHTML = Views.settings(state);
+      bindSettingsEvents();
+    },
+    'admin': () => {
+      if (!isAdmin()) { window.location.hash = '#schedule'; return; }
+      container.innerHTML = Views.admin(state);
+      bindAdminEvents();
+    },
+    'add-partner': () => {
+      const selectedHomeId = sessionStorage.getItem(SELECT_HOME_KEY) || '';
+      if (selectedHomeId) sessionStorage.removeItem(SELECT_HOME_KEY);
+      container.innerHTML = Views.addPartner(state, flowState.activePartnerType, selectedHomeId);
+      bindAddPartnerEvents();
+    },
+    'add-home': () => {
+      container.innerHTML = Views.addHome(state);
+      bindAddHomeEvents();
+    },
+    'edit-partner': () => {
+      container.innerHTML = Views.editPartner(state, parseHashParams().p);
+      bindEditPartnerEvents();
+    },
+    'edit-home': () => {
+      container.innerHTML = Views.editHome(state, parseHashParams().h);
+      bindEditHomeEvents();
+    },
+    'activate-partner': () => {
+      container.innerHTML = Views.activatePartner(state);
+      bindActivatePartnerEvents();
     }
+  };
 
-    const canUseSleepingProposals = canCreateSleepingProposals(state.config, state.currentUser);
-
-    if ((flowState.currentCreateType === 'sleeping' || flowState.currentCreateType === 'batch_sleeping') && !canUseSleepingProposals) {
-      flowState.currentCreateType = 'event';
-    }
-    if (flowState.currentCreateType === 'batch_sleeping') {
-      ensureBatchAssignments(newProposalState.batchNightCount);
-    }
-    ensureCreateDraftSync();
-    container.innerHTML = Views.createProposal(state, flowState.currentCreateType, {
-      ...newProposalState,
-      soloEventMode: flowState.soloEventMode
-    });
-    bindCreateEvents();
-  } else if (state.currentView === 'logistics') {
-    container.innerHTML = Views.logistics(state);
-    bindLogisticsEvents();
-  } else if (state.currentView === 'settings') {
-    container.innerHTML = Views.settings(state);
-    bindSettingsEvents();
-  } else if (state.currentView === 'admin') {
-    if (!isAdmin()) {
-      window.location.hash = '#schedule';
-      return;
-    }
-    container.innerHTML = Views.admin(state);
-    bindAdminEvents();
-  } else if (state.currentView === 'add-partner') {
-    const selectedHomeId = sessionStorage.getItem(SELECT_HOME_KEY) || '';
-    if (selectedHomeId) sessionStorage.removeItem(SELECT_HOME_KEY);
-    container.innerHTML = Views.addPartner(state, flowState.activePartnerType, selectedHomeId);
-    bindAddPartnerEvents();
-  } else if (state.currentView === 'add-home') {
-    container.innerHTML = Views.addHome(state);
-    bindAddHomeEvents();
-  } else if (state.currentView === 'edit-partner') {
-    const params = parseHashParams();
-    container.innerHTML = Views.editPartner(state, params.p);
-    bindEditPartnerEvents();
-  } else if (state.currentView === 'edit-home') {
-    const params = parseHashParams();
-    container.innerHTML = Views.editHome(state, params.h);
-    bindEditHomeEvents();
-  } else if (state.currentView === 'activate-partner') {
-    container.innerHTML = Views.activatePartner(state);
-    bindActivatePartnerEvents();
+  const handler = dispatchTable[state.currentView];
+  if (handler) {
+    handler();
+  } else {
+    window.location.hash = '#schedule';
   }
 }

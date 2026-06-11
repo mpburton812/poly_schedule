@@ -1,3 +1,6 @@
+import {
+  FAMILY_NAME_KEY
+} from '../../storage-keys.js';
 import { CalendarSync } from '../../calendar.js';
 import { hashPassword } from '../../crypto.js';
 import { normalizePronouns } from '../../pronouns.js';
@@ -41,7 +44,7 @@ export function bindAdminEvents() {
   if (btnSave && familyInput) {
     btnSave.addEventListener('click', () => {
       const name = familyInput.value.trim() || 'The Poly Circle';
-      localStorage.setItem('polyschedule_poly_family_name', name);
+      localStorage.setItem(FAMILY_NAME_KEY, name);
       logUserAction(`Group name updated to "${name}".`, 'info');
       showToast('Group name saved.', 'success');
     });

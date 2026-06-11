@@ -1,3 +1,6 @@
+import {
+  CALENDAR_ID_KEY
+} from './storage-keys.js';
 /**
  * PolySchedule Google Calendar & State Manager
  * Synchronizes local state with Google Calendar events or provides offline localStorage mock sync.
@@ -67,7 +70,7 @@ function createEmptyHousehold() {
 }
 
 export const CalendarSync = {
-  calendarId: localStorage.getItem('polyschedule_calendar_id') || 'primary',
+  calendarId: localStorage.getItem(CALENDAR_ID_KEY) || 'primary',
   events: [],
   config: null,
   mode: 'offline', // 'offline' or 'sync'
@@ -82,7 +85,7 @@ export const CalendarSync = {
     if (credentials) {
       this.accessToken = credentials.accessToken || '';
       this.apiKey = credentials.apiKey || '';
-      this.calendarId = localStorage.getItem('polyschedule_calendar_id') || 'primary';
+      this.calendarId = localStorage.getItem(CALENDAR_ID_KEY) || 'primary';
     }
 
     // Load Configuration
@@ -98,11 +101,14 @@ export const CalendarSync = {
   },
 
   async loadConfig() {
-    return HouseholdStore.loadConfig(this);
+    this.config = await HouseholdStore.loadConfig(this);
+    return this.config;
   },
 
   async saveConfig(newConfig) {
-    return HouseholdStore.saveConfig(this, newConfig, this.events);
+    const result = await HouseholdStore.saveConfig(this, newConfig, this.events);
+    this.config = newConfig;
+    return result;
   },
 
   async loadEvents() {

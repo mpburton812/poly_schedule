@@ -12,7 +12,6 @@ export const WORKFLOW = {
   DECLINED: 'declined'
 };
 
-export const AUTO_ARCHIVE_DAYS_KEY = 'polyschedule_auto_archive_days';
 export const DEFAULT_AUTO_ARCHIVE_DAYS = 7;
 
 export function getAutoArchiveDays() {

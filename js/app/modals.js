@@ -1,3 +1,7 @@
+import {
+  CLIENT_ID_KEY,
+  API_KEY_KEY
+} from '../storage-keys.js';
 /**
  * Shared modal dialogs.
  */
@@ -103,7 +107,7 @@ export function openUserProfileModal() {
   if (!modal || !box) return;
 
   const isOffline = state.isOffline;
-  const credentialsConfigured = !!(localStorage.getItem('polyschedule_client_id') && localStorage.getItem('polyschedule_api_key'));
+  const credentialsConfigured = !!(localStorage.getItem(CLIENT_ID_KEY) && localStorage.getItem(API_KEY_KEY));
 
   const profilePartner = getCurrentUserPartner(state.config, state.currentUser);
 

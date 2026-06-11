@@ -1,3 +1,8 @@
+import {
+  CLIENT_ID_KEY,
+  API_KEY_KEY,
+  NOTIFY_URL_KEY
+} from '../storage-keys.js';
 import { RulesEngine } from '../rules.js';
 import {
   DEFAULT_AVATARS,
@@ -27,8 +32,8 @@ import { PUSH_TYPE_LABELS, PUSH_TYPE_PREFS_KEY } from '../push-notifications.js'
 
 export function settingsView(state) {
     const isOffline = state.isOffline;
-    const credentialsConfigured = !!(localStorage.getItem('polyschedule_client_id') && localStorage.getItem('polyschedule_api_key'));
-    const notifyUrl = localStorage.getItem('polyschedule_notify_url') || '';
+    const credentialsConfigured = !!(localStorage.getItem(CLIENT_ID_KEY) && localStorage.getItem(API_KEY_KEY));
+    const notifyUrl = localStorage.getItem(NOTIFY_URL_KEY) || '';
     const pushEnabled = localStorage.getItem('polyschedule_push_enabled') === '1';
     const pushPermission = typeof Notification !== 'undefined' ? Notification.permission : 'default';
     const quietHours = localStorage.getItem('polyschedule_push_quiet_hours') === '1';

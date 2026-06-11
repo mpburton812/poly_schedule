@@ -1,3 +1,7 @@
+import {
+  ACCESS_TOKEN_KEY,
+  MODE_KEY
+} from '../storage-keys.js';
 import { AuthManager } from '../auth.js';
 import { CalendarSync } from '../calendar.js';
 import { isPartnerPassive, LEGACY_PROFILE_KEY } from '../helpers.js';
@@ -97,7 +101,7 @@ export async function bootstrapData(mode) {
 
     if (err?.code === 'GOOGLE_AUTH_EXPIRED') {
       AuthManager.accessToken = '';
-      localStorage.removeItem('polyschedule_access_token');
+      localStorage.removeItem(ACCESS_TOKEN_KEY);
       showToast('Google sign-in expired. Click Sync Google in the top bar to reconnect.', 'warning');
     } else if (err?.code === 'GOOGLE_NOT_FOUND') {
       showToast('Calendar not found. Check Calendar ID on the Admin page.', 'error');
@@ -110,7 +114,7 @@ export async function bootstrapData(mode) {
     }
 
     state.isOffline = true;
-    localStorage.setItem('polyschedule_mode', 'offline');
+    localStorage.setItem(MODE_KEY, 'offline');
     await bootstrapData('offline');
     return { ok: false, mode: 'offline', error: err };
   }
@@ -120,7 +124,7 @@ function updateGoogleLoginButton(authState) {
   const loginBtnEl = document.getElementById('btn-google-login');
   if (!loginBtnEl) return;
 
-  const syncConfigured = localStorage.getItem('polyschedule_mode') === 'sync'
+  const syncConfigured = localStorage.getItem(MODE_KEY) === 'sync'
     && AuthManager.clientId
     && AuthManager.apiKey;
 
@@ -138,7 +142,7 @@ export async function handleGoogleAuthState(authState) {
 
   if (authState.loggedIn && authState.mode === 'sync') {
     state.isOffline = false;
-    localStorage.setItem('polyschedule_mode', 'sync');
+    localStorage.setItem(MODE_KEY, 'sync');
     const result = await bootstrapData('sync');
     if (result.ok) {
       showToast('Connected to Google Calendar.', 'success');
@@ -148,7 +152,7 @@ export async function handleGoogleAuthState(authState) {
 
   if (!authState.loggedIn && CalendarSync.mode === 'sync') {
     state.isOffline = true;
-    localStorage.setItem('polyschedule_mode', 'offline');
+    localStorage.setItem(MODE_KEY, 'offline');
     await bootstrapData('offline');
   }
 }
@@ -249,7 +253,7 @@ export function init() {
       updateGoogleLoginButton({
         loggedIn: !!AuthManager.accessToken,
         user: AuthManager.userProfile,
-        mode: localStorage.getItem('polyschedule_mode')
+        mode: localStorage.getItem(MODE_KEY)
       });
       if (event.detail?.needsGoogleLogin && state.currentUser) {
         showToast('Google credentials synced — click Sync Google to connect your account.', 'info');

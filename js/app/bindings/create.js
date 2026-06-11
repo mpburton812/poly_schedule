@@ -2,67 +2,144 @@ import { CalendarSync } from '../../calendar.js';
 import { RulesEngine } from '../../rules.js';
 import { escapeHtml } from '../../escape.js';
 import {
+
+import {
+  ensureBatchAssignments,
+  syncBatchAssignmentsFromDom,
+  readBatchAssignmentsFromDom,
+  updateBatchPartnerLocks,
+} from './create-batch.js';
+import {
+  highlightBatchRowErrors,
+  formatWarningList,
+  showProposalRulesBanner,
+  updateMicroCalendarConflicts,
+  runRulesChecks,
+  evaluateCurrentBatchProposalWarnings
+} from './create-validation.js';
+import {
+  requireCurrentUserInSleepingProposal,
+  ensureCurrentUserSelectedForSleeping,
+  updateSleepingArrangementTitle,
+  preserveCreateFormDraft,
+  loadDraftIntoForm,
+  syncParticipantRolesFromParticipants,
+  collectProposalFormData,
+  scheduleDraftSave,
+  ensureCreateDraftSync,
+  submitCurrentProposal
+} from './create-form.js';
+
+export * from './create-batch.js';
+export * from './create-validation.js';
+export * from './create-form.js';
+
   parseHashParams,
+
   isPartnerPassive,
+
   findPartnerByRef,
+
   read12HourTime,
+
   parseLocalDateString,
+
   defaultBatchAssignment,
+
   defaultBatchNight,
+
   cloneBatchNight,
+
   normalizeBatchNight,
+
   getBedroomOptionsForHome,
+
   buildBatchNightsPayload,
+
   formatAppTime,
+
   mustIncludeCurrentUserInSleepingProposal
+
 } from '../../helpers.js';
 import { pastScheduleWarning } from '../../gcal-sync.js';
 import {
+
   WORKFLOW,
+
   getWorkflowState,
+
   normalizeParticipantRoles,
+
   isSoloEventProposal
+
 } from '../../proposal-workflow.js';
 import {
+
   state,
+
   flowState,
+
   newProposalState,
+
   resetNewProposalFormState
+
 } from '../state.js';
 import {
+
   logUserAction,
+
   showToast,
+
   getCurrentUserName,
+
   getCurrentUserId,
+
   notifyProposalReviewers,
+
   logOperationError
+
 } from '../context.js';
 import { renderView } from '../router.js';
 
 function requireCurrentUserInSleepingProposal() {
+
   return mustIncludeCurrentUserInSleepingProposal(state.config, state.currentUser);
+
 }
 
 function ensureCurrentUserSelectedForSleeping() {
+
   if (flowState.currentCreateType !== 'sleeping' || !requireCurrentUserInSleepingProposal()) return;
+
   const currentUserName = getCurrentUserName();
+
   if (!newProposalState.participants.includes(currentUserName)) {
     newProposalState.participants.unshift(currentUserName);
     syncParticipantRolesFromParticipants();
   }
+
 }
 
 export function updateSleepingArrangementTitle() {
+
   if (flowState.currentCreateType !== 'sleeping') return;
+
   const titleInput = document.getElementById('prop-title');
+
   if (!titleInput) return;
 
+
   const names = newProposalState.participants.length > 0
+
     ? newProposalState.participants.map(p => p.split(' ')[0]).join(', ')
+
     : 'Nobody';
 
+
   const homeSelect = document.getElementById('sleep-home-select');
+
   let homeName = '';
+
   if (homeSelect && homeSelect.selectedIndex >= 0) {
     homeName = homeSelect.options[homeSelect.selectedIndex].text;
   } else {
@@ -70,32 +147,48 @@ export function updateSleepingArrangementTitle() {
     homeName = defaultHome ? defaultHome.name : '';
   }
 
+
   const roomSelect = document.getElementById('sleep-room-select');
+
   let roomName = '';
+
   if (roomSelect && roomSelect.selectedIndex >= 0) {
     roomName = roomSelect.options[roomSelect.selectedIndex].text;
   } else {
     roomName = 'North Bedroom';
   }
 
+
   titleInput.value = `Sleeping : ${names} : ${homeName} ${roomName}`;
+
 }
 
 export function ensureBatchAssignments(count) {
+
   const n = Math.min(14, Math.max(1, count || 1));
+
   const defaultNight = defaultBatchNight(state.config);
+
   while (newProposalState.batchAssignments.length < n) {
     newProposalState.batchAssignments.push(cloneBatchNight(defaultNight));
   }
+
   newProposalState.batchAssignments = newProposalState.batchAssignments.slice(0, n);
+
   newProposalState.batchAssignments = newProposalState.batchAssignments.map(night =>
+
     normalizeBatchNight(night, state.config)
+
   );
+
   newProposalState.batchNightCount = n;
+
 }
 
 export function syncBatchAssignmentsFromDom() {
+
   if (flowState.currentCreateType !== 'batch_sleeping') return;
+
   document.querySelectorAll('.batch-night-row').forEach(row => {
     const idx = parseInt(row.dataset.nightIndex, 10);
     const assignments = [];
@@ -114,17 +207,21 @@ export function syncBatchAssignmentsFromDom() {
     });
     newProposalState.batchAssignments[idx] = { assignments };
   });
+
 }
 
 export function highlightBatchRowErrors(warnings) {
+
   document.querySelectorAll('.batch-night-row').forEach(row => {
     row.classList.remove('batch-night-row-error');
     row.removeAttribute('title');
   });
+
   document.querySelectorAll('.batch-assignment-block').forEach(block => {
     block.classList.remove('batch-assignment-error');
     block.removeAttribute('title');
   });
+
 
   warnings.forEach(w => {
     if (w.nightIndex === undefined) return;
@@ -140,25 +237,39 @@ export function highlightBatchRowErrors(warnings) {
       }
     }
   });
+
 }
 
 export function readBatchAssignmentsFromDom() {
+
   syncBatchAssignmentsFromDom();
+
   return newProposalState.batchAssignments;
+
 }
 
 export function formatWarningList(warnings) {
+
   if (!warnings.length) return '';
+
   if (warnings.length === 1) return escapeHtml(warnings[0].message);
+
   return `<ul class="banner-alert-list">${warnings.map(w => `<li>${escapeHtml(w.message)}</li>`).join('')}</ul>`;
+
 }
 
 export function showProposalRulesBanner(warnings) {
+
   const banner = document.getElementById('proposal-rules-banner');
+
   const titleEl = document.getElementById('banner-warning-title');
+
   const descEl = document.getElementById('banner-warning-desc');
+
   const conflictNotice = document.getElementById('micro-cal-conflict-notice');
+
   if (!banner) return;
+
 
   if (warnings.length > 0) {
     banner.classList.remove('hidden');
@@ -238,9 +349,11 @@ export function showProposalRulesBanner(warnings) {
       conflictNotice.innerHTML = '';
     }
   }
+
 }
 
 export function updateBatchPartnerLocks() {
+
   document.querySelectorAll('.batch-night-row').forEach(row => {
     const assignedInPriorBlocks = new Set();
     row.querySelectorAll('.batch-assignment-block').forEach(block => {
@@ -261,19 +374,27 @@ export function updateBatchPartnerLocks() {
       });
     });
   });
+
 }
 
 export function updateMicroCalendarConflicts(warnings) {
+
   const grid = document.getElementById('micro-cal-grid');
+
   if (!grid) return;
+
   grid.querySelectorAll('.micro-calendar-cell').forEach(cell => {
     cell.classList.remove('micro-calendar-cell-conflict');
   });
 
+
   const startInput = document.getElementById('prop-start-date');
+
   if (!startInput) return;
 
+
   const start = parseLocalDateString(startInput.value, 12, 0, 0, 0);
+
   warnings.filter(w => w.type === 'CAPACITY_CONFLICT' && w.nightIndex !== undefined).forEach(w => {
     const d = new Date(start);
     d.setDate(start.getDate() + w.nightIndex);
@@ -281,45 +402,76 @@ export function updateMicroCalendarConflicts(warnings) {
     const cell = grid.querySelector(`.micro-calendar-cell[data-date="${dateStr}"]`);
     cell?.classList.add('micro-calendar-cell-conflict');
   });
+
 }
 
 export function preserveCreateFormDraft() {
+
   const titleEl = document.getElementById('prop-title');
+
   if (titleEl) newProposalState.draftTitle = titleEl.value;
+
   const notesEl = document.getElementById('prop-notes');
+
   if (notesEl) newProposalState.draftNotes = notesEl.value;
+
 }
 
 export function loadDraftIntoForm(draftId) {
+
   const draft = state.events.find(e => e.id === draftId);
+
   if (!draft || getWorkflowState(draft) !== WORKFLOW.DRAFT) return false;
 
+
   flowState.currentDraftId = draftId;
+
   flowState.currentCreateType = draft.type || 'event';
+
   newProposalState.participants = [...(draft.participants || [])];
+
   newProposalState.participantRoles = (draft.participantRoles || []).map(p => ({ ...p }));
+
   if (!newProposalState.participantRoles.length && newProposalState.participants.length) {
     newProposalState.participantRoles = normalizeParticipantRoles(newProposalState.participants, state.config, flowState.currentCreateType);
   }
+
   newProposalState.draftTitle = draft.title || '';
+
   newProposalState.draftNotes = draft.notes || '';
+
   flowState.soloEventMode = draft.type === 'event' && isSoloEventProposal(draft, state.config);
+
   newProposalState.homeId = draft.homeId || 'h1';
+
   newProposalState.roomId = draft.roomId || 'r1';
+
   newProposalState.homeName = draft.homeName;
+
   newProposalState.roomName = draft.roomName;
+
   newProposalState.batchNightCount = draft.batchNights?.length || draft.batchNightCount || 3;
+
   newProposalState.batchAssignments = draft.batchNights
+
     ? draft.batchNights.map(n => ({ assignments: (n.assignments || []).map(a => ({ ...a, participants: [...(a.participants || [])] })) }))
+
     : [];
+
   newProposalState.batchStartDate = draft.start
+
     ? new Date(draft.start).toISOString().split('T')[0]
+
     : new Date().toISOString().split('T')[0];
+
   return true;
+
 }
 
 export function syncParticipantRolesFromParticipants() {
+
   const existing = Object.fromEntries((newProposalState.participantRoles || []).map(p => [p.name, p.role]));
+
   newProposalState.participantRoles = newProposalState.participants.map(name => {
     const partner = findPartnerByRef(state.config, name);
     if (partner && isPartnerPassive(partner)) {
@@ -327,13 +479,19 @@ export function syncParticipantRolesFromParticipants() {
     }
     return { name, role: existing[name] === 'optional' ? 'optional' : 'required' };
   });
+
 }
 
 export function collectProposalFormData() {
+
   const titleInput = document.getElementById('prop-title');
+
   const startInput = document.getElementById('prop-start-date');
+
   const currentUserName = getCurrentUserName();
+
   syncParticipantRolesFromParticipants();
+
 
   if (flowState.currentCreateType === 'batch_sleeping') {
     const durationVal = document.getElementById('prop-duration')?.value || '1';
@@ -361,12 +519,17 @@ export function collectProposalFormData() {
     };
   }
 
+
   const dateStr = startInput?.value || newProposalState.batchStartDate;
+
   let startD = parseLocalDateString(dateStr, 0, 0, 0, 0);
+
   if (Number.isNaN(startD.getTime())) {
     startD = new Date();
   }
+
   let endD = new Date(startD);
+
   if (flowState.currentCreateType === 'sleeping') {
     endD.setDate(startD.getDate() + 1);
   } else {
@@ -377,17 +540,25 @@ export function collectProposalFormData() {
     if (endD <= startD) endD = new Date(startD.getTime() + 3600000);
   }
 
+
   if (
+
     (flowState.currentCreateType === 'sleeping' || flowState.currentCreateType === 'event')
+
     && requireCurrentUserInSleepingProposal()
+
     && !newProposalState.participants.includes(currentUserName)
+
   ) {
     newProposalState.participants.unshift(currentUserName);
   }
+
   if (flowState.currentCreateType === 'event' && flowState.soloEventMode) {
     newProposalState.participants = [currentUserName];
   }
+
   syncParticipantRolesFromParticipants();
+
 
   const data = {
     title: titleInput?.value.trim() || 'Untitled Proposal',
@@ -400,6 +571,7 @@ export function collectProposalFormData() {
     notes: document.getElementById('prop-notes')?.value?.trim() || ''
   };
 
+
   if (flowState.currentCreateType === 'sleeping') {
     data.homeId = newProposalState.homeId;
     data.roomId = newProposalState.roomId;
@@ -408,12 +580,17 @@ export function collectProposalFormData() {
   } else if (flowState.currentCreateType === 'event') {
     data.location = document.getElementById('event-location')?.value || 'The Loft at Main St';
   }
+
   return data;
+
 }
 
 export function scheduleDraftSave() {
+
   if (!flowState.currentDraftId) return;
+
   clearTimeout(flowState.draftSaveTimer);
+
   flowState.draftSaveTimer = setTimeout(async () => {
     try {
       const data = collectProposalFormData();
@@ -426,10 +603,13 @@ export function scheduleDraftSave() {
       console.error('Draft auto-save failed', err);
     }
   }, 600);
+
 }
 
 export function ensureCreateDraftSync() {
+
   const params = parseHashParams();
+
   if (params.draft) {
     if (flowState.currentDraftId !== params.draft) {
       if (loadDraftIntoForm(params.draft)) {
@@ -441,10 +621,14 @@ export function ensureCreateDraftSync() {
       return;
     }
   }
+
   if (flowState.currentDraftId) return;
 
+
   const currentUserName = getCurrentUserName();
+
   const now = new Date();
+
   const draft = {
     id: `prop_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
     title: 'Untitled Proposal',
@@ -464,23 +648,35 @@ export function ensureCreateDraftSync() {
     autoArchiveAt: null,
     expandedEventIds: []
   };
+
   CalendarSync.events.push(draft);
+
   CalendarSync.persistLocalEventsMirror();
+
   state.events = CalendarSync.events;
+
   flowState.currentDraftId = draft.id;
+
   resetNewProposalFormState();
+
   window.history.replaceState({}, '', `#create?draft=${draft.id}`);
+
 }
 
 export async function submitCurrentProposal() {
+
   const btnSubmit = document.getElementById('btn-submit-proposal');
+
   if (btnSubmit?.dataset.submitting === '1') return;
 
+
   const titleInput = document.getElementById('prop-title');
+
   if (!titleInput?.value.trim()) {
     showToast('Please enter a title for the proposal.', 'warning');
     return;
   }
+
 
   if (flowState.currentCreateType === 'batch_sleeping') {
     const durationVal = document.getElementById('prop-duration')?.value || '1';
@@ -535,10 +731,12 @@ export async function submitCurrentProposal() {
     }
   }
 
+
   if (btnSubmit) {
     btnSubmit.dataset.submitting = '1';
     btnSubmit.disabled = true;
   }
+
 
   try {
     ensureCreateDraftSync();
@@ -625,12 +823,17 @@ export async function submitCurrentProposal() {
       btnSubmit.disabled = false;
     }
   }
+
 }
 
 export function runRulesChecks() {
+
   const data = collectProposalFormData();
+
   data.id = flowState.currentDraftId;
+
   data.type = flowState.currentCreateType;
+
 
   if (flowState.currentCreateType === 'event') {
     const warnings = [
@@ -640,6 +843,7 @@ export function runRulesChecks() {
     showProposalRulesBanner(warnings);
     return;
   }
+
 
   if (flowState.currentCreateType === 'sleeping' || flowState.currentCreateType === 'batch_sleeping') {
     const pastWarning = pastScheduleWarning(data);
@@ -690,29 +894,46 @@ export function runRulesChecks() {
     updateMicroCalendarConflicts(warnings);
     return;
   }
+
 }
 
 export function evaluateCurrentBatchProposalWarnings() {
+
   const startInput = document.getElementById('prop-start-date');
+
   const durationVal = document.getElementById('prop-duration')?.value || '1';
+
   if (!startInput) return [];
 
+
   const nightCount = Math.min(14, Math.max(1, parseInt(durationVal, 10) || 1));
+
   const assignments = readBatchAssignmentsFromDom();
+
   const { batchNights, start, end } = buildBatchNightsPayload(
+
     startInput.value,
+
     nightCount,
+
     assignments,
+
     state.config
+
   );
+
   const currentUserName = getCurrentUserName();
+
   const participantSet = new Set();
+
   batchNights.forEach(night => {
     (night.assignments || []).forEach(a => (a.participants || []).forEach(p => participantSet.add(p)));
   });
+
   if (requireCurrentUserInSleepingProposal() && !participantSet.has(currentUserName)) {
     participantSet.add(currentUserName);
   }
+
 
   const tempProposal = {
     id: flowState.currentDraftId || 'temp_create',
@@ -723,15 +944,23 @@ export function evaluateCurrentBatchProposalWarnings() {
     participants: Array.from(participantSet)
   };
 
+
   return RulesEngine.evaluateBatchSleepingProposal(
+
     tempProposal,
+
     state.events,
+
     state.config,
+
     state.config.partners
+
   );
+
 }
 
 export function bindCreateEvents() {
+
   document.querySelectorAll('.circle-partner-option').forEach(opt => {
     const name = opt.dataset.name;
     if (newProposalState.participants.includes(name)) {
@@ -741,9 +970,13 @@ export function bindCreateEvents() {
     }
   });
 
+
   const btnEvent = document.getElementById('btn-toggle-event');
+
   const btnSleep = document.getElementById('btn-toggle-sleeping');
+
   const btnBatch = document.getElementById('btn-toggle-batch-sleeping');
+
   if (btnEvent && btnSleep) {
     btnEvent.addEventListener('click', () => {
       preserveCreateFormDraft();
@@ -758,6 +991,7 @@ export function bindCreateEvents() {
       renderView();
     });
   }
+
   if (btnBatch) {
     btnBatch.addEventListener('click', () => {
       preserveCreateFormDraft();
@@ -767,6 +1001,7 @@ export function bindCreateEvents() {
       renderView();
     });
   }
+
 
   document.querySelectorAll('.circle-partner-option').forEach(opt => {
     opt.addEventListener('click', (e) => {
@@ -805,6 +1040,7 @@ export function bindCreateEvents() {
     });
   });
 
+
   document.querySelectorAll('.role-toggle-btn').forEach(btn => {
     btn.addEventListener('click', (e) => {
       e.stopPropagation();
@@ -818,7 +1054,9 @@ export function bindCreateEvents() {
     });
   });
 
+
   const soloCheckbox = document.getElementById('solo-event-checkbox');
+
   if (soloCheckbox) {
     soloCheckbox.addEventListener('change', () => {
       flowState.soloEventMode = soloCheckbox.checked;
@@ -832,7 +1070,9 @@ export function bindCreateEvents() {
     });
   }
 
+
   const titleInputEl = document.getElementById('prop-title');
+
   if (titleInputEl) {
     titleInputEl.addEventListener('input', () => {
       newProposalState.draftTitle = titleInputEl.value;
@@ -840,7 +1080,9 @@ export function bindCreateEvents() {
     });
   }
 
+
   const notesInputEl = document.getElementById('prop-notes');
+
   if (notesInputEl) {
     notesInputEl.addEventListener('input', () => {
       newProposalState.draftNotes = notesInputEl.value;
@@ -848,8 +1090,11 @@ export function bindCreateEvents() {
     });
   }
 
+
   const startDateInput = document.getElementById('prop-start-date');
+
   const durationInput = document.getElementById('prop-duration');
+
   if (startDateInput) {
     startDateInput.addEventListener('change', () => {
       if (flowState.currentCreateType === 'batch_sleeping') {
@@ -863,6 +1108,7 @@ export function bindCreateEvents() {
       }
     });
   }
+
   if (durationInput) {
     durationInput.addEventListener('input', () => {
       if (flowState.currentCreateType === 'batch_sleeping') {
@@ -877,6 +1123,7 @@ export function bindCreateEvents() {
       }
     });
   }
+
 
   document.querySelectorAll('.batch-night-row').forEach(row => {
     row.querySelectorAll('.batch-assignment-block').forEach(block => {
@@ -900,6 +1147,7 @@ export function bindCreateEvents() {
     });
   });
 
+
   document.querySelectorAll('.btn-batch-copy').forEach(btn => {
     btn.addEventListener('click', () => {
       preserveCreateFormDraft();
@@ -911,6 +1159,7 @@ export function bindCreateEvents() {
       }
     });
   });
+
 
   document.querySelectorAll('.btn-batch-add-room').forEach(btn => {
     btn.addEventListener('click', () => {
@@ -928,6 +1177,7 @@ export function bindCreateEvents() {
     });
   });
 
+
   document.querySelectorAll('.btn-batch-remove-room').forEach(btn => {
     btn.addEventListener('click', () => {
       preserveCreateFormDraft();
@@ -943,6 +1193,7 @@ export function bindCreateEvents() {
       }
     });
   });
+
 
   if (flowState.currentCreateType === 'sleeping') {
     ensureCurrentUserSelectedForSleeping();
@@ -961,8 +1212,11 @@ export function bindCreateEvents() {
     runRulesChecks();
   }
 
+
   const homeSelect = document.getElementById('sleep-home-select');
+
   const roomSelect = document.getElementById('sleep-room-select');
+
   if (homeSelect && roomSelect) {
     homeSelect.addEventListener('change', (e) => {
       newProposalState.homeId = e.target.value;
@@ -994,13 +1248,17 @@ export function bindCreateEvents() {
     });
   }
 
+
   updateSleepingArrangementTitle();
 
+
   const btnSubmit = document.getElementById('btn-submit-proposal');
+
   if (btnSubmit) {
     btnSubmit.type = 'button';
     btnSubmit.onclick = () => {
       void submitCurrentProposal();
     };
   }
+
 }

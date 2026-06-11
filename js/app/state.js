@@ -1,3 +1,7 @@
+import {
+  MODE_KEY,
+  CHANGE_LOG_KEY
+} from '../storage-keys.js';
 /**
  * Global application state and create-flow module variables.
  */
@@ -5,7 +9,7 @@
 export const state = {
   currentView: 'schedule',
   currentUser: null,
-  isOffline: typeof localStorage !== 'undefined' && localStorage.getItem('polyschedule_mode') !== 'sync',
+  isOffline: typeof localStorage !== 'undefined' && localStorage.getItem(MODE_KEY) !== 'sync',
   events: [],
   config: null,
   selectedDate: new Date(),
@@ -14,7 +18,7 @@ export const state = {
   notifications: [],
   logs: [],
   changeLog: typeof localStorage !== 'undefined'
-    ? JSON.parse(localStorage.getItem('polyschedule_change_log') || '[]')
+    ? JSON.parse(localStorage.getItem(CHANGE_LOG_KEY) || '[]')
     : []
 };
 

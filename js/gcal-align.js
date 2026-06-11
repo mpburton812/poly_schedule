@@ -1,3 +1,6 @@
+import {
+  GCAL_ALIGN_VERSION_KEY
+} from './storage-keys.js';
 /**
  * One-time Google Calendar alignment — removes legacy batch parents,
  * orphans, and re-syncs events to match the normalized app database.
@@ -7,7 +10,6 @@ import { GCAL_CONFIG_SUMMARY, shouldSyncEventToGCal } from './gcal-sync.js';
 import { sleepingEventFingerprint } from './helpers.js';
 
 export const GCAL_ALIGN_VERSION = 4;
-export const GCAL_ALIGN_VERSION_KEY = 'polyschedule_gcal_align_version';
 
 export function needsGCalAlignment() {
   return localStorage.getItem(GCAL_ALIGN_VERSION_KEY) !== String(GCAL_ALIGN_VERSION);

@@ -1,3 +1,11 @@
+import {
+  CALENDAR_ID_KEY,
+  CLIENT_ID_KEY,
+  API_KEY_KEY,
+  FAMILY_NAME_KEY,
+  NOTIFY_URL_KEY,
+  NOTIFY_SECRET_KEY
+} from '../storage-keys.js';
 import { RulesEngine } from '../rules.js';
 import { escapeHtml } from '../escape.js';
 import {
@@ -27,16 +35,16 @@ import { renderChangeLogHtml } from '../change-log.js';
 
 
 export function adminView(state) {
-    const polyFamilyName = localStorage.getItem('polyschedule_poly_family_name') || 'The Poly Circle';
+    const polyFamilyName = localStorage.getItem(FAMILY_NAME_KEY) || 'The Poly Circle';
     const autoArchiveDays = getAutoArchiveDays();
     const googleIntegration = state.config?.googleIntegration || {};
-    const clientId = googleIntegration.clientId || localStorage.getItem('polyschedule_client_id') || '';
-    const apiKey = googleIntegration.apiKey || localStorage.getItem('polyschedule_api_key') || '';
-    const calendarId = googleIntegration.calendarId || localStorage.getItem('polyschedule_calendar_id') || 'primary';
+    const clientId = googleIntegration.clientId || localStorage.getItem(CLIENT_ID_KEY) || '';
+    const apiKey = googleIntegration.apiKey || localStorage.getItem(API_KEY_KEY) || '';
+    const calendarId = googleIntegration.calendarId || localStorage.getItem(CALENDAR_ID_KEY) || 'primary';
     const notifyService = state.config?.notifyService || {};
     const syncHub = state.config?.syncHub || {};
-    const notifyUrl = notifyService.url || localStorage.getItem('polyschedule_notify_url') || '';
-    const notifySecret = notifyService.secret || localStorage.getItem('polyschedule_notify_secret') || '';
+    const notifyUrl = notifyService.url || localStorage.getItem(NOTIFY_URL_KEY) || '';
+    const notifySecret = notifyService.secret || localStorage.getItem(NOTIFY_SECRET_KEY) || '';
     const householdId = state.config?.householdId || '';
     const syncRevision = state.config?.syncRevision ?? 0;
     const householdSyncToken = syncHub.token || localStorage.getItem('polyschedule_household_sync_token') || '';

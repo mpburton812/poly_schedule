@@ -1,3 +1,9 @@
+import {
+  CALENDAR_ID_KEY,
+  CLIENT_ID_KEY,
+  API_KEY_KEY,
+  MODE_KEY
+} from './storage-keys.js';
 /**
  * Household Google Calendar integration settings (synced via config).
  * OAuth access tokens remain per-device in localStorage.
@@ -5,9 +11,6 @@
 
 import { AuthManager } from './auth.js';
 
-const CALENDAR_ID_KEY = 'polyschedule_calendar_id';
-const CLIENT_ID_KEY = 'polyschedule_client_id';
-const API_KEY_KEY = 'polyschedule_api_key';
 
 /**
  * @param {import('./types.js').AppConfig & { googleIntegration?: object }} config
@@ -57,7 +60,7 @@ export function applyGoogleIntegrationFromConfig(config, { CalendarSync = null }
 
   AuthManager.setCredentials(integration.clientId, integration.apiKey);
   localStorage.setItem(CALENDAR_ID_KEY, integration.calendarId);
-  localStorage.setItem('polyschedule_mode', 'sync');
+  localStorage.setItem(MODE_KEY, 'sync');
   if (CalendarSync) {
     CalendarSync.calendarId = integration.calendarId;
     CalendarSync.apiKey = integration.apiKey;

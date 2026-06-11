@@ -1,10 +1,13 @@
+import {
+  PROMOTION_KEY_STORAGE
+} from './storage-keys.js';
 /**
  * Build promotion audit trail (version.json + release-notes.json).
  */
 
 import { CHANGE_LOG_STORAGE_KEY, formatAppDateTime } from './helpers.js';
 
-export const PROMOTION_KEY_STORAGE = 'polyschedule_active_promotion_key';
+export const PROMOTION_KEY_STORAGE = PROMOTION_KEY_STORAGE;
 
 function getStorage() {
   try {

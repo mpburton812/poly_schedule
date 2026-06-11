@@ -1,3 +1,8 @@
+import {
+  MODE_KEY,
+  DEVICE_ID_KEY,
+  LAST_SYNC_REVISION_KEY
+} from './storage-keys.js';
 /**
  * Household near-real-time sync — Render hub + Google Calendar source of truth.
  */
@@ -9,9 +14,6 @@ import {
   pickNewerHouseholdConfig
 } from './helpers.js';
 
-export const HOUSEHOLD_SYNC_TOKEN_KEY = 'polyschedule_household_sync_token';
-export const DEVICE_ID_KEY = 'polyschedule_device_id';
-export const LAST_SYNC_REVISION_KEY = 'polyschedule_last_sync_revision';
 
 let sseAbort = null;
 let pollTimer = null;
@@ -117,7 +119,7 @@ export async function afterHouseholdWrite(scopes = ['config', 'events'], {
 } = {}) {
   const householdId = config?.householdId;
   if (!householdId || !isSyncHubConfigured()) return null;
-  if (localStorage.getItem('polyschedule_mode') !== 'sync') return null;
+  if (localStorage.getItem(MODE_KEY) !== 'sync') return null;
 
   const body = {
     householdId,
@@ -173,7 +175,7 @@ export async function refreshHouseholdFromCloud(scopes = ['config', 'events'], {
   renderView,
   forceGCal = false
 } = {}) {
-  if (!CalendarSync || localStorage.getItem('polyschedule_mode') !== 'sync') return false;
+  if (!CalendarSync || localStorage.getItem(MODE_KEY) !== 'sync') return false;
 
   const householdId = state?.config?.householdId || CalendarSync.config?.householdId;
   if (!householdId) return false;
@@ -255,7 +257,7 @@ export function connectSyncStream(hooks) {
   disconnectSyncStream();
   const householdId = hooks?.state?.config?.householdId;
   if (!householdId || !isSyncHubConfigured()) return;
-  if (localStorage.getItem('polyschedule_mode') !== 'sync') return;
+  if (localStorage.getItem(MODE_KEY) !== 'sync') return;
 
   const { url, secret } = getNotifyConfig();
   const controller = new AbortController();
@@ -369,7 +371,7 @@ export function bindHouseholdSyncMessageHandler(hooks) {
  * Register this device and open the SSE sync stream (sync mode + notify hub only).
  */
 export async function startHouseholdSyncHub(hooks) {
-  if (localStorage.getItem('polyschedule_mode') !== 'sync') return;
+  if (localStorage.getItem(MODE_KEY) !== 'sync') return;
   if (!isSyncHubConfigured()) return;
 
   const householdId = hooks?.state?.config?.householdId;

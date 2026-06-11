@@ -1,4 +1,8 @@
 import {
+  MODE_KEY,
+  LAST_SYNC_REVISION_KEY
+} from './storage-keys.js';
+import {
   LOCAL_CONFIG_KEY,
   normalizeHouseholdConfigShape,
   pickNewerHouseholdConfig,
@@ -97,7 +101,7 @@ export const HouseholdStore = {
     const syncMod = await import('./household-sync.js');
     const identityChanged = syncMod.ensureHouseholdIdentity(this.config);
     if (this.config?.syncRevision != null) {
-      localStorage.setItem('polyschedule_last_sync_revision', String(this.config.syncRevision));
+      localStorage.setItem(LAST_SYNC_REVISION_KEY, String(this.config.syncRevision));
     }
     
     if (identityChanged) {
@@ -185,7 +189,7 @@ export const HouseholdStore = {
       needsAuth = true;
     }
 
-    if (gcalSynced || (syncMod.isSyncHubConfigured() && localStorage.getItem('polyschedule_mode') === 'sync')) {
+    if (gcalSynced || (syncMod.isSyncHubConfigured() && localStorage.getItem(MODE_KEY) === 'sync')) {
       try {
         await syncMod.afterHouseholdWrite(['config'], {
           config: newConfig,

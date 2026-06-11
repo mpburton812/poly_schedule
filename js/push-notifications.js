@@ -1,3 +1,8 @@
+import {
+  PUSH_TYPE_PREFS_KEY,
+  NOTIFY_URL_KEY,
+  NOTIFY_SECRET_KEY
+} from './storage-keys.js';
 /**
  * Web Push registration and dispatch for PolySchedule.
  */
@@ -16,13 +21,6 @@ import {
   getResponseForParticipant
 } from './proposal-workflow.js';
 
-export const NOTIFY_URL_KEY = 'polyschedule_notify_url';
-export const NOTIFY_SECRET_KEY = 'polyschedule_notify_secret';
-export const PUSH_ENABLED_KEY = 'polyschedule_push_enabled';
-export const PUSH_QUIET_HOURS_KEY = 'polyschedule_push_quiet_hours';
-export const PUSH_QUIET_START_KEY = 'polyschedule_push_quiet_start';
-export const PUSH_QUIET_END_KEY = 'polyschedule_push_quiet_end';
-export const PUSH_TYPE_PREFS_KEY = 'polyschedule_push_type_prefs';
 
 export const PUSH_TYPE_LABELS = {
   'proposal-submitted': 'Proposals need my review',

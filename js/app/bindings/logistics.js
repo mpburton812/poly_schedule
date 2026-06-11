@@ -1,3 +1,7 @@
+import {
+  CALENDAR_ID_KEY,
+  MODE_KEY
+} from '../../storage-keys.js';
 import { AuthManager } from '../../auth.js';
 import { CalendarSync } from '../../calendar.js';
 import { probeGoogleCalendarConnection } from '../../gcal-sync.js';
@@ -60,7 +64,7 @@ export function bindLogisticsEvents(container = document) {
 
 export async function runGoogleCalendarConnectionTest({ showSuccessToast = true } = {}) {
   AuthManager.reloadFromStorage();
-  const calendarId = localStorage.getItem('polyschedule_calendar_id') || 'primary';
+  const calendarId = localStorage.getItem(CALENDAR_ID_KEY) || 'primary';
   const result = await probeGoogleCalendarConnection({
     accessToken: AuthManager.accessToken,
     apiKey: AuthManager.apiKey,
@@ -103,8 +107,8 @@ export function bindGoogleCredentialsEvents(container = document) {
         }
 
         AuthManager.setCredentials(cid, akey);
-        localStorage.setItem('polyschedule_calendar_id', calid);
-        localStorage.setItem('polyschedule_mode', 'sync');
+        localStorage.setItem(CALENDAR_ID_KEY, calid);
+        localStorage.setItem(MODE_KEY, 'sync');
         state.isOffline = false;
         CalendarSync.calendarId = calid;
         CalendarSync.apiKey = akey;
@@ -162,12 +166,12 @@ export function bindSettingsEvents(container = document) {
           return;
         }
         state.isOffline = false;
-        localStorage.setItem('polyschedule_mode', 'sync');
+        localStorage.setItem(MODE_KEY, 'sync');
         const loginBtn = document.getElementById('btn-google-login');
         if (loginBtn) loginBtn.style.display = 'inline-flex';
       } else {
         state.isOffline = true;
-        localStorage.setItem('polyschedule_mode', 'offline');
+        localStorage.setItem(MODE_KEY, 'offline');
         import('../bootstrap.js').then(({ bootstrapData }) => bootstrapData('offline'));
       }
     });
@@ -294,7 +298,7 @@ export function bindHouseholdSyncEvents(container = document) {
         showToast('Connect Google Calendar first (Sync Google).', 'warning');
         return;
       }
-      const calendarId = localStorage.getItem('polyschedule_calendar_id') || 'primary';
+      const calendarId = localStorage.getItem(CALENDAR_ID_KEY) || 'primary';
       try {
         const result = await registerGCalWatchOnServer({
           householdId,

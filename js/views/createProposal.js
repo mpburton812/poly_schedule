@@ -1,3 +1,6 @@
+import {
+  FAMILY_NAME_KEY
+} from '../storage-keys.js';
 import { RulesEngine } from '../rules.js';
 import {
   DEFAULT_AVATARS,
@@ -198,7 +201,7 @@ export function createProposalView(state, type = 'event', formState = {}) {
       `;
     }
 
-    const polyFamilyName = localStorage.getItem('polyschedule_poly_family_name') || 'The Poly Circle';
+    const polyFamilyName = localStorage.getItem(FAMILY_NAME_KEY) || 'The Poly Circle';
 
     const contextStartStr = formState.batchStartDate || new Date().toISOString().split('T')[0];
     const contextStart = new Date(contextStartStr + 'T12:00:00');
