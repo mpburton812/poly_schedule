@@ -62,7 +62,7 @@ describe('sync hub config', () => {
 
     expect(result.syncTokenApplied).toBe(true);
     expect(getSyncHubFromConfig({ syncHub: { token: 'abc123' } })).toEqual({ token: 'abc123' });
-    expect(localStorage.getItem('polyschedule_household_sync_token')).toBe('abc123');
+    expect(localStorage.getItem('polyschedule_sync_token')).toBe('abc123');
   });
 
   it('skips when values already match', () => {

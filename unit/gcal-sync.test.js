@@ -281,19 +281,17 @@ describe('resolveSyncBootstrapMode', () => {
     localStorage.clear();
   });
 
-  it('returns sync when mode, credentials, and token are present', () => {
-    localStorage.setItem('polyschedule_mode', 'sync');
+  it('returns sync when credentials and token are present', () => {
     localStorage.setItem('polyschedule_client_id', 'client');
     localStorage.setItem('polyschedule_api_key', 'key');
     localStorage.setItem('polyschedule_access_token', 'token');
     expect(resolveSyncBootstrapMode()).toBe('sync');
   });
 
-  it('returns offline when token is missing', () => {
-    localStorage.setItem('polyschedule_mode', 'sync');
+  it('returns cache when token is missing', () => {
     localStorage.setItem('polyschedule_client_id', 'client');
     localStorage.setItem('polyschedule_api_key', 'key');
-    expect(resolveSyncBootstrapMode()).toBe('offline');
+    expect(resolveSyncBootstrapMode()).toBe('cache');
   });
 });
 

@@ -96,7 +96,7 @@ export function openUserProfileModal() {
   const box = document.getElementById('app-modal-content');
   if (!modal || !box) return;
 
-  const isOffline = state.isOffline;
+  const calendarConnected = state.calendarStatus === 'connected';
   const credentialsConfigured = !!(localStorage.getItem(CLIENT_ID_KEY) && localStorage.getItem(API_KEY_KEY));
 
   const profilePartner = getCurrentUserPartner(state.config, state.currentUser);
@@ -164,29 +164,17 @@ export function openUserProfileModal() {
       </div>
 
       <div style="display: flex; flex-direction: column; gap: var(--space-md);">
-        <h4 class="font-title-lg" style="font-weight: 700; font-size: 1.1rem; border-bottom: 1px solid rgba(138,113,112,0.1); padding-bottom: var(--space-xs);">Connection Settings</h4>
-        
-        <div style="display: flex; flex-direction: column; gap: var(--space-sm);">
-          <label style="display: flex; align-items: center; gap: var(--space-md); cursor: pointer; padding: var(--space-xs); background-color: ${isOffline ? 'var(--surface-container-high)' : 'transparent'}; border-radius: var(--radius-default);">
-            <input type="radio" name="mode-select" value="offline" ${isOffline ? 'checked' : ''} style="accent-color: var(--primary);"/>
-            <div>
-              <strong style="display: block; font-size: 0.9rem;">Offline Mode</strong>
-              <span class="font-body-md" style="color: var(--on-surface-variant); font-size: 0.75rem;">Persists data locally in browser storage.</span>
-            </div>
-          </label>
-          <label style="display: flex; align-items: center; gap: var(--space-md); cursor: pointer; padding: var(--space-xs); background-color: ${!isOffline ? 'var(--surface-container-high)' : 'transparent'}; border-radius: var(--radius-default);">
-            <input type="radio" name="mode-select" value="sync" ${!isOffline ? 'checked' : ''} style="accent-color: var(--primary);"/>
-            <div>
-              <strong style="display: block; font-size: 0.9rem;">Google Calendar API Sync Mode</strong>
-              <span class="font-body-md" style="color: var(--on-surface-variant); font-size: 0.75rem;">Syncs with Google Calendar.</span>
-            </div>
-          </label>
-        </div>
-
+        <h4 class="font-title-lg" style="font-weight: 700; font-size: 1.1rem; border-bottom: 1px solid rgba(138,113,112,0.1); padding-bottom: var(--space-xs);">Google Calendar</h4>
+        <p class="font-body-md" style="color: var(--on-surface-variant); font-size: 0.8rem; margin: 0;">
+          Status: <strong>${calendarConnected ? 'Connected' : 'Offline'}</strong>.
+          ${calendarConnected
+            ? ' Your schedule is syncing with Google Calendar.'
+            : ' Use the OFFLINE banner at the top of the app to re-authenticate.'}
+        </p>
         <p class="font-body-md" style="color: var(--on-surface-variant); font-size: 0.8rem; margin: 0;">
           ${credentialsConfigured
-            ? 'Google Calendar credentials are configured by an administrator. Use <strong>Sync Google</strong> in the top bar to connect.'
-            : 'Ask an administrator to configure Google Calendar credentials on the Admin page before using sync mode.'}
+            ? 'Household Google credentials are configured by an administrator.'
+            : 'Ask an administrator to configure Google Calendar credentials on the Admin page.'}
         </p>
 
         <div style="display: flex; gap: var(--space-sm); margin-top: var(--space-xs);">

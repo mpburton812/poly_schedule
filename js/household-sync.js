@@ -1,10 +1,9 @@
 import {
-  MODE_KEY,
   DEVICE_ID_KEY,
   LAST_SYNC_REVISION_KEY,
-  HOUSEHOLD_SYNC_TOKEN_KEY,
   LOCAL_CONFIG_KEY,
-  LOCAL_EVENTS_KEY
+  LOCAL_EVENTS_KEY,
+  HOUSEHOLD_SYNC_TOKEN_KEY
 } from './storage-keys.js';
 /**
  * Household near-real-time sync — Render hub + Google Calendar source of truth.
@@ -120,7 +119,6 @@ export async function afterHouseholdWrite(scopes = ['config', 'events'], {
 } = {}) {
   const householdId = config?.householdId;
   if (!householdId || !isSyncHubConfigured()) return null;
-  if (localStorage.getItem(MODE_KEY) !== 'sync') return null;
 
   const body = {
     householdId,
@@ -176,7 +174,7 @@ export async function refreshHouseholdFromCloud(scopes = ['config', 'events'], {
   renderView,
   forceGCal = false
 } = {}) {
-  if (!CalendarSync || localStorage.getItem(MODE_KEY) !== 'sync') return false;
+  if (!CalendarSync) return false;
 
   const householdId = state?.config?.householdId || CalendarSync.config?.householdId;
   if (!householdId) return false;
@@ -258,7 +256,7 @@ export function connectSyncStream(hooks) {
   disconnectSyncStream();
   const householdId = hooks?.state?.config?.householdId;
   if (!householdId || !isSyncHubConfigured()) return;
-  if (localStorage.getItem(MODE_KEY) !== 'sync') return;
+  if (!hooks?.state?.currentUser?.sessionActive) return;
 
   const { url, secret } = getNotifyConfig();
   const controller = new AbortController();
@@ -372,8 +370,8 @@ export function bindHouseholdSyncMessageHandler(hooks) {
  * Register this device and open the SSE sync stream (sync mode + notify hub only).
  */
 export async function startHouseholdSyncHub(hooks) {
-  if (localStorage.getItem(MODE_KEY) !== 'sync') return;
   if (!isSyncHubConfigured()) return;
+  if (!hooks?.state?.currentUser?.sessionActive) return;
 
   const householdId = hooks?.state?.config?.householdId;
   if (!householdId) return;

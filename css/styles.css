@@ -1501,6 +1501,32 @@ body {
   justify-content: center;
 }
 
+.offline-banner {
+  position: sticky;
+  top: 22px;
+  z-index: 999;
+  min-height: 28px;
+  padding: 4px 12px;
+  background-color: var(--error);
+  color: #fff;
+  font-family: var(--font-mono);
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  text-align: center;
+}
+
+.offline-banner:hover,
+.offline-banner:focus-visible {
+  filter: brightness(1.08);
+  outline: 2px solid rgba(255, 255, 255, 0.5);
+  outline-offset: -2px;
+}
+
 /* Create proposal — partner picker circles */
 .circle-partner-option {
   display: flex;

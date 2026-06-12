@@ -26,7 +26,7 @@ import {
   setHouseholdSyncToken,
   getHouseholdSyncToken
 } from '../js/household-sync.js';
-import { NOTIFY_SECRET_KEY, NOTIFY_URL_KEY } from '../js/push-notifications.js';
+import { NOTIFY_SECRET_KEY, NOTIFY_URL_KEY } from '../js/storage-keys.js';
 
 beforeEach(() => {
   localStorage.clear();

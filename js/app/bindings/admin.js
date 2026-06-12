@@ -102,8 +102,6 @@ export function bindCreateHouseholdEvents() {
 
       AuthManager.setCredentials(clientId, apiKey);
       localStorage.setItem(CALENDAR_ID_KEY, calendarId);
-      localStorage.setItem(MODE_KEY, 'sync');
-      state.isOffline = false;
 
       try {
         AuthManager.login();

@@ -35,14 +35,21 @@ export const HouseholdStore = {
       localConfig = null;
     }
 
-    if (context.mode === 'offline') {
-      if (localConfig) {
-        this.config = normalizeHouseholdConfigShape(localConfig);
-      } else {
-        this.config = createEmptyHousehold();
-        localStorage.setItem(LOCAL_CONFIG_KEY, JSON.stringify(this.config));
+    if (context.mode === 'cache' || context.mode === 'offline') {
+      this.config = localConfig ? normalizeHouseholdConfigShape(localConfig) : null;
+      if (this.config) {
+        const syncMod = await import('./household-sync.js');
+        syncMod.ensureHouseholdIdentity(this.config);
+        if (this.config.syncRevision != null) {
+          localStorage.setItem(LAST_SYNC_REVISION_KEY, String(this.config.syncRevision));
+        }
+        const { applySyncedAdminSettingsFromConfig } = await import('./household-config-apply.js');
+        applySyncedAdminSettingsFromConfig(this.config, { CalendarSync: context });
       }
-    } else {
+      return this.config;
+    }
+
+    {
       const { canWriteToGoogleCalendar } = await import('./gcal-sync.js');
       let configSource = 'remote';
       
@@ -96,6 +103,10 @@ export const HouseholdStore = {
       }
     }
 
+    if (!this.config) {
+      return null;
+    }
+
     normalizeHouseholdConfigShape(this.config);
 
     const syncMod = await import('./household-sync.js');
@@ -105,7 +116,7 @@ export const HouseholdStore = {
     }
     
     if (identityChanged) {
-      if (context.mode === 'offline') {
+      if (context.mode === 'cache' || context.mode === 'offline') {
         localStorage.setItem(LOCAL_CONFIG_KEY, JSON.stringify(this.config));
       } else {
         try {
@@ -136,7 +147,7 @@ export const HouseholdStore = {
     if (syncAllHomeAssociationDefaults(this.config)) changed = true;
     if (!changed) return;
 
-    if (context.mode === 'offline') {
+    if (context.mode === 'cache' || context.mode === 'offline') {
       localStorage.setItem(LOCAL_CONFIG_KEY, JSON.stringify(this.config));
       return;
     }

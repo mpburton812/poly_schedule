@@ -15,6 +15,7 @@ import {
   showCreateHouseholdView,
   syncPendingProposalAlertsForUser
 } from './context.js';
+import { needsGoogleCalendarConnect, isGoogleGateActive, showGoogleConnectGate } from './google-connect-gate.js';
 import { bindScheduleEvents } from './bindings/schedule.js';
 import { bindProposalsEvents } from './bindings/proposals.js';
 import {
@@ -43,6 +44,11 @@ export function router() {
     } else {
       showLoginView();
     }
+    return;
+  }
+
+  if (needsGoogleCalendarConnect() || isGoogleGateActive()) {
+    showGoogleConnectGate();
     return;
   }
 

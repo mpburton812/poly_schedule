@@ -5,9 +5,9 @@ import {
   collectEventsToSync,
   collectOrphanGCalIds,
   findMatchingSleepingEvent,
-  GCAL_ALIGN_VERSION,
-  GCAL_ALIGN_VERSION_KEY
+  GCAL_ALIGN_VERSION
 } from '../js/gcal-align.js';
+import { GCAL_ALIGN_VERSION_KEY } from '../js/storage-keys.js';
 import { GCAL_CONFIG_SUMMARY } from '../js/gcal-sync.js';
 
 vi.hoisted(() => {

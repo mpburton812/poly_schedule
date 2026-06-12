@@ -99,8 +99,6 @@ export function bindGoogleCredentialsEvents(container = document) {
 
         AuthManager.setCredentials(cid, akey);
         localStorage.setItem(CALENDAR_ID_KEY, calid);
-        localStorage.setItem(MODE_KEY, 'sync');
-        state.isOffline = false;
         CalendarSync.calendarId = calid;
         CalendarSync.apiKey = akey;
 
@@ -144,29 +142,6 @@ export function bindGoogleCredentialsEvents(container = document) {
 }
 
 export function bindSettingsEvents(container = document) {
-  const radios = container.querySelectorAll('input[name="mode-select"]');
-  radios.forEach(radio => {
-    radio.addEventListener('change', (e) => {
-      const selected = e.target.value;
-
-      if (selected === 'sync') {
-        if (!AuthManager.clientId || !AuthManager.apiKey) {
-          showToast('An administrator must configure Google credentials on the Admin page first.', 'warning');
-          const offlineRadio = container.querySelector('input[name="mode-select"][value="offline"]');
-          if (offlineRadio) offlineRadio.checked = true;
-          return;
-        }
-        state.isOffline = false;
-        localStorage.setItem(MODE_KEY, 'sync');
-        const loginBtn = document.getElementById('btn-google-login');
-        if (loginBtn) loginBtn.style.display = 'inline-flex';
-      } else {
-        state.isOffline = true;
-        localStorage.setItem(MODE_KEY, 'offline');
-        import('../bootstrap.js').then(({ bootstrapData }) => bootstrapData('offline'));
-      }
-    });
-  });
   const btnForceUpdate = container.querySelector('#btn-force-update');
   if (btnForceUpdate) {
     btnForceUpdate.addEventListener('click', () => {

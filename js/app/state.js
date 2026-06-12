@@ -1,5 +1,4 @@
 import {
-  MODE_KEY,
   CHANGE_LOG_KEY
 } from '../storage-keys.js';
 /**
@@ -9,7 +8,7 @@ import {
 export const state = {
   currentView: 'schedule',
   currentUser: null,
-  isOffline: typeof localStorage !== 'undefined' && localStorage.getItem(MODE_KEY) !== 'sync',
+  calendarStatus: 'unknown',
   events: [],
   config: null,
   selectedDate: new Date(),

@@ -251,13 +251,17 @@ export function canWriteToGoogleCalendar({ mode, accessToken, apiKey } = {}) {
   return mode === 'sync' && !!accessToken && !!apiKey;
 }
 
-/** Whether the app should boot connected to Google Calendar. */
-export function resolveSyncBootstrapMode() {
-  const wantsSync = localStorage.getItem(MODE_KEY) === 'sync';
+/** Whether the app should sync with Google Calendar on startup. */
+export function shouldSyncWithGoogleCalendar() {
   const hasToken = !!localStorage.getItem(ACCESS_TOKEN_KEY);
   const hasCreds = !!localStorage.getItem(CLIENT_ID_KEY)
     && !!localStorage.getItem(API_KEY_KEY);
-  return wantsSync && hasCreds && hasToken ? 'sync' : 'offline';
+  return hasCreds && hasToken;
+}
+
+/** @deprecated Use shouldSyncWithGoogleCalendar */
+export function resolveSyncBootstrapMode() {
+  return shouldSyncWithGoogleCalendar() ? 'sync' : 'cache';
 }
 
 /** Whether an event id is a local-only placeholder not yet in Google Calendar. */

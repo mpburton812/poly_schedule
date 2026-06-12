@@ -1,11 +1,36 @@
 import { state } from './state.js';
 import { AuthManager } from '../auth.js';
-import { CALENDAR_ID_KEY, MODE_KEY } from '../storage-keys.js';
+import {
+  CALENDAR_ID_KEY,
+  LOCAL_SESSION_KEY,
+  PROPOSAL_DRAFT_KEY_PREFIX,
+  GOOGLE_PROFILE_KEY,
+  LEGACY_PROFILE_KEY,
+  LOCAL_EVENTS_KEY,
+  LOCAL_CONFIG_KEY,
+  LOGS_STORAGE_KEY,
+  CHANGE_LOG_KEY,
+  PROMOTION_KEY_STORAGE,
+  NOTIFICATIONS_BY_USER_KEY,
+  LEGACY_NOTIFICATIONS_KEY,
+  PUSH_TYPE_PREFS_KEY,
+  PUSH_ENABLED_KEY,
+  PUSH_QUIET_HOURS_KEY,
+  PUSH_QUIET_START_KEY,
+  PUSH_QUIET_END_KEY,
+  AUTO_ARCHIVE_DAYS_KEY,
+  DEVICE_ID_KEY,
+  HOUSEHOLD_SYNC_TOKEN_KEY,
+  LAST_SYNC_REVISION_KEY,
+  NOTIFY_URL_KEY,
+  NOTIFY_SECRET_KEY,
+  RETURN_ADD_PARTNER_KEY,
+  SELECT_HOME_KEY,
+  ADD_PARTNER_DRAFT_KEY
+} from '../storage-keys.js';
 import { router } from './router.js';
-import { PROPOSAL_DRAFT_KEY_PREFIX } from '../storage-keys.js';
 import { hashPassword } from '../crypto.js';
 import { CalendarSync } from '../calendar.js';
-import { LOCAL_SESSION_KEY } from '../storage-keys.js';
 import { DEFAULT_AVATARS, Views } from '../views.js';
 import { persistHouseholdConfig } from './household-config.js';
 import { isPartnerPassive, needsHouseholdSetup, partnerRefsMatch } from '../helpers.js';
@@ -16,6 +41,8 @@ import { showToast } from './toast.js';
 import { addLog, logUserAction } from './operation-log.js';
 import { updateImpersonationBanner } from './impersonation.js';
 import { refreshCurrentUserNotifications, syncPendingProposalAlertsForUser } from './notification-store.js';
+import { updateOfflineBanner } from '../calendar-status.js';
+import { needsGoogleCalendarConnect, showGoogleConnectGate } from './google-connect-gate.js';
 
 export function getCurrentUserId() {
   return state.currentUser?.id || null;
@@ -64,16 +91,65 @@ export function updateUIForAuthState(loggedIn) {
   if (avatarContainer) avatarContainer.style.display = loggedIn ? 'block' : 'none';
   if (sideLogout) sideLogout.style.display = loggedIn ? 'flex' : 'none';
   updateImpersonationBanner();
+  updateOfflineBanner();
 }
 
 export function updateGuestGoogleLoginButton() {
   const loginBtnEl = document.getElementById('btn-google-login');
-  if (!loginBtnEl || isLoggedIn()) return;
+  if (loginBtnEl) loginBtnEl.style.display = 'none';
+}
 
-  const syncConfigured = localStorage.getItem(MODE_KEY) === 'sync'
-    && AuthManager.clientId
-    && AuthManager.apiKey;
-  loginBtnEl.style.display = syncConfigured ? 'inline-flex' : 'none';
+async function completeLogin(partner, logMessage) {
+  establishSession(partner);
+  addLog(logMessage, 'info');
+  showToast(`Welcome back, ${partner.name.split(' ')[0]}!`, 'success');
+  if (needsGoogleCalendarConnect()) {
+    showGoogleConnectGate();
+    return true;
+  }
+  const { bootstrapData } = await import('./bootstrap.js');
+  await bootstrapData('sync');
+  const { router } = await import('./router.js');
+  router();
+  return true;
+}
+
+export async function attemptLogin(username, password) {
+  const trimmedUser = username.trim();
+  const trimmedPassword = password.trim();
+  if (!trimmedUser || !trimmedPassword) {
+    showToast('Please enter username and password.', 'warning');
+    return false;
+  }
+
+  const notifyUrl = await resolvePublicNotifyUrl();
+  if (!notifyUrl) {
+    showToast('Login service is not configured. Contact your administrator.', 'error');
+    return false;
+  }
+
+  const remote = await loginViaNotifyService(trimmedUser, trimmedPassword, notifyUrl);
+  if (remote.ok) {
+    applyRemoteLoginPayload(remote, state);
+    const partner = state.config?.partners?.find((p) => p.id === remote.partner.id) || remote.partner;
+    return completeLogin(partner, `${partner.name}: Logged in successfully.`);
+  }
+
+  if (remote.code === 'INVALID_CREDENTIALS') {
+    showToast('Invalid username or password.', 'error');
+    addLog(`${trimmedUser}: Failed login attempt.`, 'warning');
+    return false;
+  }
+
+  if (remote.code === 'HOUSEHOLD_UNAVAILABLE') {
+    showToast(remote.message, 'warning');
+    addLog(`${trimmedUser}: Login blocked — household cache unavailable.`, 'warning');
+    return false;
+  }
+
+  showToast(remote.message || 'Login failed.', 'error');
+  addLog(`${trimmedUser}: Remote login failed (${remote.code || 'unknown'}).`, 'warning');
+  return false;
 }
 
 export function showLoginView() {
@@ -132,90 +208,6 @@ export function establishSession(partner) {
   });
 }
 
-async function authenticatePartnerLocally(username, password) {
-  const trimmedUser = username.trim();
-  const trimmedPassword = password.trim();
-  const partnerCandidates = state.config?.partners?.filter(
-    (p) => !isPartnerPassive(p) && p.username === trimmedUser
-  );
-  if (!partnerCandidates?.length) return null;
-
-  for (const partner of partnerCandidates) {
-    if (partner.password === trimmedPassword) {
-      partner.passwordHash = await hashPassword(trimmedPassword, partner.id);
-      delete partner.password;
-      return partner;
-    }
-    if (partner.passwordHash && partner.passwordHash === await hashPassword(trimmedPassword, partner.id)) {
-      return partner;
-    }
-  }
-  return null;
-}
-
-export async function attemptLogin(username, password) {
-  const trimmedUser = username.trim();
-  const trimmedPassword = password.trim();
-  if (!trimmedUser || !trimmedPassword) {
-    showToast('Please enter username and password.', 'warning');
-    return false;
-  }
-
-  const notifyUrl = await resolvePublicNotifyUrl();
-  if (notifyUrl) {
-    const remote = await loginViaNotifyService(trimmedUser, trimmedPassword, notifyUrl);
-    if (remote.ok) {
-      applyRemoteLoginPayload(remote, state);
-      const partner = state.config?.partners?.find((p) => p.id === remote.partner.id) || remote.partner;
-      establishSession(partner);
-      addLog(`${partner.name}: Logged in via household lookup.`, 'info');
-      showToast(`Welcome back, ${partner.name.split(' ')[0]}!`, 'success');
-      router();
-      return true;
-    }
-
-    if (remote.code === 'INVALID_CREDENTIALS') {
-      showToast('Invalid username or password.', 'error');
-      addLog(`${trimmedUser}: Failed login attempt.`, 'warning');
-      return false;
-    }
-
-    if (remote.code === 'HOUSEHOLD_UNAVAILABLE') {
-      showToast(remote.message, 'warning');
-      addLog(`${trimmedUser}: Login blocked — household cache unavailable.`, 'warning');
-      return false;
-    }
-
-    showToast(remote.message || 'Login failed.', 'error');
-    addLog(`${trimmedUser}: Remote login failed (${remote.code || 'unknown'}).`, 'warning');
-    return false;
-  }
-
-  const authenticatedPartner = await authenticatePartnerLocally(trimmedUser, trimmedPassword);
-  if (!authenticatedPartner) {
-    showToast(
-      needsHouseholdSetup(state.config)
-        ? 'Invalid username or password. Use Create New Household if you are setting up for the first time.'
-        : 'Invalid username or password.',
-      'error'
-    );
-    addLog(`${trimmedUser}: Failed login attempt.`, 'warning');
-    return false;
-  }
-
-  if (authenticatedPartner.passwordHash) {
-    import('./household-config.js').then(({ persistHouseholdConfig }) => {
-      persistHouseholdConfig('Migrated password to hash.').catch(() => {});
-    });
-  }
-
-  establishSession(authenticatedPartner);
-  addLog(`${authenticatedPartner.name}: Logged in successfully.`, 'info');
-  showToast(`Welcome back, ${authenticatedPartner.name.split(' ')[0]}!`, 'success');
-  router();
-  return true;
-}
-
 export async function createFirstAdminPartner({ name, username, password }) {
   const trimmedName = name.trim();
   const trimmedUser = username.trim();
@@ -259,8 +251,12 @@ export async function createFirstAdminPartner({ name, username, password }) {
     try { saveResult = await CalendarSync.saveConfig(state.config); } catch (err) { showToast(`Failed to save household: ${err.message}`, 'error'); return false; }
     establishSession(duplicate);
     addLog(`${duplicate.name}: Upgraded to admin account.`, 'info');
-    if (saveResult?.needsAuth) { showToast('Account upgraded. Click Sync Google in the top bar to back up to Google Calendar.', 'info'); const loginBtn = document.getElementById('btn-google-login'); if (loginBtn) loginBtn.style.display = 'inline-flex'; } else { showToast(`Welcome, ${duplicate.name.split(' ')[0]}!`, 'success'); }
-    router();
+    if (needsGoogleCalendarConnect()) {
+      showGoogleConnectGate();
+    } else {
+      showToast(`Welcome, ${duplicate.name.split(' ')[0]}!`, 'success');
+      router();
+    }
     return true;
   }
 
@@ -323,20 +319,13 @@ export async function createFirstAdminPartner({ name, username, password }) {
 
   addLog(`${partner.name}: Created first admin account.`, 'info');
   establishSession(partner);
-  // Save session to localStorage for automatic login on reload
   localStorage.setItem(LOCAL_SESSION_KEY, JSON.stringify({
     id: partner.id,
     username: partner.username,
     sessionActive: true
   }));
-  if (saveResult?.needsAuth) {
-    showToast(
-      'Account created. Click Sync Google in the top bar to back up to Google Calendar.',
-      'info'
-    );
-    const loginBtn = document.getElementById('btn-google-login');
-    if (loginBtn) loginBtn.style.display = 'inline-flex';
-    router();
+  if (needsGoogleCalendarConnect()) {
+    showGoogleConnectGate();
   } else {
     showToast(`Welcome, ${partner.name.split(' ')[0]}!`, 'success');
     router();

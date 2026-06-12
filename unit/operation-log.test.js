@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { LOGS_STORAGE_KEY } from '../js/helpers.js';
+import { LOGS_STORAGE_KEY } from '../js/storage-keys.js';
 
 const storage = vi.hoisted(() => {
   const local = {};
@@ -36,7 +36,7 @@ describe('logOperationError', () => {
     state.logs = [];
     state.currentUser = { name: 'Michael Burton', sessionActive: true };
     state.currentView = 'create';
-    state.isOffline = true;
+    state.calendarStatus = 'disconnected';
   });
 
   it('persists error details and support context to system logs', async () => {

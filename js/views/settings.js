@@ -32,7 +32,7 @@ import { PUSH_TYPE_PREFS_KEY } from '../storage-keys.js';
 
 
 export function settingsView(state) {
-    const isOffline = state.isOffline;
+    const calendarConnected = state.calendarStatus === 'connected';
     const credentialsConfigured = !!(localStorage.getItem(CLIENT_ID_KEY) && localStorage.getItem(API_KEY_KEY));
     const notifyUrl = localStorage.getItem(NOTIFY_URL_KEY) || '';
     const pushEnabled = localStorage.getItem('polyschedule_push_enabled') === '1';
@@ -61,39 +61,23 @@ export function settingsView(state) {
       <div class="mb-xl" style="margin-bottom: var(--space-xl);">
         <h2 class="font-headline-lg">Settings & Integrations</h2>
         <p class="font-body-lg" style="color: var(--on-surface-variant); margin-top: 4px;">
-          Choose how the app stores data and verify local storage options.
+          Device preferences and notifications. Schedule data is stored in Google Calendar and synced through the cloud.
         </p>
       </div>
 
       <section style="max-width: 600px; display: flex; flex-direction: column; gap: var(--space-xl);">
-        <!-- Sync Mode Selection -->
         <div class="bento-card" style="padding: var(--space-lg); border: 1px solid var(--outline-variant);">
-          <h3 class="font-title-lg" style="font-weight: 700; margin-bottom: var(--space-xs);">Connection Mode</h3>
+          <h3 class="font-title-lg" style="font-weight: 700; margin-bottom: var(--space-xs);">Google Calendar</h3>
           <p class="font-body-md" style="color: var(--on-surface-variant); margin-bottom: var(--space-md);">
-            Choose whether to operate completely offline (caching configurations in local storage) or sync in real-time with your shared Google Calendar.
+            PolySchedule is cloud-based. Your schedule syncs through Google Calendar.
           </p>
-          
-          <div style="display: flex; flex-direction: column; gap: var(--space-sm);">
-            <label style="display: flex; align-items: center; gap: var(--space-md); cursor: pointer; padding: var(--space-sm); background-color: ${isOffline ? 'var(--surface-container-high)' : 'transparent'}; border-radius: var(--radius-default);">
-              <input type="radio" name="mode-select" value="offline" ${isOffline ? 'checked' : ''} style="accent-color: var(--primary);"/>
-              <div>
-                <strong style="display: block; font-size: 0.95rem;">Offline / Local Storage Mode</strong>
-                <span class="font-body-md" style="color: var(--on-surface-variant);">No external setup needed. Data persists locally inside your browser.</span>
-              </div>
-            </label>
-            <label style="display: flex; align-items: center; gap: var(--space-md); cursor: pointer; padding: var(--space-sm); background-color: ${!isOffline ? 'var(--surface-container-high)' : 'transparent'}; border-radius: var(--radius-default);">
-              <input type="radio" name="mode-select" value="sync" ${!isOffline ? 'checked' : ''} style="accent-color: var(--primary);"/>
-              <div>
-                <strong style="display: block; font-size: 0.95rem;">Google Calendar API Sync Mode</strong>
-                <span class="font-body-md" style="color: var(--on-surface-variant);">Syncs schedule and proposals to a shared Google Calendar after an admin configures credentials.</span>
-              </div>
-            </label>
-          </div>
-
-          <p class="font-label-sm" style="color: var(--on-surface-variant); margin-top: var(--space-md);">
+          <p class="font-label-sm" style="color: var(--on-surface-variant);">
+            Status: <strong>${calendarConnected ? 'Connected' : 'Offline — use the banner at the top to re-authenticate'}</strong>
+          </p>
+          <p class="font-label-sm" style="color: var(--on-surface-variant); margin-top: var(--space-sm);">
             ${credentialsConfigured
-              ? 'Google Calendar credentials are configured. Use <strong>Sync Google</strong> in the top bar to connect your account.'
-              : 'An administrator must configure OAuth Client ID, API Key, and Calendar ID once on the <a href="#admin">Admin</a> page before sync mode is available.'}
+              ? 'Household Google credentials are configured.'
+              : 'An administrator must configure OAuth Client ID, API Key, and Calendar ID on the <a href="#admin">Admin</a> page.'}
           </p>
         </div>
 

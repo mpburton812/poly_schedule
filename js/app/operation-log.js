@@ -43,7 +43,7 @@ export function addLog(message, type = 'info', meta = null) {
 export function buildOperationSupportContext(context = {}) {
   return {
     user: state.currentUser?.name || 'User',
-    syncMode: CalendarSync.mode || (state.isOffline ? 'offline' : 'unknown'),
+    syncMode: CalendarSync.mode || state.calendarStatus || 'unknown',
     view: state.currentView,
     route: typeof window !== 'undefined' ? (window.location.hash || window.location.pathname) : '',
     ...context

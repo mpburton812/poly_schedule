@@ -69,11 +69,15 @@ function createEmptyHousehold() {
   return JSON.parse(JSON.stringify(EMPTY_HOUSEHOLD));
 }
 
+function isCacheMode(mode) {
+  return mode === 'cache' || mode === 'offline';
+}
+
 export const CalendarSync = {
   calendarId: localStorage.getItem(CALENDAR_ID_KEY) || 'primary',
   events: [],
   config: null,
-  mode: 'offline', // 'offline' or 'sync'
+  mode: 'cache',
   accessToken: '',
   apiKey: '',
   onStateUpdate: null,
@@ -112,13 +116,12 @@ export const CalendarSync = {
   },
 
   async loadEvents() {
-    if (this.mode === 'offline') {
+    if (isCacheMode(this.mode)) {
       const saved = localStorage.getItem(LOCAL_EVENTS_KEY);
       if (saved) {
         this.events = JSON.parse(saved);
       } else {
         this.events = [];
-        localStorage.setItem(LOCAL_EVENTS_KEY, '[]');
       }
       this.migrateAndNormalizeEvents();
     } else {
@@ -134,7 +137,7 @@ export const CalendarSync = {
       }
     }
 
-    if (this.mode === 'offline') {
+    if (isCacheMode(this.mode)) {
       this.syncProposalStatuses();
       this.processAutoArchive();
     } else {
@@ -239,7 +242,7 @@ export const CalendarSync = {
   },
 
   persistEvents(eventIds = null) {
-    if (this.mode === 'offline') {
+    if (isCacheMode(this.mode)) {
       localStorage.setItem(LOCAL_EVENTS_KEY, JSON.stringify(this.events));
       return;
     }
@@ -395,7 +398,7 @@ export const CalendarSync = {
       id: eventData.id || `e_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`
     };
 
-    if (this.mode === 'offline') {
+    if (isCacheMode(this.mode)) {
       this.events.push(newEvent);
       localStorage.setItem(LOCAL_EVENTS_KEY, JSON.stringify(this.events));
     } else if (!shouldSyncEventToGCal(newEvent)) {
@@ -468,7 +471,7 @@ export const CalendarSync = {
       }
     }
 
-    if (this.mode === 'offline') {
+    if (isCacheMode(this.mode)) {
       this.events[idx] = updated;
       localStorage.setItem(LOCAL_EVENTS_KEY, JSON.stringify(this.events));
     } else if (shouldRemoveEventFromGCal(updated)) {

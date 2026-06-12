@@ -34,6 +34,7 @@ import { adminView } from './admin.js';
 import { addPartnerView } from './addPartner.js';
 import { addHomeView } from './addHome.js';
 import { loginView, createHouseholdView } from './login.js';
+import { googleConnectGateView } from './googleConnectGate.js';
 import { editPartnerView } from './editPartner.js';
 import { editHomeView } from './editHome.js';
 import { activatePartnerView } from './activatePartner.js';
@@ -49,6 +50,7 @@ export const Views = {
   addHome: addHomeView,
   login: loginView,
   createHousehold: createHouseholdView,
+  googleConnectGate: googleConnectGateView,
   editPartner: editPartnerView,
   editHome: editHomeView,
   activatePartner: activatePartnerView

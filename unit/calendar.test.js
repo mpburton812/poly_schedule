@@ -21,19 +21,20 @@ const storage = vi.hoisted(() => {
 });
 
 import { CalendarSync } from '../js/calendar.js';
+import { LOCAL_CONFIG_KEY, LOCAL_EVENTS_KEY } from '../js/storage-keys.js';
 import { WORKFLOW } from '../js/proposal-workflow.js';
 
-describe('CalendarSync offline workflow', () => {
+describe('CalendarSync cache workflow', () => {
   beforeEach(async () => {
     localStorage.clear();
     sessionStorage.clear();
-    localStorage.setItem('polyschedule_local_config', JSON.stringify({
+    localStorage.setItem(LOCAL_CONFIG_KEY, JSON.stringify({
       groupName: 'Test',
       partners: [{ id: 'p1', name: 'Alex Rivera', username: 'alex' }],
       residences: [{ id: 'h1', name: 'Home', bedrooms: 2 }]
     }));
-    localStorage.setItem('polyschedule_local_events', JSON.stringify([]));
-    await CalendarSync.init('offline', null, () => {});
+    localStorage.setItem(LOCAL_EVENTS_KEY, JSON.stringify([]));
+    await CalendarSync.init('cache', null, () => {});
   });
 
   it('retracts a proposed proposal back to draft', async () => {
@@ -188,23 +189,22 @@ describe('CalendarSync offline workflow', () => {
 });
 
 describe('CalendarSync first install', () => {
-  it('starts with an empty household when no saved config exists', async () => {
+  it('starts with no household when no saved config exists', async () => {
     localStorage.clear();
-    await CalendarSync.init('offline', null, () => {});
-    expect(CalendarSync.config.partners).toEqual([]);
-    expect(CalendarSync.config.residences).toEqual([]);
+    await CalendarSync.init('cache', null, () => {});
+    expect(CalendarSync.config).toBeNull();
     expect(CalendarSync.events).toEqual([]);
   });
 
   it('keeps saved config on subsequent loads', async () => {
     localStorage.clear();
-    localStorage.setItem('polyschedule_local_config', JSON.stringify({
+    localStorage.setItem(LOCAL_CONFIG_KEY, JSON.stringify({
       residences: [],
       partners: [{ id: 'custom', name: 'Custom User', username: 'custom', password: 'x', role: 'Admin' }]
     }));
-    localStorage.setItem('polyschedule_local_events', '[]');
-    await CalendarSync.init('offline', null, () => {});
-    const config = JSON.parse(localStorage.getItem('polyschedule_local_config'));
+    localStorage.setItem(LOCAL_EVENTS_KEY, '[]');
+    await CalendarSync.init('cache', null, () => {});
+    const config = JSON.parse(localStorage.getItem(LOCAL_CONFIG_KEY));
     expect(config.partners[0].id).toBe('custom');
   });
 });

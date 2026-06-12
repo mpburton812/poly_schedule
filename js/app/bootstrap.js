@@ -1,12 +1,18 @@
 import {
-  ACCESS_TOKEN_KEY,
-  MODE_KEY
+  ACCESS_TOKEN_KEY
 } from '../storage-keys.js';
 import { AuthManager } from '../auth.js';
 import { CalendarSync } from '../calendar.js';
 import { LEGACY_PROFILE_KEY } from '../storage-keys.js';
-import { isPartnerPassive, needsHouseholdSetup, getRouteBase } from '../helpers.js';
-import { resolveSyncBootstrapMode } from '../gcal-sync.js';
+import { isPartnerPassive, getRouteBase } from '../helpers.js';
+import { shouldSyncWithGoogleCalendar } from '../gcal-sync.js';
+import { loadCacheSnapshot, applyCacheSnapshot } from '../cache-store.js';
+import {
+  setCalendarStatus,
+  isCalendarConnected,
+  updateOfflineBanner,
+  bindOfflineBanner
+} from '../calendar-status.js';
 import {
   state,
 } from './state.js';
@@ -19,6 +25,11 @@ import {
 import { router } from './router.js';
 import { toggleLoadingSpinner } from './spinner.js';
 import { applySyncedAdminSettingsFromConfig } from '../household-config-apply.js';
+import {
+  dismissGoogleConnectGate,
+  needsGoogleCalendarConnect,
+  showGoogleConnectGate
+} from './google-connect-gate.js';
 
 // Global localStorage exception handling
 const originalSetItem = Storage.prototype.setItem;
@@ -33,21 +44,26 @@ Storage.prototype.setItem = function(key, value) {
   }
 };
 
+async function routeAfterAuth() {
+  if (needsGoogleCalendarConnect()) {
+    showGoogleConnectGate();
+    return;
+  }
+  router();
+}
+
 function determineInitialView() {
-  // 1. Try to restore a saved session
   const savedProfile = JSON.parse(localStorage.getItem(LOCAL_SESSION_KEY) || 'null');
   if (savedProfile?.sessionActive) {
     const partner = state.config?.partners?.find(p => p.id === savedProfile.id && !isPartnerPassive(p));
     if (partner && partner.username === savedProfile.username) {
       establishSession(partner);
-      router();
+      void routeAfterAuth();
       return;
     }
-    // Stale/invalid session – clear it
     localStorage.removeItem(LOCAL_SESSION_KEY);
   }
 
-  // 2. Show login or household setup based on hash
   if (getRouteBase() === 'create-household') {
     showCreateHouseholdView();
   } else {
@@ -63,40 +79,53 @@ function createSyncHooks() {
   };
 }
 
-/** @returns {Promise<{ ok: boolean, mode: string, error?: Error }>} */
-export async function bootstrapData(mode) {
-  addLog(`Sync: Initializing client state in ${mode} mode.`);
+/** Load cached snapshot; sync with Google when credentials are available. */
+export async function bootstrapInitial() {
+  AuthManager.reloadFromStorage();
+  applyCacheSnapshot(loadCacheSnapshot(), { state, CalendarSync });
+  CalendarSync.mode = 'cache';
 
-  let credentials = null;
-  if (mode === 'sync') {
-    AuthManager.reloadFromStorage();
-    if (!AuthManager.accessToken || !AuthManager.apiKey) {
-      const err = new Error('Google Calendar credentials are incomplete. Save API Key on Admin, then click Sync Google.');
-      err.code = 'GOOGLE_CREDENTIALS_INCOMPLETE';
-      throw err;
+  if (shouldSyncWithGoogleCalendar()) {
+    setCalendarStatus('connecting');
+    const result = await bootstrapData('sync');
+    if (!result.ok) {
+      applyCacheSnapshot(loadCacheSnapshot(), { state, CalendarSync });
     }
-    credentials = {
-      accessToken: AuthManager.accessToken,
-      apiKey: AuthManager.apiKey
-    };
+  } else {
+    setCalendarStatus('disconnected');
   }
 
+  updateOfflineBanner();
+}
+
+/** @returns {Promise<{ ok: boolean, mode: string, error?: Error }>} */
+export async function bootstrapData(mode) {
+  addLog(`Sync: Initializing cloud calendar (${mode}).`);
+
+  AuthManager.reloadFromStorage();
+  if (!AuthManager.accessToken || !AuthManager.apiKey || !AuthManager.clientId) {
+    const err = new Error('Google Calendar is not connected.');
+    err.code = 'GOOGLE_CREDENTIALS_INCOMPLETE';
+    throw err;
+  }
+
+  const credentials = {
+    accessToken: AuthManager.accessToken,
+    apiKey: AuthManager.apiKey
+  };
+
   try {
-    const alignStats = await CalendarSync.init(mode, credentials, () => {
+    const alignStats = await CalendarSync.init('sync', credentials, () => {
       state.events = CalendarSync.events;
       state.config = CalendarSync.config;
     });
 
     state.events = CalendarSync.events;
     state.config = CalendarSync.config;
-    state.isOffline = mode !== 'sync';
-    // Apply household-wide admin settings from synced config
+    setCalendarStatus('connected');
+
     const adminSettings = applySyncedAdminSettingsFromConfig(state.config);
     addLog(`Admin settings applied: ${Object.keys(adminSettings).join(', ')}`);
-
-    // Router will be invoked after bootstrap completes and initial view is determined.
-    // Removed early router() call to avoid premature navigation before session checks.
-
 
     if (alignStats) {
       addLog(
@@ -109,78 +138,63 @@ export async function bootstrapData(mode) {
       );
     }
 
-    if (mode === 'sync') {
-      const syncMod = await import('../household-sync.js');
-      await syncMod.startHouseholdSyncHub(createSyncHooks());
-    }
+    const syncMod = await import('../household-sync.js');
+    await syncMod.startHouseholdSyncHub(createSyncHooks());
 
-    return { ok: true, mode };
+    updateOfflineBanner();
+    return { ok: true, mode: 'sync' };
   } catch (err) {
     logOperationError('Google Calendar sync init', err);
 
     if (err?.code === 'GOOGLE_AUTH_EXPIRED') {
       AuthManager.accessToken = '';
       localStorage.removeItem(ACCESS_TOKEN_KEY);
-      showToast('Google sign-in expired. Click Sync Google in the top bar to reconnect.', 'warning');
-    } else if (err?.code === 'GOOGLE_NOT_FOUND') {
+    }
+
+    if (err?.code === 'GOOGLE_NOT_FOUND') {
       showToast('Calendar not found. Check Calendar ID on the Admin page.', 'error');
     } else if (err?.code === 'GOOGLE_FORBIDDEN') {
       showToast(`Google Calendar access denied: ${err.message}`, 'error');
     } else if (err?.code === 'GOOGLE_CREDENTIALS_INCOMPLETE') {
-      showToast(err.message, 'warning');
+      showToast('Google Calendar is not connected.', 'warning');
     } else {
-      showToast(`Failed to connect to Google Calendar: ${err.message}`, 'error');
+      showToast(`Calendar sync failed: ${err.message}`, 'error');
     }
 
-    state.isOffline = true;
-    localStorage.setItem(MODE_KEY, 'offline');
-    await bootstrapData('offline');
-    return { ok: false, mode: 'offline', error: err };
+    setCalendarStatus('disconnected');
+    applyCacheSnapshot(loadCacheSnapshot(), { state, CalendarSync });
+    CalendarSync.mode = 'cache';
+    updateOfflineBanner();
+    return { ok: false, mode: 'cache', error: err };
   }
 }
 
-function updateGoogleLoginButton(authState) {
+function updateGoogleLoginButton() {
   const loginBtnEl = document.getElementById('btn-google-login');
   if (!loginBtnEl) return;
-
-  const syncConfigured = localStorage.getItem(MODE_KEY) === 'sync'
-    && AuthManager.clientId
-    && AuthManager.apiKey;
-
-  if (authState.loggedIn && authState.user?.email) {
-    loginBtnEl.style.display = 'none';
-  } else if (syncConfigured) {
-    loginBtnEl.style.display = 'inline-flex';
-  } else {
-    loginBtnEl.style.display = 'none';
-  }
+  loginBtnEl.style.display = 'none';
 }
 
 export async function handleGoogleAuthState(authState) {
-  updateGoogleLoginButton(authState);
+  updateGoogleLoginButton();
 
-  if (authState.loggedIn && authState.mode === 'sync') {
-    state.isOffline = false;
-    localStorage.setItem(MODE_KEY, 'sync');
+  if (authState.loggedIn) {
     const result = await bootstrapData('sync');
     if (result.ok) {
+      dismissGoogleConnectGate();
       showToast('Connected to Google Calendar.', 'success');
-      if (!isLoggedIn()) {
-        if (needsHouseholdSetup(state.config)) {
-          showToast('Google connected, but no login accounts were found in this calendar. Check Calendar ID on the connect form.', 'warning');
-        } else {
-          showToast('Household loaded. Sign in with your username and password.', 'success');
-          showLoginView();
-        }
+      if (isLoggedIn()) {
+        router();
+      } else {
+        showLoginView();
       }
     }
     return;
   }
 
-  if (!authState.loggedIn && CalendarSync.mode === 'sync') {
-    state.isOffline = true;
-    localStorage.setItem(MODE_KEY, 'offline');
-    await bootstrapData('offline');
+  if (isLoggedIn() && !isCalendarConnected()) {
+    setCalendarStatus('disconnected');
+    updateOfflineBanner();
   }
 }
 
@@ -208,15 +222,8 @@ function migrateLegacySession() {
 }
 
 export function init() {
-  window.addEventListener('polyschedule:google-integration', (event) => {
-    updateGoogleLoginButton({
-      loggedIn: !!AuthManager.accessToken,
-      user: AuthManager.userProfile,
-      mode: localStorage.getItem(MODE_KEY)
-    });
-    if (event.detail?.needsGoogleLogin && state.currentUser) {
-      showToast('Google credentials synced — click Sync Google to connect your account.', 'info');
-    }
+  window.addEventListener('polyschedule:google-integration', () => {
+    updateGoogleLoginButton();
   });
 
   window.addEventListener('polyschedule:household-services', async (event) => {
@@ -240,18 +247,14 @@ export function init() {
       addLog('Application initialized.', 'info');
     }
 
-    const loginBtn = document.getElementById('btn-google-login');
-    if (loginBtn) {
-      loginBtn.addEventListener('click', () => {
-        try { AuthManager.login(); } catch (err) { showToast(err.message, 'error'); }
-      });
-    }
+    bindOfflineBanner();
 
     const notifBtn = document.getElementById('btn-notifications');
     if (notifBtn) notifBtn.addEventListener('click', () => openNotificationsModal());
     updateNotificationsBadge();
 
     initBuildBanner();
+    updateGoogleLoginButton();
 
     const avatarContainer = document.getElementById('avatar-container');
     if (avatarContainer) avatarContainer.addEventListener('click', () => openUserProfileModal());
@@ -273,14 +276,11 @@ export function init() {
     bindImpersonationBanner();
 
     AuthManager.onAuthError = (message) => showToast(message, 'error');
-    AuthManager.init((authState) => {
-      updateGoogleLoginButton(authState);
-    });
+    AuthManager.init(() => updateGoogleLoginButton());
 
-    // Show loading spinner while bootstrap and view determination run
     toggleLoadingSpinner(true);
     try {
-      await bootstrapData(resolveSyncBootstrapMode());
+      await bootstrapInitial();
       await determineInitialView();
     } catch (err) {
       console.error('[bootstrap] init failed', err);
@@ -289,7 +289,7 @@ export function init() {
     } finally {
       toggleLoadingSpinner(false);
     }
-    // Set up auth state listener after view is decided
+
     AuthManager.onAuthStateChange = (authState) => handleGoogleAuthState(authState);
   };
 
