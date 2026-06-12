@@ -5,7 +5,7 @@ import {
 import { AuthManager } from '../auth.js';
 import { CalendarSync } from '../calendar.js';
 import { LEGACY_PROFILE_KEY } from '../storage-keys.js';
-import { isPartnerPassive } from '../helpers.js';;
+import { isPartnerPassive, needsHouseholdSetup } from '../helpers.js';;
 import { resolveSyncBootstrapMode } from '../gcal-sync.js';
 import {
   state,
@@ -30,6 +30,31 @@ Storage.prototype.setItem = function(key, value) {
     }
   }
 };
+
+function determineInitialView() {
+  // 1. Try to restore a saved session
+  const savedProfile = JSON.parse(localStorage.getItem(LOCAL_SESSION_KEY) || 'null');
+  if (savedProfile?.sessionActive) {
+    const partner = state.config?.partners?.find(p => p.id === savedProfile.id && !isPartnerPassive(p));
+    if (partner && partner.username === savedProfile.username) {
+      establishSession(partner);
+      router();
+      return;
+    }
+    // Stale/invalid session – clear it
+    localStorage.removeItem(LOCAL_SESSION_KEY);
+  }
+
+  // 2. Decide which view to show based on household configuration
+  const hasActivePartner = state.config?.partners?.some(p => !isPartnerPassive(p));
+  if (hasActivePartner) {
+    // Household exists – show login so user can authenticate
+    showLoginView();
+  } else {
+    // No household accounts yet – start the household‑setup flow
+    showLoginView(); // The setup view is triggered from the login view when needed
+  }
+}
 
 function createSyncHooks() {
   return {
@@ -220,24 +245,10 @@ export function init() {
       updateGoogleLoginButton(authState);
     });
 
-    await bootstrapData(resolveSyncBootstrapMode());
-
-    const savedProfile = JSON.parse(localStorage.getItem(LOCAL_SESSION_KEY) || 'null');
-    if (savedProfile?.sessionActive) {
-      const partner = state.config?.partners?.find(p => p.id === savedProfile.id && !isPartnerPassive(p));
-      if (partner && partner.username === savedProfile.username) {
-        establishSession(partner);
-        router();
-      } else {
-        localStorage.removeItem(LOCAL_SESSION_KEY);
-        showLoginView();
-      }
-    } else {
-      showLoginView();
-    }
-
-    AuthManager.onAuthStateChange = (authState) => {
-      handleGoogleAuthState(authState);
+    // After bootstrap, decide which view to show based on config and saved session
+    await determineInitialView();
+    // Set up auth state listener after view is decided
+    AuthManager.onAuthStateChange = (authState) => handleGoogleAuthState(authState);
     };
 
     window.addEventListener('polyschedule:google-integration', (event) => {

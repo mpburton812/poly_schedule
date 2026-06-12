@@ -86,6 +86,8 @@ export function establishSession(partner) {
   updateAdminNavVisibility();
   refreshCurrentUserNotifications();
   syncPendingProposalAlertsForUser();
+  // After establishing session, check for duplicate accounts with admin role
+  maybeSwitchToAdminIfDuplicate();
   import('../push-notifications.js').then(({ syncPushSubscriptionIfEnabled }) => {
     syncPushSubscriptionIfEnabled(partner.id);
   });
@@ -248,6 +250,19 @@ export async function createFirstAdminPartner({ name, username, password }) {
   }
   import('./render-bus.js').then(({ requestRender }) => requestRender());
   return true;
+}
+
+function maybeSwitchToAdminIfDuplicate() {
+  const currentName = state.currentUser?.name;
+  if (!currentName) return;
+  const candidates = state.config?.partners?.filter(p => p.name === currentName && p.id !== state.currentUser.id);
+  for (const p of candidates) {
+    if (p.role === 'Admin') {
+      establishSession(p);
+      showToast('Switched to admin account.', 'info');
+      break;
+    }
+  }
 }
 
 export function logoutUser() {
