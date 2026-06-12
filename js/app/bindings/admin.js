@@ -8,6 +8,7 @@ import { AuthManager } from '../../auth.js';
 import { hashPassword } from '../../crypto.js';
 import { normalizePronouns } from '../../pronouns.js';
 import { RETURN_ADD_PARTNER_KEY, SELECT_HOME_KEY, ADD_PARTNER_DRAFT_KEY } from '../../storage-keys.js';
+import { assertUsernameAvailable, claimUsernameGlobally } from '../../username-registry.js';
 import { CREATE_NEW_HOME, isPartnerPassive, applyHomeAssociationDefaults, partnerRefsMatch } from '../../helpers.js';
 import {
   setAutoArchiveDays,
@@ -66,6 +67,27 @@ export function bindAdminEvents() {
 }
 
 export function bindLoginEvents() {
+  const btnLogin = document.getElementById('btn-login');
+  const usernameInput = document.getElementById('login-username');
+  const passwordInput = document.getElementById('login-password');
+
+  const submit = async () => {
+    if (!usernameInput?.value || !passwordInput?.value) {
+      showToast('Please enter username and password.', 'warning');
+      return;
+    }
+    await attemptLogin(usernameInput.value, passwordInput.value);
+  };
+
+  if (btnLogin) btnLogin.addEventListener('click', submit);
+  if (passwordInput) {
+    passwordInput.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') submit();
+    });
+  }
+}
+
+export function bindCreateHouseholdEvents() {
   const btnConnect = document.getElementById('btn-connect-existing-household');
   if (btnConnect) {
     btnConnect.addEventListener('click', () => {
@@ -100,25 +122,6 @@ export function bindLoginEvents() {
         username: document.getElementById('setup-username')?.value || '',
         password: document.getElementById('setup-password')?.value || ''
       });
-    });
-  }
-
-  const btnLogin = document.getElementById('btn-login');
-  const usernameInput = document.getElementById('login-username');
-  const passwordInput = document.getElementById('login-password');
-
-  const submit = async () => {
-    if (!usernameInput?.value || !passwordInput?.value) {
-      showToast('Please enter username and password.', 'warning');
-      return;
-    }
-    await attemptLogin(usernameInput.value, passwordInput.value);
-  };
-
-  if (btnLogin) btnLogin.addEventListener('click', submit);
-  if (passwordInput) {
-    passwordInput.addEventListener('keydown', (e) => {
-      if (e.key === 'Enter') submit();
     });
   }
 }
@@ -189,6 +192,15 @@ export function bindAddPartnerEvents() {
           showToast('A partner with this Display Name or Username already exists.', 'warning');
           return;
         }
+        const usernameCheck = await assertUsernameAvailable(username, {
+          config: state.config,
+          partnerId: null,
+          householdId: state.config.householdId
+        });
+        if (!usernameCheck.ok) {
+          showToast(usernameCheck.message, 'warning');
+          return;
+        }
       } else if (state.config.partners.some(p => p.name === name)) {
         showToast('A partner with this Display Name already exists.', 'warning');
         return;
@@ -222,7 +234,8 @@ export function bindAddPartnerEvents() {
 
       const defaultPronouns = normalizePronouns(null);
       let newPartner = state.config.partners.find(p => isPartnerPassive(p) && partnerRefsMatch(state.config, p.name, name));
-      
+      let pushedNewPartner = false;
+
       if (newPartner) {
         if (isPassive) {
           showToast('A passive partner with this name already exists.', 'warning');
@@ -247,7 +260,20 @@ export function bindAddPartnerEvents() {
           newPartner = { id: newId, name, username, passwordHash, role, defaultHome, avatar: selectedAvatar, pronouns: defaultPronouns, rules };
         }
         state.config.partners.push(newPartner);
+        pushedNewPartner = true;
       }
+
+      if (!isPassive) {
+        const claim = await claimUsernameGlobally(username, state.config.householdId, newPartner.id);
+        if (!claim.ok) {
+          showToast(claim.message, 'warning');
+          if (pushedNewPartner) {
+            state.config.partners.pop();
+          }
+          return;
+        }
+      }
+
       void persistHouseholdConfig(`${isPassive ? 'Added passive partner' : 'Added partner'}: ${name}`)
         .then(() => {
           showToast(`Partner "${name}" added successfully!`, 'success');
@@ -556,6 +582,22 @@ export function bindActivatePartnerEvents() {
 
     if (state.config.partners.some(p => p.username === username && p.id !== partnerId)) {
       showToast('Username already in use.', 'warning');
+      return;
+    }
+
+    const usernameCheck = await assertUsernameAvailable(username, {
+      config: state.config,
+      partnerId,
+      householdId: state.config.householdId
+    });
+    if (!usernameCheck.ok) {
+      showToast(usernameCheck.message, 'warning');
+      return;
+    }
+
+    const claim = await claimUsernameGlobally(username, state.config.householdId, partnerId);
+    if (!claim.ok) {
+      showToast(claim.message, 'warning');
       return;
     }
 

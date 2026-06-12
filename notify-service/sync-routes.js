@@ -6,8 +6,54 @@ import {
 } from './sync-store.js';
 import { addSseClient, removeSseClient, broadcastHouseholdSync } from './sync-broadcast.js';
 import { registerGCalWatch, handleGCalWebhook } from './gcal-watch.js';
+import { claimUsername, isUsernameTaken, syncHouseholdUsernames } from './username-registry.js';
+
+function reconcileHouseholdUsernames(householdId, saved, res) {
+  if (!saved?.config) return true;
+  try {
+    syncHouseholdUsernames(householdId, saved.config);
+    return true;
+  } catch (err) {
+    if (err.code === 'USERNAME_CONFLICT') {
+      res.status(409).json({ error: err.message });
+      return false;
+    }
+    throw err;
+  }
+}
 
 export function mountSyncRoutes(app, { requireSecret }) {
+  app.get('/v1/usernames/check', (req, res) => {
+    const username = req.query.username;
+    if (!username) {
+      res.status(400).json({ error: 'username is required' });
+      return;
+    }
+    const result = isUsernameTaken(username, {
+      excludeHouseholdId: req.query.householdId || null,
+      excludePartnerId: req.query.partnerId || null
+    });
+    res.json({ available: !result.taken, username: result.normalized || username });
+  });
+
+  app.post('/v1/usernames/claim', requireSecret, (req, res) => {
+    const { username, householdId, partnerId } = req.body || {};
+    if (!username || !householdId || !partnerId) {
+      res.status(400).json({ error: 'username, householdId, and partnerId are required' });
+      return;
+    }
+    try {
+      const row = claimUsername(username, householdId, partnerId);
+      res.json({ ok: true, username: row });
+    } catch (err) {
+      if (err.code === 'USERNAME_TAKEN') {
+        res.status(409).json({ error: err.message });
+        return;
+      }
+      res.status(400).json({ error: err.message });
+    }
+  });
+
   app.post('/v1/sync/register', requireSecret, (req, res) => {
     const { householdId, partnerId, deviceId } = req.body || {};
     if (!householdId || !partnerId || !deviceId) {
@@ -102,6 +148,8 @@ export function mountSyncRoutes(app, { requireSecret }) {
       actorPartnerId
     });
 
+    if (!reconcileHouseholdUsernames(householdId, saved, res)) return;
+
     const pushResult = broadcastHouseholdSync({
       householdId,
       revision: saved.revision,
@@ -139,6 +187,8 @@ export function mountSyncRoutes(app, { requireSecret }) {
       events: events !== undefined ? events : getHousehold(householdId)?.events,
       actorPartnerId
     });
+
+    if (!reconcileHouseholdUsernames(householdId, meta, res)) return;
 
     const pushResult = broadcastHouseholdSync({
       householdId,

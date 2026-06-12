@@ -99,7 +99,7 @@ export function isPartnerActive(partner) {
 export function canPartnerLogin(partner) {
   return isPartnerActive(partner)
     && !!String(partner.username || '').trim()
-    && !!String(partner.password || '').length;
+    && (!!String(partner.password || '').length || !!String(partner.passwordHash || '').length);
 }
 
 /** True when the household has no login-capable partners yet. */

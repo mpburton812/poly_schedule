@@ -210,6 +210,7 @@ describe('household login readiness', () => {
 
   it('requires username and password for login', () => {
     expect(canPartnerLogin({ username: 'a', password: 'b' })).toBe(true);
+    expect(canPartnerLogin({ username: 'a', passwordHash: 'hash' })).toBe(true);
     expect(canPartnerLogin({ username: 'a' })).toBe(false);
     expect(canPartnerLogin({ passive: true, username: 'a', password: 'b' })).toBe(false);
   });

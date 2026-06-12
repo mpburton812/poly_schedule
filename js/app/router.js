@@ -1,7 +1,7 @@
 import { CalendarSync } from '../calendar.js';
 import { Views } from '../views.js';
 import { ADD_PARTNER_DRAFT_KEY, SELECT_HOME_KEY } from '../storage-keys.js';
-import { parseHashParams, getRouteBase, getCurrentUserPartner, canCreateSleepingProposals } from '../helpers.js';;
+import { parseHashParams, getRouteBase, getCurrentUserPartner, canCreateSleepingProposals } from '../helpers.js';
 import {
   state,
   flowState,
@@ -12,6 +12,7 @@ import {
   isAdmin,
   isLoggedIn,
   showLoginView,
+  showCreateHouseholdView,
   syncPendingProposalAlertsForUser
 } from './context.js';
 import { bindScheduleEvents } from './bindings/schedule.js';
@@ -36,7 +37,12 @@ onRenderRequest(() => renderView());
 
 export function router() {
   if (!isLoggedIn()) {
-    showLoginView();
+    const guestView = getRouteBase();
+    if (guestView === 'create-household') {
+      showCreateHouseholdView();
+    } else {
+      showLoginView();
+    }
     return;
   }
 

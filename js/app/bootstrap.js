@@ -5,13 +5,13 @@ import {
 import { AuthManager } from '../auth.js';
 import { CalendarSync } from '../calendar.js';
 import { LEGACY_PROFILE_KEY } from '../storage-keys.js';
-import { isPartnerPassive, needsHouseholdSetup } from '../helpers.js';
+import { isPartnerPassive, needsHouseholdSetup, getRouteBase } from '../helpers.js';
 import { resolveSyncBootstrapMode } from '../gcal-sync.js';
 import {
   state,
 } from './state.js';
 import { LOCAL_SESSION_KEY } from '../storage-keys.js';
-import { loadPersistedLogs, addLog, initChangeLog, syncPromotionChangeLog, logOperationError, showToast, updateNotificationsBadge, establishSession, logoutUser, showLoginView, bindImpersonationBanner, isLoggedIn } from './context.js';
+import { loadPersistedLogs, addLog, initChangeLog, syncPromotionChangeLog, logOperationError, showToast, updateNotificationsBadge, establishSession, logoutUser, showLoginView, showCreateHouseholdView, bindImpersonationBanner, isLoggedIn } from './context.js';
 import {
   openNotificationsModal,
   openUserProfileModal
@@ -47,14 +47,11 @@ function determineInitialView() {
     localStorage.removeItem(LOCAL_SESSION_KEY);
   }
 
-  // 2. Decide which view to show based on household configuration
-  const hasActivePartner = state.config?.partners?.some(p => !isPartnerPassive(p));
-  if (hasActivePartner) {
-    // Household exists – show login so user can authenticate
-    showLoginView();
+  // 2. Show login or household setup based on hash
+  if (getRouteBase() === 'create-household') {
+    showCreateHouseholdView();
   } else {
-    // No household accounts yet – start the household‑setup flow
-    showLoginView(); // The setup view is triggered from the login view when needed
+    showLoginView();
   }
 }
 

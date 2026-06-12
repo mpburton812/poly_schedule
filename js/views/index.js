@@ -33,7 +33,7 @@ import { settingsView } from './settings.js';
 import { adminView } from './admin.js';
 import { addPartnerView } from './addPartner.js';
 import { addHomeView } from './addHome.js';
-import { loginView } from './login.js';
+import { loginView, createHouseholdView } from './login.js';
 import { editPartnerView } from './editPartner.js';
 import { editHomeView } from './editHome.js';
 import { activatePartnerView } from './activatePartner.js';
@@ -48,6 +48,7 @@ export const Views = {
   addPartner: addPartnerView,
   addHome: addHomeView,
   login: loginView,
+  createHousehold: createHouseholdView,
   editPartner: editPartnerView,
   editHome: editHomeView,
   activatePartner: activatePartnerView

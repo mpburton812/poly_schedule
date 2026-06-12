@@ -57,6 +57,16 @@ test.describe('PolySchedule UI E2E Flow Tests', () => {
     await expect(page.locator('#login-form')).toBeVisible();
     await expect(page.locator('#login-username')).toBeVisible();
     await expect(page.locator('#login-password')).toBeVisible();
+    await expect(page.locator('#link-create-household')).toBeVisible();
+  });
+
+  test('should open create household page from login link', async ({ page }) => {
+    await page.evaluate(() => localStorage.clear());
+    await page.goto('/');
+    await page.click('#link-create-household');
+    await expect(page).toHaveURL(/#create-household/);
+    await expect(page.locator('#setup-form')).toBeVisible();
+    await expect(page.locator('#link-back-login')).toBeVisible();
   });
 
   test('should support logout and return to login page', async ({ page }) => {

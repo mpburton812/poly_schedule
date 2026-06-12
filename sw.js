@@ -3,7 +3,7 @@
  * Handles offline resource caching and native device notification event mapping.
  */
 
-const CACHE_NAME = 'polyschedule-v11';
+const CACHE_NAME = 'polyschedule-v12';
 const ASSETS_TO_CACHE = [
   './',
   './index.html',

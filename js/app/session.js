@@ -9,6 +9,8 @@ import { LOCAL_SESSION_KEY } from '../storage-keys.js';
 import { DEFAULT_AVATARS, Views } from '../views.js';
 import { persistHouseholdConfig } from './household-config.js';
 import { isPartnerPassive, needsHouseholdSetup, partnerRefsMatch } from '../helpers.js';
+import { ensureHouseholdIdentity } from '../household-sync.js';
+import { assertUsernameAvailable, claimUsernameGlobally } from '../username-registry.js';
 import { showToast } from './toast.js';
 import { addLog, logUserAction } from './operation-log.js';
 import { updateImpersonationBanner } from './impersonation.js';
@@ -78,9 +80,20 @@ export function showLoginView() {
   state.currentView = 'login';
   const container = document.getElementById('app-view-container');
   if (container) {
-    container.innerHTML = Views.login(state);
+    container.innerHTML = Views.login();
     updateGuestGoogleLoginButton();
     import('./bindings/admin.js').then(({ bindLoginEvents }) => bindLoginEvents());
+  }
+}
+
+export function showCreateHouseholdView() {
+  updateUIForAuthState(false);
+  state.currentView = 'create-household';
+  const container = document.getElementById('app-view-container');
+  if (container) {
+    container.innerHTML = Views.createHousehold();
+    updateGuestGoogleLoginButton();
+    import('./bindings/admin.js').then(({ bindCreateHouseholdEvents }) => bindCreateHouseholdEvents());
   }
 }
 
@@ -135,7 +148,7 @@ export async function attemptLogin(username, password) {
 
   if (!authenticatedPartner) {
     const hint = needsHouseholdSetup(state.config)
-      ? 'No household accounts exist yet — create the first admin account.'
+      ? 'Invalid username or password. Connect an existing household or create a new one from the login page.'
       : 'Invalid username or password.';
     showToast(hint, 'error');
     addLog(`${trimmedUser}: Failed login attempt.`, 'warning');
@@ -170,6 +183,18 @@ export async function createFirstAdminPartner({ name, username, password }) {
     return false;
   }
 
+  ensureHouseholdIdentity(state.config);
+
+  const usernameCheck = await assertUsernameAvailable(trimmedUser, {
+    config: state.config,
+    partnerId: null,
+    householdId: state.config.householdId
+  });
+  if (!usernameCheck.ok) {
+    showToast(usernameCheck.message, 'warning');
+    return false;
+  }
+
   // Check for existing username and upgrade if needed
   const duplicate = state.config.partners?.find(p => p.username === trimmedUser);
   if (duplicate) {
@@ -197,7 +222,8 @@ export async function createFirstAdminPartner({ name, username, password }) {
   }
 
   let partner = state.config.partners?.find(p => isPartnerPassive(p) && partnerRefsMatch(state.config, p.name, trimmedName));
-  
+  let createdNewPartner = false;
+
   if (partner) {
     const passwordHash = await hashPassword(trimmedPassword, partner.id);
     partner.username = trimmedUser;
@@ -225,6 +251,16 @@ export async function createFirstAdminPartner({ name, username, password }) {
     state.config.partners = state.config.partners || [];
     state.config.residences = state.config.residences || [];
     state.config.partners.push(partner);
+    createdNewPartner = true;
+  }
+
+  const claimResult = await claimUsernameGlobally(trimmedUser, state.config.householdId, partner.id);
+  if (!claimResult.ok) {
+    showToast(claimResult.message, 'warning');
+    if (createdNewPartner) {
+      state.config.partners.pop();
+    }
+    return false;
   }
 
   // Persist the updated config and refresh the in‑memory state.
