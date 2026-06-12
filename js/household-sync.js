@@ -75,6 +75,19 @@ function getNotifyConfig() {
   };
 }
 
+/** Strip login secrets before uploading config to the notify sync hub. */
+export function stripPartnerAuthForSync(config) {
+  if (!config?.partners) return config;
+  const copy = JSON.parse(JSON.stringify(config));
+  for (const partner of copy.partners) {
+    delete partner.password;
+    if (!partner.passwordHash) {
+      delete partner.passwordHash;
+    }
+  }
+  return copy;
+}
+
 export function isSyncHubConfigured() {
   const { url, secret } = getNotifyConfig();
   return !!(url && secret);
@@ -126,7 +139,7 @@ export async function afterHouseholdWrite(scopes = ['config', 'events'], {
     scopes,
     actorPartnerId: actorPartnerId || null,
     excludeDeviceId: getDeviceId(),
-    config: scopes.includes('config') ? config : undefined,
+    config: scopes.includes('config') ? stripPartnerAuthForSync(config) : undefined,
     events: scopes.includes('events') ? events : undefined
   };
 

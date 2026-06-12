@@ -131,7 +131,7 @@ export async function attemptLogin(username, password) {
   }
 
   if (remote.code === 'INVALID_CREDENTIALS') {
-    showToast('Invalid username or password.', 'error');
+    showToast('Invalid username or password. If this persists after signing in with Google, ask an admin to reset your password.', 'error');
     addLog(`${trimmedUser}: Failed login attempt.`, 'warning');
     return false;
   }

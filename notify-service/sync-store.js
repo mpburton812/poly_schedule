@@ -1,6 +1,7 @@
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import { mergePartnerAuthFields } from './partner-auth-merge.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const DATA_DIR = process.env.DATA_DIR || path.join(__dirname, 'data');
@@ -39,11 +40,18 @@ export function upsertHouseholdCache(householdId, { revision, config, events, ac
   if (!householdId) return null;
   const doc = loadHouseholdsDoc();
   const prev = doc.households[householdId] || {};
+  let nextConfig = config !== undefined ? config : prev.config ?? null;
+  if (config !== undefined && prev.config) {
+    nextConfig = mergePartnerAuthFields(
+      JSON.parse(JSON.stringify(config)),
+      prev.config
+    );
+  }
   const next = {
     revision: revision ?? prev.revision ?? 0,
     updatedAt: new Date().toISOString(),
     lastActorPartnerId: actorPartnerId || prev.lastActorPartnerId || null,
-    config: config !== undefined ? config : prev.config ?? null,
+    config: nextConfig,
     events: events !== undefined ? events : prev.events ?? null
   };
   doc.households[householdId] = next;
