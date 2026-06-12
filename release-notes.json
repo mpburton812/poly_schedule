@@ -16,7 +16,7 @@
       "Unit and e2e tests for GCal alerts, privacy, week navigation, and calendar email matching"
     ]
   },
-  "1006a26": {
+  "c0edf16": {
     "summary": "GCal change alerts, event privacy, schedule navigation, and Google email matching",
     "changes": [
       "Notify household members when events are added or removed directly in Google Calendar",
