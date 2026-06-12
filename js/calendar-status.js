@@ -61,7 +61,14 @@ export function bindOfflineBanner() {
 }
 
 export function assertCalendarConnectedForWrite() {
-  if (isCalendarConnected()) return true;
-  showToast('Calendar sync is offline. Reconnect using the banner at the top.', 'warning');
-  return false;
+  if (!isGoogleCalendarReady()) {
+    setCalendarStatus('disconnected');
+    showToast('Google Calendar is not connected. Use the OFFLINE banner to sign in again.', 'warning');
+    return false;
+  }
+  if (!isCalendarConnected()) {
+    showToast('Calendar sync is offline. Reconnect using the banner at the top.', 'warning');
+    return false;
+  }
+  return true;
 }

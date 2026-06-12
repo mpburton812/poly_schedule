@@ -29,13 +29,8 @@ import {
   ADD_PARTNER_DRAFT_KEY
 } from '../storage-keys.js';
 import { router } from './router.js';
-import { hashPassword } from '../crypto.js';
 import { CalendarSync } from '../calendar.js';
 import { DEFAULT_AVATARS, Views } from '../views.js';
-import { persistHouseholdConfig } from './household-config.js';
-import { isPartnerPassive, needsHouseholdSetup, partnerRefsMatch } from '../helpers.js';
-import { ensureHouseholdIdentity } from '../household-sync.js';
-import { assertUsernameAvailable, claimUsernameGlobally } from '../username-registry.js';
 import { loginViaNotifyService, resolvePublicNotifyUrl, applyRemoteLoginPayload } from '../auth-login.js';
 import { showToast } from './toast.js';
 import { addLog, logUserAction } from './operation-log.js';
@@ -163,20 +158,6 @@ export function showLoginView() {
   }
 }
 
-export function showInitialSetupView() {
-  updateUIForAuthState(false);
-  state.currentView = 'initial-setup';
-  const container = document.getElementById('app-view-container');
-  if (container) {
-    container.innerHTML = Views.initialSetup();
-    updateGuestGoogleLoginButton();
-    import('./bindings/admin.js').then(({ bindInitialSetupEvents }) => bindInitialSetupEvents());
-  }
-}
-
-/** @deprecated Use showInitialSetupView */
-export const showCreateHouseholdView = showInitialSetupView;
-
 export function establishSession(partner) {
   state.currentUser = {
     id: partner.id,
@@ -210,132 +191,6 @@ export function establishSession(partner) {
     });
   });
 }
-
-export async function createFirstAdminPartner({ name, username, password }) {
-  const trimmedName = name.trim();
-  const trimmedUser = username.trim();
-  const trimmedPassword = password.trim();
-
-  if (!trimmedName || !trimmedUser || !trimmedPassword) {
-    showToast('Name, username, and password are required.', 'warning');
-    return false;
-  }
-
-  if (!state.config) {
-    state.config = { partners: [], residences: [], groupName: 'The Poly Circle' };
-    CalendarSync.config = state.config;
-  }
-
-  ensureHouseholdIdentity(state.config);
-
-  const usernameCheck = await assertUsernameAvailable(trimmedUser, {
-    config: state.config,
-    partnerId: null,
-    householdId: state.config.householdId
-  });
-  if (!usernameCheck.ok) {
-    showToast(usernameCheck.message, 'warning');
-    return false;
-  }
-
-  // Check for existing username and upgrade if needed
-  const duplicate = state.config.partners?.find(p => p.username === trimmedUser);
-  if (duplicate) {
-    // Upgrade existing partner to admin (same as below)
-    const passwordHash = await hashPassword(trimmedPassword, duplicate.id);
-    duplicate.passwordHash = passwordHash;
-    duplicate.username = trimmedUser;
-    duplicate.role = 'Admin';
-    duplicate.avatar = duplicate.avatar || DEFAULT_AVATARS[0];
-    duplicate.pronouns = duplicate.pronouns || null;
-    duplicate.rules = duplicate.rules || {};
-    delete duplicate.passive;
-    let saveResult;
-    try { saveResult = await CalendarSync.saveConfig(state.config); } catch (err) { showToast(`Failed to save household: ${err.message}`, 'error'); return false; }
-    establishSession(duplicate);
-    addLog(`${duplicate.name}: Upgraded to admin account.`, 'info');
-    if (needsGoogleCalendarConnect()) {
-      showGoogleConnectGate();
-    } else {
-      showToast(`Welcome, ${duplicate.name.split(' ')[0]}!`, 'success');
-      router();
-    }
-    return true;
-  }
-
-  if (!needsHouseholdSetup(state.config)) {
-    showToast('This household already has login accounts.', 'warning');
-    return false;
-  }
-
-  let partner = state.config.partners?.find(p => isPartnerPassive(p) && partnerRefsMatch(state.config, p.name, trimmedName));
-  let createdNewPartner = false;
-
-  if (partner) {
-    const passwordHash = await hashPassword(trimmedPassword, partner.id);
-    partner.username = trimmedUser;
-    partner.passwordHash = passwordHash;
-    partner.role = 'Admin';
-    partner.avatar = partner.avatar || DEFAULT_AVATARS[0];
-    partner.pronouns = partner.pronouns || null;
-    partner.rules = partner.rules || {};
-    delete partner.passive;
-  } else {
-    const newId = `p_${crypto.randomUUID?.() || Date.now()}`;
-    const passwordHash = await hashPassword(trimmedPassword, newId);
-
-    partner = {
-      id: newId,
-      name: trimmedName,
-      username: trimmedUser,
-      passwordHash,
-      role: 'Admin',
-      avatar: DEFAULT_AVATARS[0],
-      pronouns: null,
-      rules: {}
-    };
-
-    state.config.partners = state.config.partners || [];
-    state.config.residences = state.config.residences || [];
-    state.config.partners.push(partner);
-    createdNewPartner = true;
-  }
-
-  const claimResult = await claimUsernameGlobally(trimmedUser, state.config.householdId, partner.id);
-  if (!claimResult.ok) {
-    showToast(claimResult.message, 'warning');
-    if (createdNewPartner) {
-      state.config.partners.pop();
-    }
-    return false;
-  }
-
-  // Persist the updated config and refresh the in‑memory state.
-  let saveResult;
-  try {
-    saveResult = await persistHouseholdConfig('Created first admin account');
-  } catch (err) {
-    // If persisting fails we already showed a toast inside persistHouseholdConfig.
-    state.config.partners.pop();
-    return false;
-  }
-
-  addLog(`${partner.name}: Created first admin account.`, 'info');
-  establishSession(partner);
-  localStorage.setItem(LOCAL_SESSION_KEY, JSON.stringify({
-    id: partner.id,
-    username: partner.username,
-    sessionActive: true
-  }));
-  if (needsGoogleCalendarConnect()) {
-    showGoogleConnectGate();
-  } else {
-    showToast(`Welcome, ${partner.name.split(' ')[0]}!`, 'success');
-    router();
-  }
-  return true;
-}
-
 
 export function logoutUser() {
   const name = getCurrentUserName();

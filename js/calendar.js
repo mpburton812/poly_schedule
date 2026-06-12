@@ -11,6 +11,7 @@ import {
 import { HouseholdStore } from './household-store.js';
 import { ProposalManager } from './proposal-manager.js';
 import { CalendarAPI } from './gcal-api.js';
+import { withGCalAuth } from './gcal-auth.js';
 
 import {
   renamePartnerReferences,
@@ -44,6 +45,7 @@ import {
   googleApiErrorFromResponse,
   parseGCalEventItem,
   formatGCalResource as buildGCalResource,
+  googleApiErrorFromResponse,
   isLocalEventId,
   shouldSyncEventToGCal,
   shouldRemoveEventFromGCal,
@@ -281,30 +283,32 @@ export const CalendarSync = {
       return { id: eventId, created: false, skipped: true };
     }
 
-    if (isLocalEventId(eventId)) {
-      const created = await this.createGCalEvent(event);
-      return { id: created.id, created: true };
-    }
+    return withGCalAuth(this, async () => {
+      if (isLocalEventId(eventId)) {
+        const created = await this.createGCalEvent(event);
+        return { id: created.id, created: true };
+      }
 
-    const resource = this.formatGCalResource(event);
-    const url = `https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(this.calendarId)}/events/${eventId}?key=${this.apiKey}`;
-    const res = await fetch(url, {
-      method: 'PUT',
-      headers: {
-        Authorization: `Bearer ${this.accessToken}`,
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify(resource)
+      const resource = this.formatGCalResource(event);
+      const url = `https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(this.calendarId)}/events/${eventId}?key=${this.apiKey}`;
+      const res = await fetch(url, {
+        method: 'PUT',
+        headers: {
+          Authorization: `Bearer ${this.accessToken}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(resource)
+      });
+
+      if (res.ok) {
+        return { id: eventId, created: false };
+      }
+      if (res.status === 404) {
+        const created = await this.createGCalEvent(event);
+        return { id: created.id, created: true };
+      }
+      throw await googleApiErrorFromResponse(res, 'Failed to update calendar event on Google Calendar');
     });
-
-    if (res.ok) {
-      return { id: eventId, created: false };
-    }
-    if (res.status === 404) {
-      const created = await this.createGCalEvent(event);
-      return { id: created.id, created: true };
-    }
-    throw new Error('Failed to update calendar event on Google Calendar');
   },
 
   /** Replace a local event id with the Google Calendar id after first sync. */
@@ -546,7 +550,14 @@ export const CalendarSync = {
   // --- Google Calendar REST API Calls ---
 
   async fetchGCalEventItems(opts = {}) {
-    return CalendarAPI.fetchEventItems({ calendarId: this.calendarId, apiKey: this.apiKey, accessToken: this.accessToken, ...opts });
+    return withGCalAuth(this, () =>
+      CalendarAPI.fetchEventItems({
+        calendarId: this.calendarId,
+        apiKey: this.apiKey,
+        accessToken: this.accessToken,
+        ...opts
+      })
+    );
   },
 
   async fetchGCalEvents() {
@@ -563,16 +574,38 @@ export const CalendarSync = {
   },
 
   async createGCalEvent(event) {
-    return CalendarAPI.createEvent({ calendarId: this.calendarId, apiKey: this.apiKey, accessToken: this.accessToken, resource: this.formatGCalResource(event) });
+    return withGCalAuth(this, () =>
+      CalendarAPI.createEvent({
+        calendarId: this.calendarId,
+        apiKey: this.apiKey,
+        accessToken: this.accessToken,
+        resource: this.formatGCalResource(event)
+      })
+    );
   },
 
   async updateGCalEvent(eventId, event) {
-    return CalendarAPI.updateEvent({ calendarId: this.calendarId, apiKey: this.apiKey, accessToken: this.accessToken, eventId, resource: this.formatGCalResource(event) });
+    return withGCalAuth(this, () =>
+      CalendarAPI.updateEvent({
+        calendarId: this.calendarId,
+        apiKey: this.apiKey,
+        accessToken: this.accessToken,
+        eventId,
+        resource: this.formatGCalResource(event)
+      })
+    );
   },
 
   async deleteGCalEvent(eventId) {
     if (isLocalEventId(eventId)) return;
-    return CalendarAPI.deleteEvent({ calendarId: this.calendarId, apiKey: this.apiKey, accessToken: this.accessToken, eventId });
+    return withGCalAuth(this, () =>
+      CalendarAPI.deleteEvent({
+        calendarId: this.calendarId,
+        apiKey: this.apiKey,
+        accessToken: this.accessToken,
+        eventId
+      })
+    );
   },
 
   formatGCalResource(event) {
@@ -582,10 +615,24 @@ export const CalendarSync = {
   // --- Configuration Sync Event Helpers ---
 
   async findGCalConfigEvent() {
-    return CalendarAPI.findConfigEvent({ calendarId: this.calendarId, apiKey: this.apiKey, accessToken: this.accessToken });
+    return withGCalAuth(this, () =>
+      CalendarAPI.findConfigEvent({
+        calendarId: this.calendarId,
+        apiKey: this.apiKey,
+        accessToken: this.accessToken
+      })
+    );
   },
 
   async saveGCalConfigEvent(configData) {
-    return CalendarAPI.saveConfigEvent({ calendarId: this.calendarId, apiKey: this.apiKey, accessToken: this.accessToken, configData, configEventId: this.configEventId });
+    return withGCalAuth(this, () =>
+      CalendarAPI.saveConfigEvent({
+        calendarId: this.calendarId,
+        apiKey: this.apiKey,
+        accessToken: this.accessToken,
+        configData,
+        configEventId: this.configEventId
+      })
+    );
   }
 };

@@ -24,7 +24,6 @@ import {
   showToast,
   persistHouseholdConfig,
   attemptLogin,
-  createFirstAdminPartner,
   bindHomeSelectCreateNew,
   saveAddPartnerDraft,
   restoreAddPartnerDraft,
@@ -97,22 +96,6 @@ export function bindLoginEvents() {
     });
   }
 }
-
-export function bindInitialSetupEvents() {
-  const btnSetup = document.getElementById('btn-setup-household');
-  if (btnSetup) {
-    btnSetup.addEventListener('click', () => {
-      void createFirstAdminPartner({
-        name: document.getElementById('setup-name')?.value || '',
-        username: document.getElementById('setup-username')?.value || '',
-        password: document.getElementById('setup-password')?.value || ''
-      });
-    });
-  }
-}
-
-/** @deprecated Use bindInitialSetupEvents */
-export const bindCreateHouseholdEvents = bindInitialSetupEvents;
 
 export function bindAddPartnerEvents() {
   restoreAddPartnerDraft();

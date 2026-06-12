@@ -9,6 +9,7 @@ import { isPartnerPassive, getRouteBase } from '../helpers.js';
 import { shouldSyncWithGoogleCalendar } from '../gcal-sync.js';
 import { loadCacheSnapshot, applyCacheSnapshot } from '../cache-store.js';
 import { migrateFamilyNameToConfig } from '../group-name.js';
+import { syncCalendarSyncFromAuth } from '../gcal-auth.js';
 import {
   setCalendarStatus,
   isCalendarConnected,
@@ -19,7 +20,7 @@ import {
   state,
 } from './state.js';
 import { LOCAL_SESSION_KEY } from '../storage-keys.js';
-import { loadPersistedLogs, addLog, initChangeLog, syncPromotionChangeLog, logOperationError, showToast, updateNotificationsBadge, establishSession, logoutUser, showLoginView, showInitialSetupView, bindImpersonationBanner, isLoggedIn } from './context.js';
+import { loadPersistedLogs, addLog, initChangeLog, syncPromotionChangeLog, logOperationError, showToast, updateNotificationsBadge, establishSession, logoutUser, showLoginView, bindImpersonationBanner, isLoggedIn } from './context.js';
 import {
   openNotificationsModal,
   openUserProfileModal
@@ -66,11 +67,7 @@ function determineInitialView() {
     localStorage.removeItem(LOCAL_SESSION_KEY);
   }
 
-  if (getRouteBase() === 'initial-setup' || getRouteBase() === 'create-household') {
-    showInitialSetupView();
-  } else {
-    showLoginView();
-  }
+  showLoginView();
 }
 
 function createSyncHooks() {
@@ -129,6 +126,7 @@ export async function bootstrapData(mode) {
     state.events = CalendarSync.events;
     state.config = CalendarSync.config;
     setCalendarStatus('connected');
+    syncCalendarSyncFromAuth(CalendarSync);
 
     const adminSettings = applySyncedAdminSettingsFromConfig(state.config);
     addLog(`Admin settings applied: ${Object.keys(adminSettings).join(', ')}`);
@@ -188,6 +186,9 @@ export async function handleGoogleAuthState(authState) {
     const result = await bootstrapData('sync');
     if (result.ok) {
       dismissGoogleConnectGate();
+      setCalendarStatus('connected');
+      CalendarSync.mode = 'sync';
+      syncCalendarSyncFromAuth(CalendarSync);
       showToast('Connected to Google Calendar.', 'success');
       if (isLoggedIn()) {
         router();
