@@ -3,6 +3,7 @@
  */
 
 import { isPartnerPassive, findPartnerByRef, partnerRefsMatch, partnerDisplayFirstName } from './helpers.js';
+import { AUTO_ARCHIVE_DAYS_KEY } from './storage-keys.js';
 
 export const WORKFLOW = {
   DRAFT: 'draft',
