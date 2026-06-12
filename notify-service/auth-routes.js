@@ -2,6 +2,7 @@ import { getHousehold } from './sync-store.js';
 import { verifyPartnerPassword } from './crypto.js';
 import { getFixedHouseholdId } from './fixed-household.js';
 import { resolvePartnerLoginContext, resetPartnerPassword } from './reset-partner-password.js';
+import { mergeGoogleIntegrationIntoConfig, resolveGoogleIntegration } from './google-integration-env.js';
 
 function sanitizeConfigForClient(config) {
   if (!config) return null;
@@ -14,12 +15,13 @@ function sanitizeConfigForClient(config) {
 }
 
 function sanitizeGoogleIntegration(config) {
-  const gi = config?.googleIntegration;
-  if (!gi?.clientId || !gi?.apiKey) return null;
+  const resolved = resolveGoogleIntegration(config);
+  if (!resolved) return null;
   return {
-    clientId: gi.clientId,
-    apiKey: gi.apiKey,
-    calendarId: gi.calendarId || 'primary'
+    clientId: resolved.clientId,
+    apiKey: resolved.apiKey,
+    calendarId: resolved.calendarId,
+    serverManaged: resolved.serverManaged
   };
 }
 
@@ -83,7 +85,7 @@ export function mountAuthRoutes(app, { requireSecret } = {}) {
       return;
     }
 
-    const config = household.config;
+    const config = mergeGoogleIntegrationIntoConfig(household.config);
     res.json({
       ok: true,
       householdId,

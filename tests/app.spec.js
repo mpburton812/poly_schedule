@@ -268,9 +268,10 @@ test.describe('PolySchedule UI E2E Flow Tests', () => {
 
   test('should show Google Calendar credentials only on admin page', async ({ page }) => {
     await clickAdminNav(page);
-    await expect(page.locator('text=Google Calendar Integration')).toBeVisible();
-    await expect(page.locator('#admin-google-client-id')).toBeVisible();
-    await expect(page.locator('#btn-save-google-credentials')).toBeVisible();
+    await expect(page.locator('#admin-google-calendar-settings')).toBeVisible();
+    await expect(page.locator('#admin-google-client-id')).toHaveCount(0);
+    await expect(page.locator('#btn-save-google-credentials')).toHaveCount(0);
+    await expect(page.locator('#btn-test-google-calendar')).toBeVisible();
 
     await page.click('#avatar-container');
     const modal = page.locator('#app-modal.open');

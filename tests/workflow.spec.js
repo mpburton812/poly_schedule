@@ -177,9 +177,9 @@ test.describe('Proposal Workflow UI', () => {
     await expect(page.locator('#btn-tab-drafts')).toBeVisible();
     await expect(page.locator('#btn-tab-proposed')).toBeVisible();
     await expect(page.locator('#btn-tab-resolved')).toBeVisible();
-    await expect(page.locator('#btn-tab-declined')).toBeVisible();
+    await expect(page.locator('#btn-tab-archived')).toBeVisible();
     await expect(page.locator('#btn-tab-approved')).toHaveCount(0);
-    await expect(page.locator('#btn-tab-archived')).toHaveCount(0);
+    await expect(page.locator('#btn-tab-declined')).toHaveCount(0);
   });
 
   test('creates draft on FAB and submits to proposed tab', async ({ page }) => {
@@ -254,7 +254,7 @@ test.describe('Proposal Workflow UI', () => {
     await expect(page.locator('text=Archive UI Test')).toBeVisible();
     await expect(page.locator('#prop-ui_archive_test')).toContainText('APPROVED');
     await page.locator('.archive-proposal-btn[data-id="ui_archive_test"]').click();
-    await expect(page.locator('#btn-tab-resolved')).toHaveClass(/active/);
+    await expect(page.locator('#btn-tab-archived')).toHaveClass(/active/);
     await expect(page.locator('text=Archive UI Test')).toBeVisible();
     await expect(page.locator('#prop-ui_archive_test')).toContainText('ARCHIVED');
   });

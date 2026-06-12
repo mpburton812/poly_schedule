@@ -35,6 +35,12 @@ describe('auth-login client', () => {
         householdId: 'hh1',
         partner: { id: 'p1', name: 'Alex', username: 'alex', role: 'Admin' },
         config: { householdId: 'hh1', partners: [{ id: 'p1', name: 'Alex', username: 'alex', role: 'Admin' }], residences: [] },
+        googleIntegration: {
+          clientId: 'client.apps.googleusercontent.com',
+          apiKey: 'AIza-test',
+          calendarId: 'primary',
+          serverManaged: true
+        },
         events: [],
         revision: 3
       })
@@ -45,6 +51,7 @@ describe('auth-login client', () => {
     if (result.ok) {
       expect(result.config.householdId).toBe('hh1');
       expect(result.partner.username).toBe('alex');
+      expect(result.googleIntegration?.serverManaged).toBe(true);
     }
   });
 });

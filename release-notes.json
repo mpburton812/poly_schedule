@@ -1,22 +1,59 @@
 {
   "latest": {
-    "summary": "Resolved proposals tab, private conflict alerts, and sleeping night date sync fix",
+    "summary": "Server-managed Google Calendar credentials",
     "changes": [
-      "Merge Approved and Archived into a Resolved tab with per-proposal Approved/Archived badges",
-      "Keep users on the Resolved tab when archiving; Declined remains its own tab",
-      "Redact private appointment details in person schedule conflict warnings",
-      "Fix sleeping event dates so the app schedule matches Google Calendar all-day nights",
-      "Use local calendar dates for sleeping GCal sync (parse, write, and schedule grouping)"
+      "Load OAuth Client ID, API Key, and Calendar ID from notify service env vars on every device",
+      "Expose credentials via GET /v1/config and POST /v1/auth/login with serverManaged flag",
+      "Hide manual credential fields in Admin when the notify service manages Google setup",
+      "Retry loading server credentials from the connect gate when bootstrap fetch fails"
     ]
   },
-  "2216eba": {
-    "summary": "Resolved proposals tab, private conflict alerts, and sleeping night date sync fix",
+  "aa33347": {
+    "summary": "Server-managed Google Calendar credentials",
     "changes": [
-      "Merge Approved and Archived into a Resolved tab with per-proposal Approved/Archived badges",
-      "Keep users on the Resolved tab when archiving; Declined remains its own tab",
-      "Redact private appointment details in person schedule conflict warnings",
-      "Fix sleeping event dates so the app schedule matches Google Calendar all-day nights",
-      "Use local calendar dates for sleeping GCal sync (parse, write, and schedule grouping)"
+      "Load OAuth Client ID, API Key, and Calendar ID from notify service env vars on every device",
+      "Expose credentials via GET /v1/config and POST /v1/auth/login with serverManaged flag",
+      "Hide manual credential fields in Admin when the notify service manages Google setup",
+      "Retry loading server credentials from the connect gate when bootstrap fetch fails"
+    ]
+  },
+  "00eec1c": {
+    "summary": "Google OAuth settings visible during Admin setup",
+    "changes": [
+      "Show Google Calendar Settings near the top of Admin when credentials are not configured",
+      "Scroll and highlight Google Calendar Settings when opened from the connect gate",
+      "Keep Google Calendar Settings in its normal position once credentials are saved"
+    ]
+  },
+  "c6895c8": {
+    "summary": "Fix app startup crash from duplicate CalendarSync import",
+    "changes": [
+      "Remove duplicate CalendarSync import in session.js that broke module loading",
+      "Load CalendarSync lazily in offline banner handler to avoid import cycles"
+    ]
+  },
+  "046d8e2": {
+    "summary": "Fix Google Calendar connect deadlock on new devices",
+    "changes": [
+      "Apply household OAuth credentials from login before showing the connect gate",
+      "Let admins open Admin and Google Calendar Settings without connecting Google first",
+      "Show clearer setup guidance when credentials are missing on a new phone"
+    ]
+  },
+  "c74af6e": {
+    "summary": "Fix Google Calendar connect deadlock on new devices",
+    "changes": [
+      "Apply household OAuth credentials from login before showing the connect gate",
+      "Let admins open Admin and Google Calendar Settings without connecting Google first",
+      "Show clearer setup guidance when credentials are missing on a new phone"
+    ]
+  },
+  "33ccbd9": {
+    "summary": "Archived proposal tab, admin log user tagging, and admin panel reorder",
+    "changes": [
+      "Replace Declined tab with Archived; Resolved shows approved and declined outcomes",
+      "Tag user actions in the System Administration Log with partner names in light blue",
+      "Reorder admin sections: Group Settings, System Log, Change Control, Archiving, Sync Hub, GCal, Push"
     ]
   }
 }

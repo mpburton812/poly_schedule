@@ -42,7 +42,7 @@ export function proposalsView(state, activeTab = 'proposed') {
       drafts: 'Drafts',
       proposed: 'Proposed',
       resolved: 'Resolved',
-      declined: 'Declined'
+      archived: 'Archived'
     };
 
     let listHtml = '';
@@ -259,7 +259,7 @@ export function proposalsView(state, activeTab = 'proposed') {
       });
     }
 
-    const tabs = ['drafts', 'proposed', 'resolved', 'declined'];
+    const tabs = ['drafts', 'proposed', 'resolved', 'archived'];
     const tabsHtml = tabs.map(tab => `
       <button class="tab-button ${activeTab === tab ? 'active' : ''}" id="btn-tab-${tab}">${tabLabels[tab]}</button>
     `).join('');

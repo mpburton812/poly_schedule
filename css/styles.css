@@ -1027,6 +1027,9 @@ body {
 .proposal-card-highlight {
   box-shadow: 0 0 0 3px rgba(249, 168, 37, 0.45);
 }
+.admin-section-highlight {
+  box-shadow: 0 0 0 3px rgba(166, 57, 58, 0.45);
+}
 .proposal-person-conflict-notice {
   display: flex;
   gap: var(--space-sm);
@@ -1427,6 +1430,9 @@ body {
 .console-line {
   display: flex;
   gap: var(--space-xs);
+}
+.console-line--user .system-log-message {
+  color: #8ecae6;
 }
 .console-time {
   color: rgba(255,255,255,0.4);

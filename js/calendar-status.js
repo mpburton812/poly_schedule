@@ -1,17 +1,26 @@
 import { ACCESS_TOKEN_KEY, CLIENT_ID_KEY, API_KEY_KEY } from './storage-keys.js';
 import { AuthManager } from './auth.js';
+import { ensureGoogleCredentialsFromConfig } from './google-integration.js';
 import { state } from './app/state.js';
 import { showToast } from './app/toast.js';
 
 /** @typedef {'unknown'|'connecting'|'connected'|'disconnected'} CalendarStatus */
 
-export function isGoogleCalendarReady() {
+export function hasGoogleIntegrationCredentials() {
   AuthManager.reloadFromStorage?.();
   return !!(
     localStorage.getItem(CLIENT_ID_KEY)
     && localStorage.getItem(API_KEY_KEY)
-    && (AuthManager.accessToken || localStorage.getItem(ACCESS_TOKEN_KEY))
   );
+}
+
+export function hasGoogleAccessToken() {
+  AuthManager.reloadFromStorage?.();
+  return !!(AuthManager.accessToken || localStorage.getItem(ACCESS_TOKEN_KEY));
+}
+
+export function isGoogleCalendarReady() {
+  return hasGoogleIntegrationCredentials() && hasGoogleAccessToken();
 }
 
 /** @param {CalendarStatus} status */
@@ -37,15 +46,18 @@ export function bindOfflineBanner() {
   if (!banner || banner.dataset.bound) return;
   banner.dataset.bound = '1';
   banner.addEventListener('click', () => {
-    import('./auth.js').then(({ AuthManager }) => {
+    void (async () => {
+      const { CalendarSync } = await import('./calendar.js');
+      ensureGoogleCredentialsFromConfig(state.config, { CalendarSync });
       try {
         setCalendarStatus('connecting');
+        AuthManager.reloadFromStorage();
         AuthManager.login();
       } catch (err) {
         setCalendarStatus('disconnected');
         showToast(err.message || 'Could not start Google sign-in.', 'error');
       }
-    });
+    })();
   });
   banner.addEventListener('keydown', (e) => {
     if (e.key === 'Enter' || e.key === ' ') {
