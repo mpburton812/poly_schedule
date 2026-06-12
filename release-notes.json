@@ -1,10 +1,18 @@
 {
   "latest": {
-    "summary": "Archived proposal tab, admin log user tagging, and admin panel reorder",
+    "summary": "Fix Google Calendar connect deadlock on new devices",
     "changes": [
-      "Replace Declined tab with Archived; Resolved shows approved and declined outcomes",
-      "Tag user actions in the System Administration Log with partner names in light blue",
-      "Reorder admin sections: Group Settings, System Log, Change Control, Archiving, Sync Hub, GCal, Push"
+      "Apply household OAuth credentials from login before showing the connect gate",
+      "Let admins open Admin and Google Calendar Settings without connecting Google first",
+      "Show clearer setup guidance when credentials are missing on a new phone"
+    ]
+  },
+  "c74af6e": {
+    "summary": "Fix Google Calendar connect deadlock on new devices",
+    "changes": [
+      "Apply household OAuth credentials from login before showing the connect gate",
+      "Let admins open Admin and Google Calendar Settings without connecting Google first",
+      "Show clearer setup guidance when credentials are missing on a new phone"
     ]
   },
   "33ccbd9": {
