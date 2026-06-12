@@ -24,6 +24,8 @@ Each user enables push under **Settings → Mobile notifications**.
 
 Google Calendar stays the source of truth. The notify service coordinates near-real-time updates:
 
+| Endpoint | Purpose |
+|----------|---------|
 | `POST /v1/auth/login` | Username/password login — returns household config (public) |
 | `GET /v1/usernames/check` | Check global username availability |
 | `POST /v1/sync/register` | Register a device for a household |
