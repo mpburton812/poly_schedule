@@ -11,6 +11,7 @@ import { persistHouseholdConfig } from './household-config.js';
 import { isPartnerPassive, needsHouseholdSetup, partnerRefsMatch } from '../helpers.js';
 import { ensureHouseholdIdentity } from '../household-sync.js';
 import { assertUsernameAvailable, claimUsernameGlobally } from '../username-registry.js';
+import { loginViaNotifyService, resolvePublicNotifyUrl, applyRemoteLoginPayload } from '../auth-login.js';
 import { showToast } from './toast.js';
 import { addLog, logUserAction } from './operation-log.js';
 import { updateImpersonationBanner } from './impersonation.js';
@@ -101,11 +102,16 @@ export function establishSession(partner) {
   state.currentUser = {
     id: partner.id,
     name: partner.name,
+    username: partner.username,
     picture: partner.avatar || DEFAULT_AVATARS[0],
     role: partner.role,
     sessionActive: true
   };
-  localStorage.setItem(LOCAL_SESSION_KEY, JSON.stringify(state.currentUser));
+  localStorage.setItem(LOCAL_SESSION_KEY, JSON.stringify({
+    id: partner.id,
+    username: partner.username,
+    sessionActive: true
+  }));
   const avatarImg = document.getElementById('user-avatar-img');
   if (avatarImg) avatarImg.src = state.currentUser.picture;
   updateUIForAuthState(true);
@@ -126,35 +132,77 @@ export function establishSession(partner) {
   });
 }
 
+async function authenticatePartnerLocally(username, password) {
+  const trimmedUser = username.trim();
+  const trimmedPassword = password.trim();
+  const partnerCandidates = state.config?.partners?.filter(
+    (p) => !isPartnerPassive(p) && p.username === trimmedUser
+  );
+  if (!partnerCandidates?.length) return null;
+
+  for (const partner of partnerCandidates) {
+    if (partner.password === trimmedPassword) {
+      partner.passwordHash = await hashPassword(trimmedPassword, partner.id);
+      delete partner.password;
+      return partner;
+    }
+    if (partner.passwordHash && partner.passwordHash === await hashPassword(trimmedPassword, partner.id)) {
+      return partner;
+    }
+  }
+  return null;
+}
+
 export async function attemptLogin(username, password) {
   const trimmedUser = username.trim();
   const trimmedPassword = password.trim();
-  const partnerCandidates = state.config?.partners?.filter(p => !isPartnerPassive(p) && p.username === trimmedUser);
-  let authenticatedPartner = null;
-
-  if (partnerCandidates && partnerCandidates.length > 0) {
-    for (const p of partnerCandidates) {
-      if (p.password === trimmedPassword) {
-        p.passwordHash = await hashPassword(trimmedPassword, p.id);
-        delete p.password;
-        authenticatedPartner = p;
-        break;
-      } else if (p.passwordHash && p.passwordHash === await hashPassword(trimmedPassword, p.id)) {
-        authenticatedPartner = p;
-        break;
-      }
-    }
+  if (!trimmedUser || !trimmedPassword) {
+    showToast('Please enter username and password.', 'warning');
+    return false;
   }
 
+  const notifyUrl = await resolvePublicNotifyUrl();
+  if (notifyUrl) {
+    const remote = await loginViaNotifyService(trimmedUser, trimmedPassword, notifyUrl);
+    if (remote.ok) {
+      applyRemoteLoginPayload(remote, state);
+      const partner = state.config?.partners?.find((p) => p.id === remote.partner.id) || remote.partner;
+      establishSession(partner);
+      addLog(`${partner.name}: Logged in via household lookup.`, 'info');
+      showToast(`Welcome back, ${partner.name.split(' ')[0]}!`, 'success');
+      router();
+      return true;
+    }
+
+    if (remote.code === 'INVALID_CREDENTIALS') {
+      showToast('Invalid username or password.', 'error');
+      addLog(`${trimmedUser}: Failed login attempt.`, 'warning');
+      return false;
+    }
+
+    if (remote.code === 'HOUSEHOLD_UNAVAILABLE') {
+      showToast(remote.message, 'warning');
+      addLog(`${trimmedUser}: Login blocked — household cache unavailable.`, 'warning');
+      return false;
+    }
+
+    showToast(remote.message || 'Login failed.', 'error');
+    addLog(`${trimmedUser}: Remote login failed (${remote.code || 'unknown'}).`, 'warning');
+    return false;
+  }
+
+  const authenticatedPartner = await authenticatePartnerLocally(trimmedUser, trimmedPassword);
   if (!authenticatedPartner) {
-    const hint = needsHouseholdSetup(state.config)
-      ? 'Invalid username or password. Connect an existing household or create a new one from the login page.'
-      : 'Invalid username or password.';
-    showToast(hint, 'error');
+    showToast(
+      needsHouseholdSetup(state.config)
+        ? 'Invalid username or password. Use Create New Household if you are setting up for the first time.'
+        : 'Invalid username or password.',
+      'error'
+    );
     addLog(`${trimmedUser}: Failed login attempt.`, 'warning');
     return false;
   }
-  
+
   if (authenticatedPartner.passwordHash) {
     import('./household-config.js').then(({ persistHouseholdConfig }) => {
       persistHouseholdConfig('Migrated password to hash.').catch(() => {});

@@ -9,6 +9,7 @@ import {
 } from './store.js';
 import { sendPushToPartners } from './send.js';
 import { mountSyncRoutes } from './sync-routes.js';
+import { mountAuthRoutes } from './auth-routes.js';
 import { startWatchRenewalLoop } from './gcal-watch.js';
 
 dotenv.config();
@@ -111,6 +112,7 @@ app.post('/v1/events', requireSecret, async (req, res) => {
   res.json(result);
 });
 
+mountAuthRoutes(app);
 mountSyncRoutes(app, { requireSecret });
 
 app.listen(PORT, () => {

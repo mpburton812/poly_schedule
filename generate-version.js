@@ -31,6 +31,11 @@ try {
   }
 } catch (err) {}
 
-const versionInfo = { branch, commit };
+const versionInfo = {
+  branch,
+  commit,
+  notifyUrl: (process.env.PUBLIC_NOTIFY_URL || '').trim().replace(/\/$/, '') || undefined
+};
+if (!versionInfo.notifyUrl) delete versionInfo.notifyUrl;
 fs.writeFileSync('version.json', JSON.stringify(versionInfo, null, 2));
 console.log(`Version generated: ${branch} #${commit}`);
