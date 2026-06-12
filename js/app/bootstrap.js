@@ -5,7 +5,7 @@ import {
 import { AuthManager } from '../auth.js';
 import { CalendarSync } from '../calendar.js';
 import { LEGACY_PROFILE_KEY } from '../storage-keys.js';
-import { isPartnerPassive, needsHouseholdSetup } from '../helpers.js';;
+import { isPartnerPassive, needsHouseholdSetup } from '../helpers.js';
 import { resolveSyncBootstrapMode } from '../gcal-sync.js';
 import {
   state,
@@ -203,6 +203,27 @@ function migrateLegacySession() {
 }
 
 export function init() {
+  window.addEventListener('polyschedule:google-integration', (event) => {
+    updateGoogleLoginButton({
+      loggedIn: !!AuthManager.accessToken,
+      user: AuthManager.userProfile,
+      mode: localStorage.getItem(MODE_KEY)
+    });
+    if (event.detail?.needsGoogleLogin && state.currentUser) {
+      showToast('Google credentials synced — click Sync Google to connect your account.', 'info');
+    }
+  });
+
+  window.addEventListener('polyschedule:household-services', async (event) => {
+    const { startHouseholdSyncHub } = await import('../household-sync.js');
+    await startHouseholdSyncHub(createSyncHooks());
+    if (event.detail?.notifyApplied && state.currentUser) {
+      import('../push-notifications.js').then(({ syncPushSubscriptionIfEnabled }) => {
+        syncPushSubscriptionIfEnabled(state.currentUser.id);
+      });
+    }
+  });
+
   const run = async () => {
     state.logs = loadPersistedLogs();
     initChangeLog();
@@ -253,34 +274,18 @@ export function init() {
 
     // Show loading spinner while bootstrap and view determination run
     toggleLoadingSpinner(true);
-    await bootstrapData(resolveSyncBootstrapMode());
-    await determineInitialView();
-    // Hide spinner after UI is ready
-    toggleLoadingSpinner(false);
+    try {
+      await bootstrapData(resolveSyncBootstrapMode());
+      await determineInitialView();
+    } catch (err) {
+      console.error('[bootstrap] init failed', err);
+      showToast('Failed to start PolySchedule. Try clearing site data and reloading.', 'error');
+      showLoginView();
+    } finally {
+      toggleLoadingSpinner(false);
+    }
     // Set up auth state listener after view is decided
     AuthManager.onAuthStateChange = (authState) => handleGoogleAuthState(authState);
-    };
-
-    window.addEventListener('polyschedule:google-integration', (event) => {
-      updateGoogleLoginButton({
-        loggedIn: !!AuthManager.accessToken,
-        user: AuthManager.userProfile,
-        mode: localStorage.getItem(MODE_KEY)
-      });
-      if (event.detail?.needsGoogleLogin && state.currentUser) {
-        showToast('Google credentials synced — click Sync Google to connect your account.', 'info');
-      }
-    });
-
-    window.addEventListener('polyschedule:household-services', async (event) => {
-      const { startHouseholdSyncHub } = await import('../household-sync.js');
-      await startHouseholdSyncHub(createSyncHooks());
-      if (event.detail?.notifyApplied && state.currentUser) {
-        import('../push-notifications.js').then(({ syncPushSubscriptionIfEnabled }) => {
-          syncPushSubscriptionIfEnabled(state.currentUser.id);
-        });
-      }
-    });
   };
 
   if (document.readyState === 'loading') {

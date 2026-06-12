@@ -38,4 +38,15 @@ for (const item of copyPaths) {
   }
 }
 
+const version = JSON.parse(fs.readFileSync(path.join(root, 'version.json'), 'utf8'));
+const indexPath = path.join(out, 'index.html');
+if (fs.existsSync(indexPath)) {
+  let html = fs.readFileSync(indexPath, 'utf8');
+  html = html.replace(
+    /BUILD #[^•]+ • BRANCH [^<]+/,
+    `BUILD #${version.commit} • BRANCH ${version.branch}`
+  );
+  fs.writeFileSync(indexPath, html);
+}
+
 console.log('Vercel static output written to public/');
