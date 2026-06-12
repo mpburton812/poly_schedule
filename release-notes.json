@@ -8,6 +8,15 @@
       "Retry loading server credentials from the connect gate when bootstrap fetch fails"
     ]
   },
+  "aa33347": {
+    "summary": "Server-managed Google Calendar credentials",
+    "changes": [
+      "Load OAuth Client ID, API Key, and Calendar ID from notify service env vars on every device",
+      "Expose credentials via GET /v1/config and POST /v1/auth/login with serverManaged flag",
+      "Hide manual credential fields in Admin when the notify service manages Google setup",
+      "Retry loading server credentials from the connect gate when bootstrap fetch fails"
+    ]
+  },
   "00eec1c": {
     "summary": "Google OAuth settings visible during Admin setup",
     "changes": [
