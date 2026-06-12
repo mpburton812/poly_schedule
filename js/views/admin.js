@@ -33,6 +33,7 @@ import {
 import { renderChangeLogHtml } from '../change-log.js';
 import { renderSystemLogHtml } from '../app/operation-log.js';
 import { getGroupName } from '../group-name.js';
+import { isGoogleIntegrationServerManaged } from '../google-integration.js';
 
 
 export function adminView(state) {
@@ -49,13 +50,31 @@ export function adminView(state) {
     const householdId = state.config?.householdId || '';
     const syncRevision = state.config?.syncRevision ?? 0;
     const householdSyncToken = syncHub.token || localStorage.getItem(HOUSEHOLD_SYNC_TOKEN_KEY) || '';
+    const serverManagedGoogle = isGoogleIntegrationServerManaged();
     const credentialsConfigured = !!(clientId && apiKey);
     const syncHubConfigured = !!(notifyUrl && notifySecret);
     const changeLogHtml = renderChangeLogHtml(state.changeLog || []);
 
     const logsHtml = renderSystemLogHtml(state.logs || []);
 
-    const googleCalendarSettingsSection = `
+    const googleCalendarSettingsSection = serverManagedGoogle
+      ? `
+        <div class="bento-card" id="admin-google-calendar-settings" style="padding: var(--space-lg); border: 1px solid var(--outline-variant);">
+          <h3 class="font-title-lg" style="font-weight: 700; margin-bottom: var(--space-xs); display: flex; align-items: center; gap: var(--space-sm);">
+            <span class="material-symbols-outlined text-primary">cloud_sync</span> Google Calendar
+          </h3>
+          <p class="font-body-md" style="color: var(--on-surface-variant); margin-bottom: var(--space-md);">
+            Credentials are managed by the notify service. Household members only connect their Google account once per device — no manual API setup required.
+          </p>
+          ${credentialsConfigured
+            ? `<p class="font-label-sm" style="color: var(--secondary); margin-bottom: var(--space-md);">Connected to calendar <code>${calendarId}</code>.</p>`
+            : '<p class="font-label-sm" style="color: var(--tertiary); margin-bottom: var(--space-md);">Credentials could not be loaded from the server. Verify GOOGLE_CLIENT_ID and GOOGLE_API_KEY on Render, then reload the app.</p>'}
+          <div style="display: flex; gap: var(--space-sm); flex-wrap: wrap;">
+            <button class="btn btn-outline" id="btn-test-google-calendar" type="button">Test Calendar API</button>
+            <button class="btn btn-outline" id="btn-disconnect-google" type="button">Disconnect Google Sync</button>
+          </div>
+        </div>`
+      : `
         <div class="bento-card" id="admin-google-calendar-settings" style="padding: var(--space-lg); border: 1px solid var(--outline-variant);">
           <h3 class="font-title-lg" style="font-weight: 700; margin-bottom: var(--space-xs); display: flex; align-items: center; gap: var(--space-sm);">
             <span class="material-symbols-outlined text-primary">cloud_sync</span> Google Calendar Settings
@@ -110,7 +129,7 @@ export function adminView(state) {
           </div>
           <button class="btn btn-filled" id="btn-save-group-name" style="align-self: flex-start;">Save Name</button>
         </div>`,
-      ...(!credentialsConfigured ? [googleCalendarSettingsSection] : []),
+      ...((!credentialsConfigured && !serverManagedGoogle) ? [googleCalendarSettingsSection] : []),
       `
         <div class="bento-card" style="padding: var(--space-lg); border: 1px solid var(--outline-variant);">
           <h3 class="font-title-lg" style="font-weight: 700; margin-bottom: var(--space-md); display: flex; align-items: center; gap: var(--space-sm);">
@@ -186,7 +205,7 @@ export function adminView(state) {
             </div>
           </div>
         </div>`,
-      ...(credentialsConfigured ? [googleCalendarSettingsSection] : []),
+      ...((credentialsConfigured || serverManagedGoogle) ? [googleCalendarSettingsSection] : []),
       `
         <div class="bento-card" style="padding: var(--space-lg); border: 1px solid var(--outline-variant);">
           <h3 class="font-title-lg" style="font-weight: 700; margin-bottom: var(--space-xs); display: flex; align-items: center; gap: var(--space-sm);">

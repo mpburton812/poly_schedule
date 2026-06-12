@@ -33,6 +33,7 @@ import {
 } from './version-update.js';
 import { toggleLoadingSpinner } from './spinner.js';
 import { applySyncedAdminSettingsFromConfig } from '../household-config-apply.js';
+import { bootstrapServerGoogleIntegration } from '../notify-public-config.js';
 import {
   dismissGoogleConnectGate,
   needsGoogleCalendarConnect,
@@ -86,6 +87,7 @@ function createSyncHooks() {
 /** Load cached snapshot; sync with Google when credentials are available. */
 export async function bootstrapInitial() {
   AuthManager.reloadFromStorage();
+  await bootstrapServerGoogleIntegration({ CalendarSync });
   applyCacheSnapshot(loadCacheSnapshot(), { state, CalendarSync });
   if (state.config && migrateFamilyNameToConfig(state.config)) {
     localStorage.setItem(LOCAL_CONFIG_KEY, JSON.stringify(state.config));

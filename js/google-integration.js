@@ -10,6 +10,16 @@ import {
 
 import { AuthManager } from './auth.js';
 
+let googleIntegrationServerManaged = false;
+
+export function isGoogleIntegrationServerManaged() {
+  return googleIntegrationServerManaged;
+}
+
+export function setGoogleIntegrationServerManaged(value) {
+  googleIntegrationServerManaged = !!value;
+}
+
 
 /**
  * @param {import('./types.js').AppConfig & { googleIntegration?: object }} config

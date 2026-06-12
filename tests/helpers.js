@@ -163,6 +163,22 @@ async function installE2ENotifyMock(page) {
       });
       return;
     }
+    if (path === '/v1/config') {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          publicKey: 'e2e-vapid-public-key',
+          googleIntegrationServerManaged: true,
+          googleIntegration: {
+            clientId: 'e2e-client.apps.googleusercontent.com',
+            apiKey: 'e2e-api-key',
+            calendarId: 'primary'
+          }
+        })
+      });
+      return;
+    }
     await route.fallback();
   });
 }

@@ -101,6 +101,9 @@ async function completeLogin(partner, message) {
   showToast(`Welcome back, ${partner.name.split(' ')[0]}!`, 'success');
   if (needsGoogleCalendarConnect()) {
     ensureGoogleCredentialsFromConfig(state.config, { CalendarSync });
+    const { bootstrapServerGoogleIntegration } = await import('../notify-public-config.js');
+    await bootstrapServerGoogleIntegration({ CalendarSync, force: true });
+    ensureGoogleCredentialsFromConfig(state.config, { CalendarSync });
     showGoogleConnectGate();
     return true;
   }

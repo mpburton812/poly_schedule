@@ -5,7 +5,7 @@ PolySchedule is a client-side progressive web app backed by a **Render notify se
 ## Authentication model
 
 - **Partner login** uses username and password verified by the notify service (`POST /v1/auth/login`). Password hashes are stored server-side on Render (and in GCal config when admins set passwords). Login responses **never** include password hashes.
-- **Google Calendar sync** uses OAuth 2.0 via Google Identity Services. Access tokens, API keys, and client IDs are stored in `localStorage` on each device. Google sign-in is **required per device** before using the app.
+- **Google Calendar sync** uses OAuth 2.0 via Google Identity Services. Access tokens are stored per device in `localStorage`. Client ID, API key, and calendar ID can be **server-managed** via notify service env vars (`GOOGLE_CLIENT_ID`, `GOOGLE_API_KEY`, `GOOGLE_CALENDAR_ID`) so household members never enter them in Admin.
 - **Local logout** (profile / sidebar) clears only the partner session (`polyschedule_local_session`). It does not revoke Google tokens.
 - **Notify secret** (`NOTIFY_SECRET` on Render, mirrored in Admin) protects sync push, push subscriptions, and emergency password reset. Rotate if exposed — see `notify-service/docs/SECRET_ROTATION.md`.
 
