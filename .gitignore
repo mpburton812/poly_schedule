@@ -3,5 +3,10 @@ test-results/
 playwright-report/
 .system_generated/
 .gemini/
+public/
 .env
 *.log
+notify-service/.env
+notify-service/node_modules/
+notify-service/data/*.json
+reset-body.json

@@ -3,6 +3,160 @@
  * Evaluates scheduling proposals against capacity constraints and partner sleeping limits.
  */
 
+import { findPartnerByRef, batchProposalToSleepingEvents } from './helpers.js';
+import { buildPersonConflictMessage, getEventVisibility } from './event-privacy.js';
+import {
+  partnerSleepingWithMessage,
+  partnerSoloNightsMessage
+} from './pronouns.js';
+
+const getStartOfWeek = (date) => {
+  const d = new Date(date);
+  const day = d.getDay();
+  const diff = d.getDate() - day + (day === 0 ? -6 : 1);
+  const mon = new Date(d.setDate(diff));
+  mon.setHours(0, 0, 0, 0);
+  return mon;
+};
+
+const eventCoversDay = (event, day) => {
+  const startD = new Date(event.start);
+  const endD = new Date(event.end);
+  const startMid = new Date(startD.getFullYear(), startD.getMonth(), startD.getDate());
+  const endMid = new Date(endD.getFullYear(), endD.getMonth(), endD.getDate());
+  return day >= startMid && day < endMid;
+};
+
+const hasParticipant = (participants, targetName) => {
+  if (!participants || !targetName) return false;
+  const targetFirst = targetName.split(' ')[0].toLowerCase();
+  return participants.some(p => p.split(' ')[0].toLowerCase() === targetFirst);
+};
+
+const eventsTimeOverlap = (left, right) => {
+  const leftStart = new Date(left.start).getTime();
+  const leftEnd = new Date(left.end).getTime();
+  const rightStart = new Date(right.start).getTime();
+  const rightEnd = new Date(right.end).getTime();
+  if ([leftStart, leftEnd, rightStart, rightEnd].some(Number.isNaN)) return false;
+  return leftStart < rightEnd && rightStart < leftEnd;
+};
+
+const isBlockingScheduleEvent = (event, excludeId) => {
+  if (!event || event.id === excludeId || event.type === 'batch_sleeping') return false;
+  if (event.status === 'rejected' || event.status === 'cancelled') return false;
+  if (event.workflowState === 'archived' || event.workflowState === 'declined' || event.workflowState === 'draft') {
+    return false;
+  }
+  if (!event.workflowState && event.status === 'draft') return false;
+  return true;
+};
+
+const personScheduledOnEvent = (person, event) => {
+  if (event.proposer && hasParticipant([event.proposer], person)) return true;
+  return hasParticipant(event.participants || [], person);
+};
+
+const collectEventPeople = (proposal) => {
+  const people = new Set();
+  if (proposal.proposer) people.add(proposal.proposer);
+  (proposal.participants || []).forEach(name => people.add(name));
+  return Array.from(people);
+};
+
+const getWeekStartsInRange = (startDate, endDate) => {
+  const weekKeys = new Set();
+  const curr = new Date(startDate);
+  curr.setHours(0, 0, 0, 0);
+  const end = new Date(endDate);
+  end.setHours(23, 59, 59, 999);
+  while (curr <= end) {
+    weekKeys.add(getStartOfWeek(curr).getTime());
+    curr.setDate(curr.getDate() + 1);
+  }
+  return Array.from(weekKeys).map(t => new Date(t));
+};
+
+const evaluatePartnerAndSoloRules = (eventsToCheck, daysOfWeek, config, proposalParticipants) => {
+  const warnings = [];
+  const partners = config?.partners || [];
+
+  for (const pA of proposalParticipants) {
+    const partnerConfig = findPartnerByRef({ partners }, pA);
+    if (!partnerConfig || !partnerConfig.rules) continue;
+
+    const rules = partnerConfig.rules;
+
+    if (rules.partnerLimits) {
+      for (const pB of proposalParticipants) {
+        if (pA === pB) continue;
+
+        let limit = null;
+        if (rules.partnerLimits[pB]) {
+          limit = rules.partnerLimits[pB];
+        } else {
+          const firstB = pB.split(' ')[0];
+          for (const key of Object.keys(rules.partnerLimits)) {
+            if (key === firstB || key.split(' ')[0] === firstB) {
+              limit = rules.partnerLimits[key];
+              break;
+            }
+          }
+        }
+
+        if (limit) {
+          let nightsTogether = 0;
+          for (const day of daysOfWeek) {
+            const sleepsTogether = eventsToCheck.some(e => {
+              if (e.type !== 'sleeping') return false;
+              if (e.status === 'rejected' || e.status === 'cancelled') return false;
+              const parts = e.participants || [];
+              return hasParticipant(parts, pA) && hasParticipant(parts, pB) && eventCoversDay(e, day);
+            });
+            if (sleepsTogether) nightsTogether++;
+          }
+
+          if (limit.max !== undefined && nightsTogether > limit.max) {
+            warnings.push({
+              type: 'PARTNER_MAX_LIMIT',
+              message: partnerSleepingWithMessage(config, pA, pB, nightsTogether, limit, 'max')
+            });
+          }
+          if (limit.min !== undefined && nightsTogether < limit.min) {
+            warnings.push({
+              type: 'PARTNER_MIN_LIMIT',
+              message: partnerSleepingWithMessage(config, pA, pB, nightsTogether, limit, 'min')
+            });
+          }
+        }
+      }
+    }
+
+    const minSoloNights = rules.minSoloNights ?? rules.maxSoloNights;
+    if (minSoloNights !== undefined) {
+      let soloNights = 0;
+      for (const day of daysOfWeek) {
+        const isSolo = eventsToCheck.some(e => {
+          if (e.type !== 'sleeping') return false;
+          if (e.status === 'rejected' || e.status === 'cancelled') return false;
+          const parts = e.participants || [];
+          if (parts.length !== 1) return false;
+          return hasParticipant(parts, pA) && eventCoversDay(e, day);
+        });
+        if (isSolo) soloNights++;
+      }
+      if (soloNights < minSoloNights) {
+        warnings.push({
+          type: 'SOLO_MIN_LIMIT',
+          message: partnerSoloNightsMessage(config, pA, soloNights, minSoloNights)
+        });
+      }
+    }
+  }
+
+  return warnings;
+};
+
 export const RulesEngine = {
   /**
    * Evaluates a sleeping proposal against existing events and logistics rules.
@@ -121,7 +275,7 @@ export const RulesEngine = {
     const proposalParticipants = proposal.participants || [];
     
     for (const pA of proposalParticipants) {
-      const partnerConfig = partners.find(p => p.name === pA || p.name.split(' ')[0] === pA);
+      const partnerConfig = findPartnerByRef({ partners }, pA);
       if (!partnerConfig || !partnerConfig.rules) continue;
 
       const rules = partnerConfig.rules;
@@ -172,22 +326,23 @@ export const RulesEngine = {
             if (limit.max !== undefined && nightsTogether > limit.max) {
               warnings.push({
                 type: 'PARTNER_MAX_LIMIT',
-                message: `${pA} sleeping with ${pB} for ${nightsTogether} nights exceeds ${pA}'s preferred limit of ${limit.max} nights/week with ${pB}.`
+                message: partnerSleepingWithMessage(config, pA, pB, nightsTogether, limit, 'max')
               });
             }
 
             if (limit.min !== undefined && nightsTogether < limit.min) {
               warnings.push({
                 type: 'PARTNER_MIN_LIMIT',
-                message: `${pA} sleeping with ${pB} for ${nightsTogether} nights is below ${pA}'s preferred limit of ${limit.min} nights/week with ${pB}.`
+                message: partnerSleepingWithMessage(config, pA, pB, nightsTogether, limit, 'min')
               });
             }
           }
         }
       }
 
-      // 2b. Max Solo Nights Limit
-      if (rules.maxSoloNights !== undefined) {
+      // 2b. Min Solo Nights preference
+      const minSoloNights = rules.minSoloNights ?? rules.maxSoloNights;
+      if (minSoloNights !== undefined) {
         let soloNights = 0;
 
         for (const day of daysOfWeek) {
@@ -206,15 +361,145 @@ export const RulesEngine = {
           }
         }
 
-        if (soloNights > rules.maxSoloNights) {
+        if (soloNights < minSoloNights) {
           warnings.push({
-            type: 'SOLO_MAX_LIMIT',
-            message: `${pA} sleeping alone for ${soloNights} nights exceeds preferred limit of ${rules.maxSoloNights} solo nights/week.`
+            type: 'SOLO_MIN_LIMIT',
+            message: partnerSoloNightsMessage(config, pA, soloNights, minSoloNights)
           });
         }
       }
     }
 
     return warnings;
+  },
+
+  /**
+   * Evaluates a multi-night batch sleeping proposal.
+   */
+  evaluateBatchSleepingProposal(batchProposal, existingEvents = [], config = {}, partners = []) {
+    const warnings = [];
+    if (!batchProposal || batchProposal.type !== 'batch_sleeping') return warnings;
+    if (!batchProposal.batchNights?.length) return warnings;
+
+    const syntheticEvents = batchProposalToSleepingEvents(batchProposal);
+    const existingSleeping = existingEvents.filter(e =>
+      e.id !== batchProposal.id &&
+      e.type === 'sleeping' &&
+      e.status !== 'rejected' &&
+      e.status !== 'cancelled'
+    );
+    const eventsToCheck = [...syntheticEvents, ...existingSleeping];
+
+    // Duplicate room assignments within the batch on the same night
+    const roomKeys = new Set();
+    batchProposal.batchNights.forEach((night, nightIndex) => {
+      (night.assignments || []).forEach((assign, assignIndex) => {
+        const key = `${night.date}|${assign.homeId}|${assign.roomId}`;
+        if (roomKeys.has(key)) {
+          warnings.push({
+            type: 'CAPACITY_CONFLICT',
+            nightIndex,
+            assignIndex,
+            message: `Duplicate assignment: ${assign.roomName || assign.roomId} at ${assign.homeName || assign.homeId} on ${new Date(night.date).toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' })}.`
+          });
+        }
+        roomKeys.add(key);
+      });
+    });
+
+    // Room conflicts with existing schedule and within batch (different occupants)
+    let nightIdx = 0;
+    let assignIdx = 0;
+    for (const night of batchProposal.batchNights) {
+      for (const assign of night.assignments || []) {
+        const synthetic = batchProposalToSleepingEvents({
+          ...batchProposal,
+          batchNights: [{ date: night.date, assignments: [assign] }]
+        })[0];
+        if (!synthetic) continue;
+
+        const nightDate = new Date(night.date);
+        nightDate.setHours(0, 0, 0, 0);
+
+        const conflict = eventsToCheck.find(e => {
+          if (e.id === synthetic.id) return false;
+          if (e.type !== 'sleeping') return false;
+          if (e.status === 'rejected' || e.status === 'cancelled') return false;
+          if (e.homeId !== synthetic.homeId || e.roomId !== synthetic.roomId) return false;
+          if (!eventCoversDay(e, nightDate)) return false;
+          return (e.participants || []).some(name => !hasParticipant(synthetic.participants, name));
+        });
+
+        if (conflict) {
+          warnings.push({
+            type: 'CAPACITY_CONFLICT',
+            nightIndex: nightIdx,
+            assignIndex: assignIdx,
+            message: `Room conflict: ${synthetic.roomName || synthetic.roomId} at ${synthetic.homeName || synthetic.homeId} is already booked on ${nightDate.toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' })}.`
+          });
+        }
+        assignIdx++;
+      }
+      nightIdx++;
+      assignIdx = 0;
+    }
+
+    const allParticipants = new Set();
+    syntheticEvents.forEach(e => (e.participants || []).forEach(p => allParticipants.add(p)));
+    const proposalParticipants = Array.from(allParticipants);
+
+    const rangeStart = new Date(batchProposal.batchNights[0].date);
+    const rangeEnd = new Date(batchProposal.batchNights[batchProposal.batchNights.length - 1].date);
+    const weekStarts = getWeekStartsInRange(rangeStart, rangeEnd);
+
+    for (const weekStart of weekStarts) {
+      const daysOfWeek = [];
+      for (let i = 0; i < 7; i++) {
+        const d = new Date(weekStart);
+        d.setDate(weekStart.getDate() + i);
+        daysOfWeek.push(d);
+      }
+      warnings.push(...evaluatePartnerAndSoloRules(eventsToCheck, daysOfWeek, config, proposalParticipants));
+    }
+
+    return warnings;
+  },
+
+  hasBatchRoomConflicts(warnings = []) {
+    return warnings.some(w => w.type === 'CAPACITY_CONFLICT');
+  },
+
+  /**
+   * Detect overlapping timed events that share participants (including proposer).
+   * Returns advisory warnings — submission is still allowed.
+   */
+  evaluateEventPersonConflicts(proposal, existingEvents = [], config = {}, options = {}) {
+    const viewerRef = options.viewerRef ?? null;
+    if (!proposal || proposal.type !== 'event') return [];
+
+    const people = collectEventPeople(proposal);
+    if (!people.length) return [];
+
+    const conflicts = [];
+    for (const other of existingEvents) {
+      if (!isBlockingScheduleEvent(other, proposal.id)) continue;
+      if (!eventsTimeOverlap(proposal, other)) continue;
+
+      const overlappingPeople = people.filter(person => personScheduledOnEvent(person, other));
+      if (!overlappingPeople.length) continue;
+
+      conflicts.push({
+        type: 'PERSON_CONFLICT',
+        eventId: other.id,
+        eventTitle: other.title || 'Untitled Event',
+        eventVisibility: getEventVisibility(other),
+        eventStart: other.start,
+        eventEnd: other.end,
+        people: overlappingPeople,
+        message: buildPersonConflictMessage(overlappingPeople, other, viewerRef, config)
+      });
+    }
+
+    return conflicts;
   }
 };

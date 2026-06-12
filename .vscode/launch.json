@@ -1,0 +1,31 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "Web Emulator (Mobile PWA)",
+      "type": "node",
+      "request": "launch",
+      "program": "${workspaceFolder}/scripts/web-emulator.js",
+      "cwd": "${workspaceFolder}",
+      "console": "integratedTerminal"
+    },
+    {
+      "name": "Web Emulator (Desktop)",
+      "type": "node",
+      "request": "launch",
+      "program": "${workspaceFolder}/scripts/web-emulator.js",
+      "args": ["--preset=desktop"],
+      "cwd": "${workspaceFolder}",
+      "console": "integratedTerminal"
+    },
+    {
+      "name": "Dev Server (live reload)",
+      "type": "node",
+      "request": "launch",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["run", "dev"],
+      "cwd": "${workspaceFolder}",
+      "console": "integratedTerminal"
+    }
+  ]
+}

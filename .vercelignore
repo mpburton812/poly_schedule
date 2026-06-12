@@ -1,0 +1,13 @@
+node_modules
+notify-service
+public
+tests
+test-results
+playwright-report
+.system_generated
+.gemini
+stitch_polyschedule_pro_manager
+docs
+*.log
+.env
+.env.*

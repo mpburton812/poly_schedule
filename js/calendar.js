@@ -1,171 +1,133 @@
+import {
+  CALENDAR_ID_KEY,
+  LOCAL_CONFIG_KEY,
+  LOCAL_EVENTS_KEY
+} from './storage-keys.js';
 /**
  * PolySchedule Google Calendar & State Manager
- * Synchronizes local state with Google Calendar events or provides offline localStorage mock sync.
+ * Synchronizes local state with Google Calendar events or local cache when sync is unavailable.
  */
 
-// Local Storage Keys
-const LOCAL_EVENTS_KEY = 'polyschedule_local_events';
-const LOCAL_CONFIG_KEY = 'polyschedule_local_config';
+import { HouseholdStore } from './household-store.js';
+import { ProposalManager } from './proposal-manager.js';
+import { CalendarAPI } from './gcal-api.js';
+import { withGCalAuth } from './gcal-auth.js';
+import { appendEventComment } from './event-comments.js';
+import { detectGCalExternalChanges } from './gcal-change-alerts.js';
 
-// Default Fallback Mock Data
-const DEFAULT_CONFIG = {
-  residences: [
-    { id: 'h1', name: 'The Sanctuary', address: '420 Willow Ave, Portland OR', bedrooms: 3 },
-    { id: 'h2', name: 'Urban Loft', address: '1580 N Pearl St, Ste 402', bedrooms: 1 }
-  ],
-  partners: [
-    {
-      id: 'p1',
-      name: 'Alex Rivera',
-      role: 'Admin',
-      defaultHome: 'h1',
-      avatar: 'https://lh3.googleusercontent.com/aida-public/AB6AXuDjdXIAb6DttZ_Ivp6ocVuKGc_Cor-qtG3fqxi_3id35pEHmgyk008IoZOgCHsrXXysAKWNYlZFuovzj6OKFhoWqHjHVChafb9BWYQUKgMOWrT51kd1Tdr82IASulIokvB5JGV92NEWkmoFCt2MkVI_dzGJjUZabAGyiL8VI29nblqzqFUfEGWtrBPaXGI5Iz7QpmL4coomXYBEqrLuzJk18OWKIc0wuJe6pzRMziouxu7oZAVZjCFPxSRuTnPx874S9TseYaOXwWA',
-      rules: { maxSoloNights: 2, partnerLimits: { 'Sam': { min: 3, max: 3 }, 'Jordan': { max: 3 } } }
-    },
-    {
-      id: 'p2',
-      name: 'Sam Davis',
-      role: 'User',
-      defaultHome: 'h1',
-      avatar: 'https://lh3.googleusercontent.com/aida-public/AB6AXuBkiDXcixh9wTyqQ3mmTu32lJeACKwp10ETuYGyHNNM9iiXkeQCKZaUKHex9Lpzd_fXcn73BGgQd5ucgB9njInlBc6hfkUlsx03rdKp04jBzSmhltD32IP9XqSq2KG3_3rQ4zg9y_V67OWA8qV35uzz3wE5q_eIXLqKv8e1YMIEdlzc3fy7VGbbrhx-59Z_t6VTkMgiwRiAerfEGDs5v0Q1tDcEzLm9Fa0y8r4aQOHcmoY4KfivutCmK2ZtPIZJC4AWKSC1VdbZtU8',
-      rules: { maxSoloNights: 3, partnerLimits: { 'Alex': { min: 3, max: 3 } } }
-    },
-    {
-      id: 'p3',
-      name: 'Jordan Smith',
-      role: 'User',
-      defaultHome: 'h2',
-      avatar: 'https://lh3.googleusercontent.com/aida-public/AB6AXuAsuXXVIcZMSQ62tOZzFQEkE5ntyY1weFLJF0wQCcgxYTMjElV1EJXmqIIjOuprQgQKLmSo_-xB4Tci-zC2zg9MT-Jb7Fmeflk6Bw0wVll9QVmutqIBX9UDU76I08ZYRvmEdnN-pCSfW-Gd44ZvHPM5qCqIWw8PxEFsMGkCZ0hWMeI5XK_EiSI_BsQyHQ0MvsjM42D8nSTDAmL2T5OOTkG2SVSrBtzTsAiJxFnOjYR4yQ9NA17x9iQuir5F8dYT7-iCzK_PG1qyNTY',
-      rules: { maxSoloNights: 4 }
-    },
-    {
-      id: 'p4',
-      name: 'Casey Chen',
-      role: 'Guest',
-      defaultHome: 'h2',
-      avatar: 'https://lh3.googleusercontent.com/aida-public/AB6AXuANBeZwLI4tsSql8d73NMsZfXzGtVbeWj5tLl9hR48DeEIHHSCeXAHWVqLkG9SEbO2_fhBq3bxSKUhjod3yItdQkx2BDWgpb9Zzl_Bklaz_azg-r0i9dbzVu2sVwDMHeOy6FYMgpX7d7799HcAyAXPRts4rmyc2hic8KQSmmMrXK8SIhqFJZ2KkJuUq2jJIeu8irpMQWbROQrVtrFVTm-HLi5jcBDtL0VLAA9yWsO4QAYBhswSXZyh7xsuzFesu38a0gN0N0aBIUcI',
-      rules: {}
-    }
-  ]
+import {
+  renamePartnerReferences,
+  expandBatchSleepingToEvents,
+  dedupeDuplicateSleepingEvents,
+  reconcileBatchExpandedIds,
+  removePartnerReferences,
+  removeHomeReferences,
+  normalizeConfigPartners,
+  normalizeHouseholdConfigShape,
+  pickNewerHouseholdConfig,
+  syncAllHomeAssociationDefaults,
+  findPartnerByRef
+} from './helpers.js';
+import {
+  WORKFLOW,
+  migrateEvents,
+  evaluateProposedProposal,
+  computeAutoArchiveAt,
+  getAutoArchiveDays,
+  buildInitialResponses,
+  normalizeParticipantRoles,
+  participantNames,
+  cloneProposalAsDraft,
+  getWorkflowState,
+  isCalendarEvent,
+  resolveParticipantRoleName
+} from './proposal-workflow.js';
+import {
+  GCAL_CONFIG_SUMMARY,
+  googleApiErrorFromResponse,
+  parseGCalEventItem,
+  formatGCalResource as buildGCalResource,
+  isLocalEventId,
+  shouldSyncEventToGCal,
+  shouldRemoveEventFromGCal,
+  shouldAttemptGCalDelete,
+  mergeGCalWithLocalEvents
+} from './gcal-sync.js';
+import {
+  needsGCalAlignment,
+  markGCalAligned,
+  collectEventsToSync,
+  collectOrphanGCalIds,
+  findMatchingSleepingEvent
+} from './gcal-align.js';
+
+import { flowState } from './app/state.js';
+
+const EMPTY_HOUSEHOLD = {
+  residences: [],
+  partners: []
 };
 
-// Generates some mock events relative to current date (ensures demo calendar is always populated)
-function generateMockEvents() {
-  const today = new Date();
-  
-  // Helper to construct dates relative to today
-  const getRelDate = (offsetDays, hour = 0, minute = 0) => {
-    const d = new Date(today);
-    d.setDate(today.getDate() + offsetDays);
-    d.setHours(hour, minute, 0, 0);
-    return d.toISOString();
-  };
+function createEmptyHousehold() {
+  return JSON.parse(JSON.stringify(EMPTY_HOUSEHOLD));
+}
 
-  return [
-    // Confirmed Events
-    {
-      id: 'e1',
-      title: 'Dinner at Sol\'s',
-      type: 'event',
-      start: getRelDate(0, 19, 0), // Tonight 7pm
-      end: getRelDate(0, 21, 30),
-      location: 'Sol\'s House',
-      participants: ['Alex', 'Sam', 'Jordan'],
-      status: 'confirmed'
-    },
-    {
-      id: 'e2',
-      title: 'Game Night',
-      type: 'event',
-      start: getRelDate(2, 20, 0), // 2 days later 8pm
-      end: getRelDate(2, 23, 0),
-      location: 'The Sanctuary',
-      participants: ['Alex', 'Sam', 'Jordan', 'Casey'],
-      status: 'confirmed'
-    },
-    // Confirmed Sleep Arrangements
-    {
-      id: 's1',
-      title: 'SLEEP: North Bedroom: Sam & Alex',
-      type: 'sleeping',
-      start: getRelDate(0, 22, 0), // Tonight
-      end: getRelDate(1, 8, 0),
-      homeId: 'h1',
-      roomId: 'r1',
-      roomName: 'North Bedroom',
-      homeName: 'The Sanctuary',
-      participants: ['Alex', 'Sam'],
-      status: 'confirmed'
-    },
-    {
-      id: 's2',
-      title: 'SLEEP: Main House: Alex',
-      type: 'sleeping',
-      start: getRelDate(1, 22, 0), // Tomorrow
-      end: getRelDate(2, 8, 0),
-      homeId: 'h1',
-      roomId: 'r2',
-      roomName: 'Main House',
-      homeName: 'The Sanctuary',
-      participants: ['Alex'],
-      status: 'confirmed'
-    },
-    // Active Proposals (Pending Approval)
-    {
-      id: 'p_e1',
-      title: 'Thanksgiving Split',
-      type: 'event',
-      start: getRelDate(5, 12, 0), // 5 days later noon
-      end: getRelDate(5, 18, 0),
-      location: 'Cabin',
-      participants: ['Alex', 'Sam', 'Jordan'],
-      proposer: 'Alex Rivera',
-      status: 'pending',
-      responses: {
-        'Alex Rivera': { status: 'accept', comment: 'Ready to cook!' },
-        'Sam Davis': { status: 'accept', comment: 'I\'ll bring the games.' },
-        'Jordan Smith': { status: 'pending', comment: '' }
-      }
-    },
-    {
-      id: 'p_s1',
-      title: 'Weekend at Lake Cabin',
-      type: 'sleeping',
-      start: getRelDate(4, 22, 0), // 4 days later (Friday)
-      end: getRelDate(6, 8, 0), // 2 nights
-      homeId: 'h1',
-      roomId: 'r1',
-      roomName: 'North Bedroom',
-      homeName: 'The Sanctuary',
-      participants: ['Alex', 'Sam', 'Casey'],
-      proposer: 'Alex Rivera',
-      status: 'pending',
-      responses: {
-        'Alex Rivera': { status: 'accept', comment: '' },
-        'Sam Davis': { status: 'accept', comment: 'Sounds cozy!' },
-        'Casey Chen': { status: 'reject', comment: 'Already have family visiting that weekend.' }
-      }
-    }
-  ];
+function isCacheMode(mode) {
+  return mode === 'cache' || mode === 'offline';
 }
 
 export const CalendarSync = {
-  calendarId: localStorage.getItem('polyschedule_calendar_id') || 'primary',
+  calendarId: localStorage.getItem(CALENDAR_ID_KEY) || 'primary',
   events: [],
   config: null,
-  mode: 'offline', // 'offline' or 'sync'
+  mode: 'cache',
   accessToken: '',
   apiKey: '',
   onStateUpdate: null,
+  suppressGCalChangeAlerts: false,
+  locallyMutatedEventIds: new Set(),
+  lastFetchedGCalItems: [],
+
+  markLocalGCalMutation(eventId) {
+    if (eventId) this.locallyMutatedEventIds.add(eventId);
+  },
+
+  async notifyGCalExternalChanges(previousEvents) {
+    const { notifyGCalEventCreated, notifyGCalEventDeleted } = await import('./app/notification-store.js');
+    const changes = await detectGCalExternalChanges({
+      previousEvents,
+      nextEvents: this.events,
+      config: this.config,
+      locallyMutedIds: this.locallyMutatedEventIds,
+      gcalItems: this.lastFetchedGCalItems,
+      fetchCancelledItem: (eventId) => this.fetchGCalEventRaw(eventId, { showDeleted: true })
+    });
+    for (const { event, actor } of changes.added) {
+      notifyGCalEventCreated(event, this.config, {
+        actorLabel: actor.label,
+        actorPartnerId: actor.partnerId
+      });
+    }
+    for (const { event, actor } of changes.removed) {
+      notifyGCalEventDeleted(event, this.config, {
+        actorLabel: actor.label,
+        actorPartnerId: actor.partnerId,
+        actorEmail: actor.email,
+        actorGoogleId: actor.googleId
+      });
+    }
+    this.locallyMutatedEventIds.clear();
+  },
 
   async init(mode, credentials, onUpdateCallback) {
     this.mode = mode;
     this.onStateUpdate = onUpdateCallback;
+    this.suppressGCalChangeAlerts = true;
     
     if (credentials) {
       this.accessToken = credentials.accessToken || '';
       this.apiKey = credentials.apiKey || '';
-      this.calendarId = localStorage.getItem('polyschedule_calendar_id') || 'primary';
+      this.calendarId = localStorage.getItem(CALENDAR_ID_KEY) || 'primary';
     }
 
     // Load Configuration
@@ -173,75 +135,314 @@ export const CalendarSync = {
     
     // Load Events
     await this.loadEvents();
+
+    if (this.mode === 'sync' && needsGCalAlignment()) {
+      const alignStats = await this.alignGoogleCalendarOnce();
+      this.suppressGCalChangeAlerts = false;
+      return alignStats;
+    }
+    this.suppressGCalChangeAlerts = false;
+    return null;
   },
 
   async loadConfig() {
-    if (this.mode === 'offline') {
-      const saved = localStorage.getItem(LOCAL_CONFIG_KEY);
-      if (saved) {
-        this.config = JSON.parse(saved);
-      } else {
-        this.config = DEFAULT_CONFIG;
-        localStorage.setItem(LOCAL_CONFIG_KEY, JSON.stringify(DEFAULT_CONFIG));
-      }
-    } else {
-      // Fetch Config from Google Calendar configuration event description
-      try {
-        const configEvent = await this.findGCalConfigEvent();
-        if (configEvent && configEvent.description) {
-          this.config = JSON.parse(configEvent.description);
-        } else {
-          // Create a new config event in Google Calendar
-          this.config = DEFAULT_CONFIG;
-          await this.saveGCalConfigEvent(DEFAULT_CONFIG);
-        }
-      } catch (e) {
-        console.error('Failed to load config from GCal, falling back to local', e);
-        this.config = DEFAULT_CONFIG;
-      }
-    }
+    this.config = await HouseholdStore.loadConfig(this);
+    return this.config;
   },
 
   async saveConfig(newConfig) {
+    const result = await HouseholdStore.saveConfig(this, newConfig, this.events);
     this.config = newConfig;
-    if (this.mode === 'offline') {
-      localStorage.setItem(LOCAL_CONFIG_KEY, JSON.stringify(newConfig));
-    } else {
-      try {
-        await this.saveGCalConfigEvent(newConfig);
-      } catch (e) {
-        console.error('Failed to save config to GCal', e);
-        throw e;
-      }
-    }
-    
-    if (this.onStateUpdate) {
-      this.onStateUpdate();
-    }
+    return result;
   },
 
   async loadEvents() {
-    if (this.mode === 'offline') {
+    let previousEvents = [];
+    if (!isCacheMode(this.mode)) {
+      try {
+        previousEvents = JSON.parse(localStorage.getItem(LOCAL_EVENTS_KEY) || '[]');
+      } catch {
+        previousEvents = [];
+      }
+    }
+
+    if (isCacheMode(this.mode)) {
       const saved = localStorage.getItem(LOCAL_EVENTS_KEY);
       if (saved) {
         this.events = JSON.parse(saved);
       } else {
-        this.events = generateMockEvents();
-        localStorage.setItem(LOCAL_EVENTS_KEY, JSON.stringify(this.events));
+        this.events = [];
       }
+      this.migrateAndNormalizeEvents();
     } else {
-      // Load actual events from Google Calendar
       try {
-        this.events = await this.fetchGCalEvents();
+        const gcalEvents = await this.fetchGCalEvents();
+        const localEvents = JSON.parse(localStorage.getItem(LOCAL_EVENTS_KEY) || '[]');
+        this.events = mergeGCalWithLocalEvents(gcalEvents, localEvents);
+        this.migrateAndNormalizeEvents();
+        if (!this.suppressGCalChangeAlerts) {
+          await this.notifyGCalExternalChanges(previousEvents);
+        }
       } catch (e) {
         console.error('Failed to fetch events from GCal, falling back to local storage', e);
         this.events = JSON.parse(localStorage.getItem(LOCAL_EVENTS_KEY) || '[]');
+        this.migrateAndNormalizeEvents();
       }
+    }
+
+    if (isCacheMode(this.mode)) {
+      this.syncProposalStatuses();
+      this.processAutoArchive();
+    } else {
+      await this.syncProposalStatusesAsync();
+      await this.processAutoArchiveAsync();
     }
     
     if (this.onStateUpdate) {
       this.onStateUpdate();
     }
+  },
+
+  migrateAndNormalizeEvents() {
+    const before = JSON.stringify(this.events);
+    this.events = migrateEvents(this.events, this.config);
+    const { events: deduped, removedIds } = dedupeDuplicateSleepingEvents(this.events);
+    this.events = deduped;
+    reconcileBatchExpandedIds(this.events);
+    if (before !== JSON.stringify(this.events)) {
+      this.persistEvents();
+      if (this.mode === 'sync' && removedIds.length) {
+        removedIds.forEach(id => {
+          this.deleteGCalEvent(id).catch(err =>
+            console.error('Failed to delete duplicate calendar event', id, err)
+          );
+        });
+      }
+    }
+  },
+
+  async materializeApprovedBatchChildren(stats = null) {
+    for (const batch of this.events.filter(e => e.type === 'batch_sleeping' && getWorkflowState(e) === WORKFLOW.APPROVED)) {
+      if ((batch.expandedEventIds || []).length > 0) continue;
+      if (!batch.batchNights?.length) continue;
+
+      const expanded = expandBatchSleepingToEvents(batch);
+      expanded.forEach(e => {
+        e.status = 'confirmed';
+        e.workflowState = WORKFLOW.APPROVED;
+      });
+      batch.status = 'confirmed';
+      batch.expandedEventIds = [];
+
+      for (const child of expanded) {
+        const existing = findMatchingSleepingEvent(this.events, child);
+        if (existing) {
+          batch.expandedEventIds.push(existing.id);
+          continue;
+        }
+
+        if (this.mode === 'sync') {
+          const created = await this.createGCalEvent(child);
+          child.id = created.id;
+        }
+        batch.expandedEventIds.push(child.id);
+        this.events.push(child);
+        if (stats) stats.materialized += 1;
+      }
+    }
+    reconcileBatchExpandedIds(this.events);
+  },
+
+  async alignGoogleCalendarOnce() {
+    const stats = { deleted: 0, upserted: 0, materialized: 0 };
+
+    try {
+      const rawItems = await this.fetchGCalEventItems({ daysBack: 180, daysForward: 365 });
+      await this.materializeApprovedBatchChildren(stats);
+
+      const keepMap = collectEventsToSync(this.events);
+      const keepIds = new Set(keepMap.keys());
+      const deleteIds = collectOrphanGCalIds(rawItems, keepIds);
+
+      for (const id of deleteIds) {
+        await this.deleteGCalEvent(id);
+        stats.deleted += 1;
+      }
+
+      for (const [eventId, event] of keepMap) {
+        const result = await this.upsertGCalEvent(eventId, event);
+        stats.upserted += 1;
+        if (result.id !== eventId) {
+          this.remapEventId(eventId, result.id, { ...event, id: result.id });
+        }
+      }
+
+      reconcileBatchExpandedIds(this.events);
+      localStorage.setItem(LOCAL_EVENTS_KEY, JSON.stringify(this.events));
+      markGCalAligned();
+
+      if (this.onStateUpdate) this.onStateUpdate();
+    } catch (err) {
+      console.error('Google Calendar alignment failed', err);
+      throw err;
+    }
+
+    return stats;
+  },
+
+  persistLocalEventsMirror() {
+    localStorage.setItem(LOCAL_EVENTS_KEY, JSON.stringify(this.events));
+  },
+
+  persistEvents(eventIds = null) {
+    if (isCacheMode(this.mode)) {
+      localStorage.setItem(LOCAL_EVENTS_KEY, JSON.stringify(this.events));
+      return;
+    }
+    const ids = eventIds || this.events.map(e => e.id);
+    void this.syncEventsToGCal(ids);
+  },
+
+  async syncEventsToGCal(eventIds) {
+    await Promise.all((eventIds || []).map(async (id) => {
+      const event = this.events.find(e => e.id === id);
+      if (!event || !shouldSyncEventToGCal(event)) return;
+      await this.upsertGCalEvent(id, event);
+    }));
+    localStorage.setItem(LOCAL_EVENTS_KEY, JSON.stringify(this.events));
+
+    try {
+      const syncMod = await import('./household-sync.js');
+      if (this.config) {
+        syncMod.bumpSyncRevision(this.config);
+        await this.saveGCalConfigEvent(this.config);
+        localStorage.setItem(LOCAL_CONFIG_KEY, JSON.stringify(this.config));
+      }
+      await syncMod.afterHouseholdWrite(['events', 'config'], {
+        config: this.config,
+        events: this.events,
+        revision: this.config?.syncRevision
+      });
+    } catch (err) {
+      console.warn('[sync] Failed to notify after event sync', err);
+    }
+  },
+
+  /** Create or update a GCal event; remaps local prop_/e_ ids to Google ids. */
+  async upsertGCalEvent(eventId, event) {
+    if (!shouldSyncEventToGCal(event)) {
+      return { id: eventId, created: false, skipped: true };
+    }
+
+    return withGCalAuth(this, async () => {
+      if (isLocalEventId(eventId)) {
+        const created = await this.createGCalEvent(event);
+        return { id: created.id, created: true };
+      }
+
+      const resource = this.formatGCalResource(event);
+      const url = `https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(this.calendarId)}/events/${eventId}?key=${this.apiKey}`;
+      const res = await fetch(url, {
+        method: 'PUT',
+        headers: {
+          Authorization: `Bearer ${this.accessToken}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(resource)
+      });
+
+      if (res.ok) {
+        return { id: eventId, created: false };
+      }
+      if (res.status === 404) {
+        const created = await this.createGCalEvent(event);
+        return { id: created.id, created: true };
+      }
+      throw await googleApiErrorFromResponse(res, 'Failed to update calendar event on Google Calendar');
+    });
+  },
+
+  /** Replace a local event id with the Google Calendar id after first sync. */
+  remapEventId(oldId, newId, updatedEvent) {
+    const idx = this.events.findIndex(e => e.id === oldId);
+    if (idx === -1) return;
+    updatedEvent.id = newId;
+    this.events[idx] = updatedEvent;
+    if (flowState.currentDraftId === oldId) {
+      flowState.currentDraftId = newId;
+    }
+  },
+
+  applyWorkflowEvaluation(event) {
+    return ProposalManager.applyWorkflowEvaluation(this, event);
+  },
+
+  syncProposalStatuses() {
+    return ProposalManager.syncProposalStatuses(this);
+  },
+
+  async syncProposalStatusesAsync() {
+    return ProposalManager.syncProposalStatusesAsync(this);
+  },
+
+  processAutoArchive() {
+    return ProposalManager.processAutoArchive(this);
+  },
+
+  async processAutoArchiveAsync() {
+    return ProposalManager.processAutoArchiveAsync(this);
+  },
+
+  async createDraft(proposalData) {
+    return ProposalManager.createDraft(this, proposalData);
+  },
+
+  async saveDraft(eventId, draftData) {
+    return ProposalManager.saveDraft(this, eventId, draftData);
+  },
+
+  async submitProposal(eventId, options = {}) {
+    return ProposalManager.submitProposal(this, eventId, options);
+  },
+
+  async retractProposal(eventId) {
+    return ProposalManager.retractProposal(this, eventId);
+  },
+
+  async cancelProposal(eventId, reason = '') {
+    return ProposalManager.cancelProposal(this, eventId, reason);
+  },
+
+  async deleteProposal(eventId, reason = '') {
+    return ProposalManager.deleteProposal(this, eventId, reason);
+  },
+
+  async reopenDeclinedProposal(eventId) {
+    return ProposalManager.reopenDeclinedProposal(this, eventId);
+  },
+
+  async archiveProposal(eventId) {
+    return ProposalManager.archiveProposal(this, eventId);
+  },
+
+  applyProposalOutcome(event) {
+    return ProposalManager.applyWorkflowEvaluation(this, event);
+  },
+
+  async submitProposalVote(eventId, voterRef, vote, comment = '') {
+    return ProposalManager.submitProposalVote(this, eventId, voterRef, vote, comment);
+  },
+
+  renamePartnerInEvents(oldName, newName) {
+    return HouseholdStore.renamePartnerInEvents(this, this.events, oldName, newName);
+  },
+
+  removePartner(partnerId) {
+    return HouseholdStore.removePartner(this, this.events, partnerId);
+  },
+
+  removeHome(homeId) {
+    return HouseholdStore.removeHome(this, this.events, homeId);
   },
 
   // --- CRUD Operations ---
@@ -249,17 +450,22 @@ export const CalendarSync = {
   async createEvent(eventData) {
     const newEvent = {
       ...eventData,
-      id: eventData.id || 'e_' + Date.now()
+      id: eventData.id || `e_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`
     };
 
-    if (this.mode === 'offline') {
+    if (isCacheMode(this.mode)) {
       this.events.push(newEvent);
       localStorage.setItem(LOCAL_EVENTS_KEY, JSON.stringify(this.events));
+    } else if (!shouldSyncEventToGCal(newEvent)) {
+      this.events.push(newEvent);
+      this.persistLocalEventsMirror();
     } else {
       try {
         const created = await this.createGCalEvent(newEvent);
+        this.markLocalGCalMutation(created.id);
         newEvent.id = created.id; // Map back the Google Calendar Event ID
         this.events.push(newEvent);
+        this.persistLocalEventsMirror();
       } catch (e) {
         console.error('Failed to sync created event to Google Calendar', e);
         throw e;
@@ -270,33 +476,87 @@ export const CalendarSync = {
     return newEvent;
   },
 
-  async updateEvent(eventId, updatedData) {
+  async updateEvent(eventId, updatedData, options = {}) {
     const idx = this.events.findIndex(e => e.id === eventId);
     if (idx === -1) return;
 
     const updated = { ...this.events[idx], ...updatedData };
-    
-    // Check if proposal status transitions to approved
-    if (updated.status === 'pending') {
-      const pendingResponses = Object.values(updated.responses || {}).some(r => r.status === 'pending');
-      const hasRejections = Object.values(updated.responses || {}).some(r => r.status === 'reject');
-      
-      if (!pendingResponses && !hasRejections) {
-        // Fully approved! Remove proposal prefixes
-        updated.status = 'confirmed';
-        if (updated.type === 'sleeping') {
-          updated.title = `SLEEP: ${updated.roomName}: ${updated.participants.join(' & ')}`;
+
+    if (!options.skipWorkflow && getWorkflowState(updated) === WORKFLOW.PROPOSED) {
+      this.applyWorkflowEvaluation(updated);
+    }
+
+    if (getWorkflowState(updated) === WORKFLOW.APPROVED && updated.type === 'batch_sleeping') {
+      const priorExpanded = this.events[idx].expandedEventIds || [];
+      if (priorExpanded.length > 0) {
+        updated.expandedEventIds = priorExpanded;
+      } else {
+      const expanded = expandBatchSleepingToEvents(updated);
+      expanded.forEach(e => {
+        e.status = 'confirmed';
+        e.workflowState = WORKFLOW.APPROVED;
+      });
+      updated.status = 'confirmed';
+      updated.expandedEventIds = [];
+
+      if (this.mode === 'sync') {
+        try {
+          if (!isLocalEventId(eventId)) {
+            this.markLocalGCalMutation(eventId);
+            await this.deleteGCalEvent(eventId);
+          }
+          for (const child of expanded) {
+            const created = await this.createGCalEvent(child);
+            this.markLocalGCalMutation(created.id);
+            child.id = created.id;
+            updated.expandedEventIds.push(created.id);
+            this.events.push(child);
+          }
+          this.events[idx] = updated;
+        } catch (e) {
+          console.error('Failed to sync batch sleeping expansion to Google Calendar', e);
+          throw e;
         }
+      } else {
+        updated.expandedEventIds = expanded.map(e => e.id);
+        this.events[idx] = updated;
+        this.events.push(...expanded);
+        this.persistEvents();
+      }
+
+      if (this.onStateUpdate) this.onStateUpdate();
+      return { parent: updated, expanded };
       }
     }
 
-    if (this.mode === 'offline') {
+    if (isCacheMode(this.mode)) {
       this.events[idx] = updated;
       localStorage.setItem(LOCAL_EVENTS_KEY, JSON.stringify(this.events));
+    } else if (shouldRemoveEventFromGCal(updated)) {
+      if (shouldAttemptGCalDelete(eventId)) {
+        try {
+          this.markLocalGCalMutation(eventId);
+          await this.deleteGCalEvent(eventId);
+        } catch (e) {
+          console.error('Failed to remove calendar event from Google Calendar', e);
+          throw e;
+        }
+      }
+      this.events[idx] = updated;
+      this.persistLocalEventsMirror();
+    } else if (!shouldSyncEventToGCal(updated)) {
+      this.events[idx] = updated;
+      this.persistLocalEventsMirror();
     } else {
       try {
-        await this.updateGCalEvent(eventId, updated);
-        this.events[idx] = updated;
+        const { id: syncedId } = await this.upsertGCalEvent(eventId, updated);
+        this.markLocalGCalMutation(syncedId || eventId);
+        if (syncedId !== eventId) {
+          this.remapEventId(eventId, syncedId, updated);
+        } else {
+          this.events[idx] = updated;
+        }
+        this.persistLocalEventsMirror();
       } catch (e) {
         console.error('Failed to sync updated event to Google Calendar', e);
         throw e;
@@ -307,246 +567,150 @@ export const CalendarSync = {
     return updated;
   },
 
+  async addEventComment(eventId, text, authorName) {
+    const idx = this.events.findIndex(e => e.id === eventId);
+    if (idx === -1) throw new Error('Event not found');
+    const event = { ...this.events[idx] };
+    const entry = appendEventComment(event, authorName, text);
+    if (!entry) throw new Error('Comment text is required');
+    return this.updateEvent(eventId, { comments: event.comments }, { skipWorkflow: true });
+  },
+
   async deleteEvent(eventId) {
     const idx = this.events.findIndex(e => e.id === eventId);
-    if (idx === -1) return;
+    if (idx === -1) {
+      throw new Error('Event not found');
+    }
 
-    if (this.mode === 'offline') {
-      this.events.splice(idx, 1);
-      localStorage.setItem(LOCAL_EVENTS_KEY, JSON.stringify(this.events));
-    } else {
-      try {
-        await this.deleteGCalEvent(eventId);
-        this.events.splice(idx, 1);
-      } catch (e) {
-        console.error('Failed to delete event from Google Calendar', e);
-        throw e;
+    const event = this.events[idx];
+    const childIds = new Set(event.expandedEventIds || []);
+    const idsToRemove = new Set([eventId, ...childIds]);
+    const gcalIdsToDelete = [];
+
+    if (event.type === 'batch_sleeping') {
+      for (const childId of childIds) {
+        if (shouldAttemptGCalDelete(childId)) gcalIdsToDelete.push(childId);
+      }
+      if (shouldAttemptGCalDelete(eventId)) gcalIdsToDelete.push(eventId);
+    } else if (shouldAttemptGCalDelete(eventId) && (shouldSyncEventToGCal(event) || shouldRemoveEventFromGCal(event))) {
+      gcalIdsToDelete.push(eventId);
+    }
+
+    if (this.mode === 'sync' && gcalIdsToDelete.length) {
+      for (const id of gcalIdsToDelete) {
+        this.markLocalGCalMutation(id);
+        try {
+          await this.deleteGCalEvent(id);
+        } catch (err) {
+          console.error(`Failed to delete event ${id} from Google Calendar`, err);
+        }
       }
     }
+
+    this.events = this.events.filter(e => !idsToRemove.has(e.id));
+    localStorage.setItem(LOCAL_EVENTS_KEY, JSON.stringify(this.events));
 
     if (this.onStateUpdate) this.onStateUpdate();
   },
 
   // --- Google Calendar REST API Calls ---
 
+  async fetchGCalEventItems(opts = {}) {
+    return withGCalAuth(this, () =>
+      CalendarAPI.fetchEventItems({
+        calendarId: this.calendarId,
+        apiKey: this.apiKey,
+        accessToken: this.accessToken,
+        ...opts
+      })
+    );
+  },
+
+  async fetchGCalEventRaw(eventId, { showDeleted = false } = {}) {
+    return withGCalAuth(this, () =>
+      CalendarAPI.fetchEvent({
+        calendarId: this.calendarId,
+        apiKey: this.apiKey,
+        accessToken: this.accessToken,
+        eventId,
+        showDeleted
+      })
+    );
+  },
+
   async fetchGCalEvents() {
-    const timeMin = new Date();
-    timeMin.setDate(timeMin.getDate() - 30); // 30 days ago
-    const timeMax = new Date();
-    timeMax.setDate(timeMax.getDate() + 60); // 60 days in future
-
-    const url = `https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(this.calendarId)}/events?timeMin=${timeMin.toISOString()}&timeMax=${timeMax.toISOString()}&singleEvents=true&key=${this.apiKey}`;
-    
-    const res = await fetch(url, {
-      headers: { Authorization: `Bearer ${this.accessToken}` }
-    });
-    
-    if (!res.ok) throw new Error('Failed to fetch calendar events from Google Calendar API');
-    
-    const data = await res.json();
-    
-    // Parse Google events back into PolySchedule objects
+    const items = await this.fetchGCalEventItems({ daysBack: 30, daysForward: 60 });
+    this.lastFetchedGCalItems = items;
     const parsedEvents = [];
-    
-    for (const item of data.items || []) {
-      // Skip config event
-      if (item.summary === '[CONFIG] PolySchedule Core Settings') continue;
 
-      let type = 'event';
-      let status = 'confirmed';
-      let roomName = '';
-      let homeName = '';
-      let roomId = '';
-      let homeId = '';
-      let proposer = '';
-      let responses = {};
-      let participants = [];
-
-      // Check for proposal prefix or extended JSON in description
-      let title = item.summary || 'Untitled Event';
-      
-      if (item.description) {
-        try {
-          // Check if description starts with PolySchedule JSON
-          if (item.description.trim().startsWith('{')) {
-            const meta = JSON.parse(item.description);
-            type = meta.type || type;
-            status = meta.status || status;
-            roomName = meta.roomName || roomName;
-            homeName = meta.homeName || homeName;
-            roomId = meta.roomId || roomId;
-            homeId = meta.homeId || homeId;
-            proposer = meta.proposer || proposer;
-            responses = meta.responses || responses;
-            participants = meta.participants || participants;
-          }
-        } catch (e) {
-          // Description is plain text, fallback parsing
-        }
-      }
-
-      // Fallback participant extraction from attendees if JSON parsing failed
-      if (participants.length === 0) {
-        participants = (item.attendees || []).map(a => a.displayName || a.email.split('@')[0]);
-      }
-
-      // Detect sleeping types based on summary
-      if (title.toUpperCase().includes('SLEEP') || title.toUpperCase().startsWith('[PROPOSAL-SLEEP]')) {
-        type = 'sleeping';
-      }
-
-      if (title.startsWith('[PROPOSAL] ') || title.startsWith('[PROPOSAL-SLEEP] ')) {
-        status = 'pending';
-      }
-
-      parsedEvents.push({
-        id: item.id,
-        title: title,
-        type: type,
-        start: item.start.dateTime || item.start.date,
-        end: item.end.dateTime || item.end.date,
-        location: item.location || '',
-        roomId,
-        homeId,
-        roomName,
-        homeName,
-        participants,
-        proposer,
-        status,
-        responses
-      });
+    for (const item of items) {
+      const parsed = parseGCalEventItem(item);
+      if (parsed) parsedEvents.push(parsed);
     }
 
     return parsedEvents;
   },
 
   async createGCalEvent(event) {
-    const resource = this.formatGCalResource(event);
-    const url = `https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(this.calendarId)}/events?key=${this.apiKey}`;
-    
-    const res = await fetch(url, {
-      method: 'POST',
-      headers: {
-        Authorization: `Bearer ${this.accessToken}`,
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify(resource)
-    });
-
-    if (!res.ok) throw new Error('Failed to create calendar event on Google Calendar');
-    return await res.json();
+    return withGCalAuth(this, () =>
+      CalendarAPI.createEvent({
+        calendarId: this.calendarId,
+        apiKey: this.apiKey,
+        accessToken: this.accessToken,
+        resource: this.formatGCalResource(event)
+      })
+    );
   },
 
   async updateGCalEvent(eventId, event) {
-    const resource = this.formatGCalResource(event);
-    const url = `https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(this.calendarId)}/events/${eventId}?key=${this.apiKey}`;
-    
-    const res = await fetch(url, {
-      method: 'PUT',
-      headers: {
-        Authorization: `Bearer ${this.accessToken}`,
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify(resource)
-    });
-
-    if (!res.ok) throw new Error('Failed to update calendar event on Google Calendar');
-    return await res.json();
+    return withGCalAuth(this, () =>
+      CalendarAPI.updateEvent({
+        calendarId: this.calendarId,
+        apiKey: this.apiKey,
+        accessToken: this.accessToken,
+        eventId,
+        resource: this.formatGCalResource(event)
+      })
+    );
   },
 
   async deleteGCalEvent(eventId) {
-    const url = `https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(this.calendarId)}/events/${eventId}?key=${this.apiKey}`;
-    
-    const res = await fetch(url, {
-      method: 'DELETE',
-      headers: { Authorization: `Bearer ${this.accessToken}` }
-    });
-
-    if (!res.ok) throw new Error('Failed to delete calendar event from Google Calendar');
+    if (isLocalEventId(eventId)) return;
+    return withGCalAuth(this, () =>
+      CalendarAPI.deleteEvent({
+        calendarId: this.calendarId,
+        apiKey: this.apiKey,
+        accessToken: this.accessToken,
+        eventId
+      })
+    );
   },
 
   formatGCalResource(event) {
-    // Pack our custom metadata into the event description block as a JSON string
-    const meta = {
-      type: event.type,
-      status: event.status,
-      roomName: event.roomName || '',
-      homeName: event.homeName || '',
-      roomId: event.roomId || '',
-      homeId: event.homeId || '',
-      proposer: event.proposer || '',
-      responses: event.responses || {},
-      participants: event.participants || []
-    };
-
-    let title = event.title;
-    if (event.status === 'pending') {
-      const prefix = event.type === 'sleeping' ? '[PROPOSAL-SLEEP] ' : '[PROPOSAL] ';
-      if (!title.startsWith(prefix)) {
-        title = prefix + title;
-      }
-    }
-
-    return {
-      summary: title,
-      location: event.location || '',
-      description: JSON.stringify(meta, null, 2),
-      start: {
-        dateTime: new Date(event.start).toISOString(),
-        timeZone: 'America/New_York'
-      },
-      end: {
-        dateTime: new Date(event.end).toISOString(),
-        timeZone: 'America/New_York'
-      },
-      // Optional: Add attendees email mapping here if desired
-    };
+    return buildGCalResource(event);
   },
 
   // --- Configuration Sync Event Helpers ---
 
   async findGCalConfigEvent() {
-    const url = `https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(this.calendarId)}/events?q=${encodeURIComponent('[CONFIG] PolySchedule Core Settings')}&key=${this.apiKey}`;
-    const res = await fetch(url, {
-      headers: { Authorization: `Bearer ${this.accessToken}` }
-    });
-    if (!res.ok) return null;
-    const data = await res.json();
-    return (data.items || []).find(item => item.summary === '[CONFIG] PolySchedule Core Settings');
+    return withGCalAuth(this, () =>
+      CalendarAPI.findConfigEvent({
+        calendarId: this.calendarId,
+        apiKey: this.apiKey,
+        accessToken: this.accessToken
+      })
+    );
   },
 
   async saveGCalConfigEvent(configData) {
-    const configEvent = await this.findGCalConfigEvent();
-    
-    const resource = {
-      summary: '[CONFIG] PolySchedule Core Settings',
-      description: JSON.stringify(configData, null, 2),
-      start: {
-        date: '2026-01-01' // Far past date
-      },
-      end: {
-        date: '2026-01-02'
-      },
-      recurrence: ['RRULE:FREQ=DAILY;COUNT=1'] // single instance effectively
-    };
-
-    let url = `https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(this.calendarId)}/events?key=${this.apiKey}`;
-    let method = 'POST';
-
-    if (configEvent) {
-      url = `https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(this.calendarId)}/events/${configEvent.id}?key=${this.apiKey}`;
-      method = 'PUT';
-    }
-
-    const res = await fetch(url, {
-      method: method,
-      headers: {
-        Authorization: `Bearer ${this.accessToken}`,
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify(resource)
-    });
-
-    if (!res.ok) throw new Error('Failed to save configuration settings to Google Calendar');
+    return withGCalAuth(this, () =>
+      CalendarAPI.saveConfigEvent({
+        calendarId: this.calendarId,
+        apiKey: this.apiKey,
+        accessToken: this.accessToken,
+        configData,
+        configEventId: this.configEventId
+      })
+    );
   }
 };

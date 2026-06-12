@@ -1,15 +1,23 @@
+import {
+  CLIENT_ID_KEY,
+  API_KEY_KEY,
+  ACCESS_TOKEN_KEY
+} from './storage-keys.js';
 /**
  * PolySchedule Google Authentication Helper
  * Manages Google Identity Services OAuth 2.0 flow and local credentials configurations.
  */
 
+import { GOOGLE_PROFILE_KEY, LEGACY_PROFILE_KEY } from './storage-keys.js';
+
 export const AuthManager = {
-  clientId: localStorage.getItem('polyschedule_client_id') || '',
-  apiKey: localStorage.getItem('polyschedule_api_key') || '',
+  clientId: localStorage.getItem(CLIENT_ID_KEY) || '',
+  apiKey: localStorage.getItem(API_KEY_KEY) || '',
   tokenClient: null,
-  accessToken: localStorage.getItem('polyschedule_access_token') || '',
-  userProfile: JSON.parse(localStorage.getItem('polyschedule_user_profile') || 'null'),
+  accessToken: localStorage.getItem(ACCESS_TOKEN_KEY) || '',
+  userProfile: JSON.parse(localStorage.getItem(GOOGLE_PROFILE_KEY) || localStorage.getItem(LEGACY_PROFILE_KEY) || 'null'),
   onAuthStateChange: null,
+  onAuthError: null,
 
   init(callback) {
     this.onAuthStateChange = callback;
@@ -23,14 +31,23 @@ export const AuthManager = {
     }
   },
 
+  reloadFromStorage() {
+    this.clientId = localStorage.getItem(CLIENT_ID_KEY) || '';
+    this.apiKey = localStorage.getItem(API_KEY_KEY) || '';
+    this.accessToken = localStorage.getItem(ACCESS_TOKEN_KEY) || '';
+  },
+
   setCredentials(clientId, apiKey) {
+    const clientChanged = !!(this.clientId && this.clientId !== clientId);
     this.clientId = clientId;
     this.apiKey = apiKey;
-    localStorage.setItem('polyschedule_client_id', clientId);
-    localStorage.setItem('polyschedule_api_key', apiKey);
-    this.accessToken = '';
-    localStorage.removeItem('polyschedule_access_token');
-    
+    localStorage.setItem(CLIENT_ID_KEY, clientId);
+    localStorage.setItem(API_KEY_KEY, apiKey);
+    if (clientChanged) {
+      this.accessToken = '';
+      localStorage.removeItem(ACCESS_TOKEN_KEY);
+    }
+
     this.loadGapiAndGis();
   },
 
@@ -39,10 +56,11 @@ export const AuthManager = {
     this.apiKey = '';
     this.accessToken = '';
     this.userProfile = null;
-    localStorage.removeItem('polyschedule_client_id');
-    localStorage.removeItem('polyschedule_api_key');
-    localStorage.removeItem('polyschedule_access_token');
-    localStorage.removeItem('polyschedule_user_profile');
+    localStorage.removeItem(CLIENT_ID_KEY);
+    localStorage.removeItem(API_KEY_KEY);
+    localStorage.removeItem(ACCESS_TOKEN_KEY);
+    localStorage.removeItem(GOOGLE_PROFILE_KEY);
+    localStorage.removeItem(LEGACY_PROFILE_KEY);
     
     if (this.onAuthStateChange) {
       this.onAuthStateChange({ loggedIn: false, user: null, mode: 'offline' });
@@ -53,16 +71,19 @@ export const AuthManager = {
     if (!this.clientId) return;
 
     // Dynamically load Google APIs if not present
-    if (!window.gapiScriptLoaded) {
+    if (!window.gapiScriptLoaded && !window.gapiScriptLoading) {
+      window.gapiScriptLoading = true;
       const gapiScript = document.createElement('script');
       gapiScript.src = 'https://apis.google.com/js/api.js';
       gapiScript.async = true;
       gapiScript.defer = true;
       gapiScript.onload = () => { window.gapiScriptLoaded = true; };
+      gapiScript.onerror = () => { window.gapiScriptLoading = false; };
       document.head.appendChild(gapiScript);
     }
 
-    if (!window.gisScriptLoaded) {
+    if (!window.gisScriptLoaded && !window.gisScriptLoading) {
+      window.gisScriptLoading = true;
       const gisScript = document.createElement('script');
       gisScript.src = 'https://accounts.google.com/gsi/client';
       gisScript.async = true;
@@ -71,8 +92,9 @@ export const AuthManager = {
         window.gisScriptLoaded = true;
         this.initTokenClient();
       };
+      gisScript.onerror = () => { window.gisScriptLoading = false; };
       document.head.appendChild(gisScript);
-    } else {
+    } else if (window.gisScriptLoaded) {
       this.initTokenClient();
     }
   },
@@ -82,14 +104,18 @@ export const AuthManager = {
     
     this.tokenClient = window.google.accounts.oauth2.initTokenClient({
       client_id: this.clientId,
-      scope: 'https://www.googleapis.com/auth/calendar',
+      scope: 'https://www.googleapis.com/auth/calendar openid email profile',
       callback: (tokenResponse) => {
         if (tokenResponse.error !== undefined) {
           console.error('Google Auth Error:', tokenResponse);
+          const hint = tokenResponse.error === 'popup_closed_by_user'
+            ? 'Google sign-in was cancelled.'
+            : `Google sign-in failed (${tokenResponse.error}${tokenResponse.error_description ? `: ${tokenResponse.error_description}` : ''}). Check OAuth JavaScript origins for this site in Google Cloud Console.`;
+          if (this.onAuthError) this.onAuthError(hint);
           return;
         }
         this.accessToken = tokenResponse.access_token;
-        localStorage.setItem('polyschedule_access_token', this.accessToken);
+        localStorage.setItem(ACCESS_TOKEN_KEY, this.accessToken);
         
         // Fetch user profile info
         this.fetchUserProfile();
@@ -124,8 +150,9 @@ export const AuthManager = {
     }
     this.accessToken = '';
     this.userProfile = null;
-    localStorage.removeItem('polyschedule_access_token');
-    localStorage.removeItem('polyschedule_user_profile');
+    localStorage.removeItem(ACCESS_TOKEN_KEY);
+    localStorage.removeItem(GOOGLE_PROFILE_KEY);
+    localStorage.removeItem(LEGACY_PROFILE_KEY);
 
     if (this.onAuthStateChange) {
       this.onAuthStateChange({ loggedIn: false, user: null, mode: 'offline' });
@@ -146,7 +173,7 @@ export const AuthManager = {
         picture: data.picture || 'https://lh3.googleusercontent.com/a/default-user'
       };
       
-      localStorage.setItem('polyschedule_user_profile', JSON.stringify(this.userProfile));
+      localStorage.setItem(GOOGLE_PROFILE_KEY, JSON.stringify(this.userProfile));
 
       if (this.onAuthStateChange) {
         this.onAuthStateChange({ loggedIn: true, user: this.userProfile, mode: 'sync' });
@@ -155,11 +182,11 @@ export const AuthManager = {
       console.error('Error fetching user profile:', e);
       // Fallback profile if request fails
       this.userProfile = {
-        name: 'Alex Rivera',
-        email: 'alex@example.com',
-        picture: 'https://lh3.googleusercontent.com/aida-public/AB6AXuDjdXIAb6DttZ_Ivp6ocVuKGc_Cor-qtG3fqxi_3id35pEHmgyk008IoZOgCHsrXXysAKWNYlZFuovzj6OKFhoWqHjHVChafb9BWYQUKgMOWrT51kd1Tdr82IASulIokvB5JGV92NEWkmoFCt2MkVI_dzGJjUZabAGyiL8VI29nblqzqFUfEGWtrBPaXGI5Iz7QpmL4coomXYBEqrLuzJk18OWKIc0wuJe6pzRMziouxu7oZAVZjCFPxSRuTnPx874S9TseYaOXwWA'
+        name: 'Google User',
+        email: 'unknown@example.com',
+        picture: 'https://lh3.googleusercontent.com/a/default-user'
       };
-      localStorage.setItem('polyschedule_user_profile', JSON.stringify(this.userProfile));
+      localStorage.setItem(GOOGLE_PROFILE_KEY, JSON.stringify(this.userProfile));
       if (this.onAuthStateChange) {
         this.onAuthStateChange({ loggedIn: true, user: this.userProfile, mode: 'sync' });
       }

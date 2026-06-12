@@ -58,13 +58,56 @@ test.describe('Rules Engine Unit Tests', () => {
     expect(warnings[0].message).toContain('Room conflict');
   });
 
+  test('should detect batch partner max nights quota violation', async ({ page }) => {
+    const warnings = await page.evaluate(() => {
+      return import('./js/rules.js').then(({ RulesEngine }) => {
+        // Anchor to Monday so all four nights fall in one ISO week (Mon–Sun).
+        const weekStart = new Date(2026, 5, 8, 12, 0, 0);
+        const dateStr = (offset) => {
+          const d = new Date(weekStart);
+          d.setDate(weekStart.getDate() + offset);
+          const y = d.getFullYear();
+          const m = String(d.getMonth() + 1).padStart(2, '0');
+          const day = String(d.getDate()).padStart(2, '0');
+          return `${y}-${m}-${day}`;
+        };
+        const batchProposal = {
+          id: 'batch_test',
+          type: 'batch_sleeping',
+          start: weekStart.toISOString(),
+          end: new Date(weekStart.getTime() + 4 * 86400000).toISOString(),
+          batchNights: [0, 1, 2, 3].map(offset => ({
+            date: dateStr(offset),
+            assignments: [{
+              homeId: 'h1',
+              roomId: 'r1',
+              homeName: 'The Sanctuary',
+              roomName: 'North Bedroom',
+              participants: ['Alex Rivera', 'Sam Davis']
+            }]
+          }))
+        };
+        const config = {
+          residences: [{ id: 'h1', name: 'The Sanctuary', bedrooms: 3 }],
+          partners: [
+            { name: 'Alex Rivera', rules: { partnerLimits: { 'Sam Davis': { max: 3 } } } },
+            { name: 'Sam Davis', rules: {} }
+          ]
+        };
+        return RulesEngine.evaluateBatchSleepingProposal(batchProposal, [], config, config.partners);
+      });
+    });
+    expect(warnings.some(w => w.type === 'PARTNER_MAX_LIMIT')).toBe(true);
+  });
+
   test('should detect max partner nights quota violation', async ({ page }) => {
     const warnings = await page.evaluate(() => {
       return import('./js/rules.js').then(({ RulesEngine }) => {
-        const today = new Date();
+        // Anchor to Monday so existing + proposed nights share one ISO week.
+        const weekStart = new Date(2026, 5, 8, 12, 0, 0);
         const getRelDate = (offset, hr) => {
-          const d = new Date(today);
-          d.setDate(today.getDate() + offset);
+          const d = new Date(weekStart);
+          d.setDate(weekStart.getDate() + offset);
           d.setHours(hr, 0, 0, 0);
           return d.toISOString();
         };
@@ -133,6 +176,7 @@ test.describe('Rules Engine Unit Tests', () => {
 
     expect(warnings.length).toBeGreaterThan(0);
     expect(warnings[0].type).toBe('PARTNER_MAX_LIMIT');
-    expect(warnings[0].message).toContain('exceeds Alex\'s preferred limit of 3 nights/week with Sam');
+    expect(warnings[0].message).toContain('They are sleeping with them');
+    expect(warnings[0].message).toContain('exceeds their preferred limit of 3 nights/week with them');
   });
 });

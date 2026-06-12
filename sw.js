@@ -3,16 +3,49 @@
  * Handles offline resource caching and native device notification event mapping.
  */
 
-const CACHE_NAME = 'polyschedule-v2';
+const CACHE_NAME = 'polyschedule-v19';
 const ASSETS_TO_CACHE = [
   './',
   './index.html',
   './css/styles.css',
   './js/app.js',
+  './js/app/state.js',
+  './js/app/context.js',
+  './js/app/session.js',
+  './js/app/modals.js',
+  './js/app/router.js',
+  './js/app/bootstrap.js',
+  './js/app/spinner.js',
+  './js/app/render-bus.js',
+  './js/app/bindings/schedule.js',
+  './js/app/bindings/proposals.js',
+  './js/app/bindings/create.js',
+  './js/app/bindings/logistics.js',
+  './js/app/bindings/admin.js',
+  './js/views/index.js',
   './js/auth.js',
   './js/calendar.js',
+  './js/gcal-sync.js',
+  './js/app/version-update.js',
+  './js/gcal-auth.js',
+  './js/group-name.js',
+  './js/calendar-status.js',
+  './js/auth-login.js',
+  './js/app/google-connect-gate.js',
+  './js/views/googleConnectGate.js',
+  './js/views/login.js',
+  './js/pronouns.js',
+  './js/change-log.js',
+  './js/proposal-workflow.js',
   './js/rules.js',
+  './js/push-notifications.js',
+  './js/household-sync.js',
+  './js/google-integration.js',
+  './js/household-services.js',
+  './js/household-config-apply.js',
   './js/views.js',
+  './version.json',
+  './release-notes.json',
   './manifest.json',
   './icons/icon-192.png',
   './icons/icon-512.png',
@@ -100,28 +133,50 @@ self.addEventListener('fetch', event => {
 
 // Push Notification Event Listener
 self.addEventListener('push', event => {
-  let data = { title: 'PolySchedule Update', body: 'You have a new proposal review.' };
-  
+  let payload = {
+    title: 'PolySchedule Update',
+    body: 'You have a new proposal review.',
+    url: './index.html#proposals'
+  };
+
   if (event.data) {
     try {
-      data = event.data.json();
+      payload = { ...payload, ...event.data.json() };
     } catch (e) {
-      data = { title: 'PolySchedule Update', body: event.data.text() };
+      payload.body = event.data.text();
     }
   }
 
+  const notifyClients = clients.matchAll({ type: 'window', includeUncontrolled: true }).then(clientList => {
+    return Promise.all(clientList.map(client => {
+      client.postMessage({
+        type: 'household-sync',
+        householdId: payload.householdId,
+        revision: payload.revision,
+        scopes: payload.scopes,
+        excludeDeviceId: payload.excludeDeviceId,
+        actorPartnerId: payload.actorPartnerId
+      });
+    }));
+  });
+
+  if (payload.type === 'household-sync' && payload.silent) {
+    event.waitUntil(notifyClients);
+    return;
+  }
+
   const options = {
-    body: data.body,
+    body: payload.body,
     icon: 'icons/icon-192.png',
     badge: 'icons/icon-192.png',
     vibrate: [100, 50, 100],
     data: {
-      url: './index.html#proposals'
+      url: payload.url || './index.html#proposals'
     }
   };
 
   event.waitUntil(
-    self.registration.showNotification(data.title, options)
+    notifyClients.then(() => self.registration.showNotification(payload.title, options))
   );
 });
 

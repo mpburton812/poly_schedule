@@ -5,7 +5,18 @@
   "main": "index.html",
   "scripts": {
     "start": "node generate-version.js && http-server -p 8080 -c-1",
-    "test": "playwright test"
+    "dev": "node generate-version.js && live-server --port=8080 --host=127.0.0.1 --no-css-inject --wait=300",
+    "emulator": "node scripts/web-emulator.js",
+    "emulator:mobile": "node scripts/web-emulator.js --preset=mobile",
+    "emulator:tablet": "node scripts/web-emulator.js --preset=tablet",
+    "emulator:desktop": "node scripts/web-emulator.js --preset=desktop",
+    "test:unit": "vitest run",
+    "generate:avatars": "node scripts/generate-avatar-icons.js",
+    "test:e2e": "npm run build && playwright test",
+    "test": "npm run test:unit && npm run test:e2e",
+    "build": "node scripts/vercel-build.js",
+    "notify": "npm --prefix notify-service start",
+    "notify:install": "npm --prefix notify-service install"
   },
   "keywords": [
     "pwa",
@@ -17,6 +28,9 @@
   "license": "ISC",
   "devDependencies": {
     "@playwright/test": "^1.42.1",
-    "http-server": "^14.1.1"
+    "http-server": "^14.1.1",
+    "live-server": "^1.2.2",
+    "sharp": "^0.34.5",
+    "vitest": "^3.2.4"
   }
 }

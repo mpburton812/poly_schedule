@@ -1,0 +1,22 @@
+{
+  "name": "polyschedule-notify",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Web Push notification service for PolySchedule",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "generate-vapid": "node scripts/generate-vapid.js",
+    "generate:notify-secret": "node scripts/generate-notify-secret.js",
+    "reset-password": "node scripts/reset-partner-password.js",
+    "reset-passwords": "node scripts/reset-partner-passwords.js"
+  },
+  "dependencies": {
+    "cors": "^2.8.5",
+    "dotenv": "^16.6.1",
+    "express": "^4.21.2",
+    "nodemailer": "^6.10.1",
+    "web-push": "^3.6.7"
+  }
+}
