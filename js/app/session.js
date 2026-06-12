@@ -39,7 +39,6 @@ import { refreshCurrentUserNotifications, syncPendingProposalAlertsForUser } fro
 import { updateOfflineBanner } from '../calendar-status.js';
 import { needsGoogleCalendarConnect, showGoogleConnectGate } from './google-connect-gate.js';
 import { ensureGoogleCredentialsFromConfig } from '../google-integration.js';
-import { CalendarSync } from '../calendar.js';
 
 export function getCurrentUserId() {
   return state.currentUser?.id || null;

@@ -1,6 +1,5 @@
 import { ACCESS_TOKEN_KEY, CLIENT_ID_KEY, API_KEY_KEY } from './storage-keys.js';
 import { AuthManager } from './auth.js';
-import { CalendarSync } from './calendar.js';
 import { ensureGoogleCredentialsFromConfig } from './google-integration.js';
 import { state } from './app/state.js';
 import { showToast } from './app/toast.js';
@@ -47,15 +46,18 @@ export function bindOfflineBanner() {
   if (!banner || banner.dataset.bound) return;
   banner.dataset.bound = '1';
   banner.addEventListener('click', () => {
-    ensureGoogleCredentialsFromConfig(state.config, { CalendarSync });
-    try {
-      setCalendarStatus('connecting');
-      AuthManager.reloadFromStorage();
-      AuthManager.login();
-    } catch (err) {
-      setCalendarStatus('disconnected');
-      showToast(err.message || 'Could not start Google sign-in.', 'error');
-    }
+    void (async () => {
+      const { CalendarSync } = await import('./calendar.js');
+      ensureGoogleCredentialsFromConfig(state.config, { CalendarSync });
+      try {
+        setCalendarStatus('connecting');
+        AuthManager.reloadFromStorage();
+        AuthManager.login();
+      } catch (err) {
+        setCalendarStatus('disconnected');
+        showToast(err.message || 'Could not start Google sign-in.', 'error');
+      }
+    })();
   });
   banner.addEventListener('keydown', (e) => {
     if (e.key === 'Enter' || e.key === ' ') {
