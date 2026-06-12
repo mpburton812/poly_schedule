@@ -11,6 +11,8 @@ import {
   isPromotionGroup
 } from '../change-log.js';
 
+const SYSTEM_LOG_PREFIXES = ['Sync:', 'Admin settings', 'Application initialized'];
+
 export function loadPersistedLogs() {
   try {
     const saved = JSON.parse(localStorage.getItem(LOGS_STORAGE_KEY) || '[]');
@@ -18,6 +20,39 @@ export function loadPersistedLogs() {
   } catch {
     return [];
   }
+}
+
+export function isUserLogEntry(log) {
+  if (!log) return false;
+  if (log.userEvent) return true;
+  if (log.user) return true;
+  const msg = log.message || '';
+  if (!msg.includes(': ') || msg.includes(' failed · ')) return false;
+  if (SYSTEM_LOG_PREFIXES.some((prefix) => msg.startsWith(prefix))) return false;
+  const prefix = msg.split(': ')[0];
+  return prefix.length > 0 && prefix.length < 80;
+}
+
+export function renderSystemLogLine(log) {
+  const time = escapeHtml(log.time);
+  const message = escapeHtml(log.message);
+  const isUser = isUserLogEntry(log);
+  const userClass = isUser ? ' console-line--user' : '';
+  let styleAttr = '';
+  if (!isUser) {
+    const color = log.type === 'error' ? 'var(--error)' : log.type === 'warning' ? 'var(--tertiary)' : 'inherit';
+    if (color !== 'inherit') {
+      styleAttr = ` style="color: ${color};"`;
+    }
+  }
+  return `<p class="console-line${userClass}"><span class="console-time">[${time}]</span> <span class="system-log-message"${styleAttr}>${message}</span></p>`;
+}
+
+export function renderSystemLogHtml(logs = []) {
+  if (!logs.length) {
+    return '<p class="console-line system-log-empty">No system events logged yet.</p>';
+  }
+  return logs.map(renderSystemLogLine).join('');
 }
 
 export function addLog(message, type = 'info', meta = null) {
@@ -28,13 +63,9 @@ export function addLog(message, type = 'info', meta = null) {
   localStorage.setItem(LOGS_STORAGE_KEY, JSON.stringify(state.logs));
 
   if (typeof document !== 'undefined') {
-    const consoleBodies = document.querySelectorAll('#console-logs-body');
-    consoleBodies.forEach(consoleBody => {
-      const p = document.createElement('p');
-      p.className = 'console-line';
-      const color = type === 'error' ? 'var(--error)' : type === 'warning' ? 'var(--tertiary)' : 'inherit';
-      p.innerHTML = `<span class="console-time">[${escapeHtml(time)}]</span> <span style="color: ${color};">${escapeHtml(message)}</span>`;
-      consoleBody.appendChild(p);
+    const lineHtml = renderSystemLogLine(entry);
+    document.querySelectorAll('#console-logs-body').forEach((consoleBody) => {
+      consoleBody.insertAdjacentHTML('beforeend', lineHtml);
       consoleBody.scrollTop = consoleBody.scrollHeight;
     });
   }
@@ -84,8 +115,9 @@ export function logOperationError(operation, err, context = {}) {
   return message;
 }
 
-export function logUserAction(message, type = 'info') {
-  addLog(`${state.currentUser?.name || 'User'}: ${message}`, type);
+export function logUserAction(message, type = 'info', userName = null) {
+  const user = userName || state.currentUser?.name || 'User';
+  addLog(`${user}: ${message}`, type, { userEvent: true, user });
 }
 
 export function initChangeLog() {

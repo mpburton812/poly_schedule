@@ -14,7 +14,7 @@ import {
   showLoginView,
   syncPendingProposalAlertsForUser
 } from './context.js';
-import { needsGoogleCalendarConnect, isGoogleGateActive, showGoogleConnectGate } from './google-connect-gate.js';
+import { needsGoogleCalendarConnect, isGoogleGateActive, showGoogleConnectGate, canBypassGoogleConnectGate } from './google-connect-gate.js';
 import { bindScheduleEvents } from './bindings/schedule.js';
 import { bindProposalsEvents } from './bindings/proposals.js';
 import {
@@ -41,7 +41,9 @@ export function router() {
     return;
   }
 
-  if (needsGoogleCalendarConnect() || isGoogleGateActive()) {
+  const view = getRouteBase();
+
+  if ((needsGoogleCalendarConnect() || isGoogleGateActive()) && !canBypassGoogleConnectGate(view)) {
     showGoogleConnectGate();
     return;
   }
@@ -51,7 +53,6 @@ export function router() {
   state.events = CalendarSync.events;
   syncPendingProposalAlertsForUser();
 
-  const view = getRouteBase();
   const params = parseHashParams();
 
   if (view === 'admin' && !isAdmin()) {

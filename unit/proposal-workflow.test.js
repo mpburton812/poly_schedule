@@ -211,9 +211,9 @@ describe('filterProposalsForTab', () => {
     { id: '5', type: 'event', workflowState: WORKFLOW.DECLINED, proposer: 'Alex Rivera' }
   ];
 
-  it('groups approved and archived proposals under resolved', () => {
+  it('groups approved and declined under resolved; archived has its own tab', () => {
     const resolved = filterProposalsForTab(events, 'resolved', 'Alex Rivera', config);
-    expect(resolved.map((e) => e.id)).toEqual(['3', '4']);
-    expect(filterProposalsForTab(events, 'declined', 'Alex Rivera', config).map((e) => e.id)).toEqual(['5']);
+    expect(resolved.map((e) => e.id)).toEqual(['3', '5']);
+    expect(filterProposalsForTab(events, 'archived', 'Alex Rivera', config).map((e) => e.id)).toEqual(['4']);
   });
 });

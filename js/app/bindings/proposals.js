@@ -1,7 +1,7 @@
 import { CalendarSync } from '../../calendar.js';
 import { state, flowState } from '../state.js';
 import {
-  addLog,
+  logUserAction,
   showToast,
   getCurrentUserName,
   getCurrentUserId,
@@ -29,7 +29,7 @@ export function bindProposalsEvents() {
   bindTab('btn-tab-drafts', 'drafts');
   bindTab('btn-tab-proposed', 'proposed');
   bindTab('btn-tab-resolved', 'resolved');
-  bindTab('btn-tab-declined', 'declined');
+  bindTab('btn-tab-archived', 'archived');
 
   if (flowState.highlightProposalId) {
     const highlightId = flowState.highlightProposalId;
@@ -91,6 +91,7 @@ function bindProposalActionHandlers() {
             outcome: 'declined',
             declinedBy: finalEvent.declinedBy
           });
+          flowState.activeProposalsTab = 'resolved';
         } else if (afterWs === WORKFLOW.PROPOSED) {
           notifyProposerOfProposalVote(finalEvent, state.config, {
             voterName,
@@ -105,7 +106,7 @@ function bindProposalActionHandlers() {
         } else {
           showToast('Vote submitted successfully!', 'success');
         }
-        addLog(`User voted ${vote} on proposal "${proposal.title}"`);
+        logUserAction(`Voted ${vote} on proposal "${proposal.title}"`);
         renderView();
       } catch (err) {
         logOperationError('Proposal vote submit', err, {
@@ -134,7 +135,7 @@ function bindProposalActionHandlers() {
             actorName: getCurrentUserName()
           });
           await CalendarSync.cancelProposal(id, reason);
-          addLog(`Proposal cancelled: "${proposal.title}"${reason ? ` — ${reason}` : ''}`, 'warning');
+          logUserAction(`Proposal cancelled: "${proposal.title}"${reason ? ` — ${reason}` : ''}`, 'warning');
           showToast('Proposal cancelled.', 'success');
         } catch (err) {
           logOperationError('Proposal cancel', err, {
@@ -161,7 +162,7 @@ function bindProposalActionHandlers() {
             actorName: getCurrentUserName()
           });
           await CalendarSync.retractProposal(id);
-          addLog(`Proposal retracted to draft: "${proposal.title}"`, 'info');
+          logUserAction(`Proposal retracted to draft: "${proposal.title}"`, 'info');
           showToast('Proposal retracted to draft.', 'success');
           flowState.activeProposalsTab = 'drafts';
           renderView();
@@ -191,7 +192,7 @@ function bindProposalActionHandlers() {
       if (!confirm(`Delete "${proposal.title}" permanently?`)) return;
       try {
         await CalendarSync.deleteProposal(id, 'Deleted by proposer');
-        addLog(`Proposal deleted: "${proposal.title}"`, 'warning');
+        logUserAction(`Proposal deleted: "${proposal.title}"`, 'warning');
         showToast('Proposal deleted.', 'success');
       } catch (err) {
         logOperationError('Proposal delete', err, {
@@ -210,7 +211,7 @@ function bindProposalActionHandlers() {
       if (!proposal) return;
       try {
         const draft = await CalendarSync.reopenDeclinedProposal(id);
-        addLog(`Declined proposal reopened as new draft: "${proposal.title}"`, 'info');
+        logUserAction(`Declined proposal reopened as new draft: "${proposal.title}"`, 'info');
         showToast('Reopened as a new draft.', 'success');
         loadDraftIntoForm(draft.id);
         flowState.activeProposalsTab = 'drafts';
@@ -232,9 +233,9 @@ function bindProposalActionHandlers() {
       if (!proposal) return;
       try {
         await CalendarSync.archiveProposal(id);
-        addLog(`Proposal archived: "${proposal.title}"`, 'info');
+        logUserAction(`Proposal archived: "${proposal.title}"`, 'info');
         showToast('Proposal archived.', 'success');
-        flowState.activeProposalsTab = 'resolved';
+        flowState.activeProposalsTab = 'archived';
         renderView();
       } catch (err) {
         logOperationError('Proposal archive', err, {

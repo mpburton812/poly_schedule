@@ -1,6 +1,10 @@
 import { AuthManager } from '../auth.js';
+import { CalendarSync } from '../calendar.js';
 import { Views } from '../views.js';
-import { isGoogleCalendarReady, setCalendarStatus } from '../calendar-status.js';
+import { ensureGoogleCredentialsFromConfig } from '../google-integration.js';
+import { hasGoogleIntegrationCredentials, isGoogleCalendarReady, setCalendarStatus } from '../calendar-status.js';
+import { state } from './state.js';
+import { isAdmin } from './session.js';
 import { showToast } from './toast.js';
 
 let gateActive = false;
@@ -16,11 +20,25 @@ export function needsGoogleCalendarConnect() {
   return !isGoogleCalendarReady();
 }
 
+export function canBypassGoogleConnectGate(view) {
+  return view === 'admin' && isAdmin();
+}
+
+export function prepareGoogleConnectGate() {
+  ensureGoogleCredentialsFromConfig(state.config, { CalendarSync });
+  return hasGoogleIntegrationCredentials();
+}
+
 export function showGoogleConnectGate() {
   gateActive = true;
   const container = document.getElementById('app-view-container');
   if (!container) return;
-  container.innerHTML = Views.googleConnectGate();
+
+  const credentialsReady = prepareGoogleConnectGate();
+  container.innerHTML = Views.googleConnectGate({
+    credentialsReady,
+    isAdminUser: isAdmin()
+  });
   bindGoogleConnectGateEvents();
 }
 
@@ -31,12 +49,19 @@ export function dismissGoogleConnectGate() {
 function bindGoogleConnectGateEvents() {
   document.getElementById('btn-google-connect-gate')?.addEventListener('click', () => {
     try {
+      prepareGoogleConnectGate();
       setCalendarStatus('connecting');
       AuthManager.login();
     } catch (err) {
       setCalendarStatus('disconnected');
       showToast(err.message || 'Could not start Google sign-in.', 'error');
     }
+  });
+
+  document.getElementById('btn-open-admin-google-setup')?.addEventListener('click', () => {
+    dismissGoogleConnectGate();
+    window.location.hash = '#admin';
+    import('./router.js').then(({ router }) => router());
   });
 
   document.getElementById('btn-google-gate-logout')?.addEventListener('click', () => {

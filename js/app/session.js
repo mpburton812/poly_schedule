@@ -33,11 +33,12 @@ import { CalendarSync } from '../calendar.js';
 import { DEFAULT_AVATARS, Views } from '../views.js';
 import { loginViaNotifyService, resolvePublicNotifyUrl, applyRemoteLoginPayload } from '../auth-login.js';
 import { showToast } from './toast.js';
-import { addLog, logUserAction } from './operation-log.js';
+import { logUserAction } from './operation-log.js';
 import { updateImpersonationBanner } from './impersonation.js';
 import { refreshCurrentUserNotifications, syncPendingProposalAlertsForUser } from './notification-store.js';
 import { updateOfflineBanner } from '../calendar-status.js';
 import { needsGoogleCalendarConnect, showGoogleConnectGate } from './google-connect-gate.js';
+import { ensureGoogleCredentialsFromConfig } from '../google-integration.js';
 
 export function getCurrentUserId() {
   return state.currentUser?.id || null;
@@ -94,11 +95,12 @@ export function updateGuestGoogleLoginButton() {
   if (loginBtnEl) loginBtnEl.style.display = 'none';
 }
 
-async function completeLogin(partner, logMessage) {
+async function completeLogin(partner, message) {
   establishSession(partner);
-  addLog(logMessage, 'info');
+  logUserAction(message, 'info', partner.name);
   showToast(`Welcome back, ${partner.name.split(' ')[0]}!`, 'success');
   if (needsGoogleCalendarConnect()) {
+    ensureGoogleCredentialsFromConfig(state.config, { CalendarSync });
     showGoogleConnectGate();
     return true;
   }
@@ -127,23 +129,23 @@ export async function attemptLogin(username, password) {
   if (remote.ok) {
     applyRemoteLoginPayload(remote, state);
     const partner = state.config?.partners?.find((p) => p.id === remote.partner.id) || remote.partner;
-    return completeLogin(partner, `${partner.name}: Logged in successfully.`);
+    return completeLogin(partner, 'Logged in successfully.');
   }
 
   if (remote.code === 'INVALID_CREDENTIALS') {
     showToast('Invalid username or password. If this persists after signing in with Google, ask an admin to reset your password.', 'error');
-    addLog(`${trimmedUser}: Failed login attempt.`, 'warning');
+    logUserAction('Failed login attempt.', 'warning', trimmedUser);
     return false;
   }
 
   if (remote.code === 'HOUSEHOLD_UNAVAILABLE') {
     showToast(remote.message, 'warning');
-    addLog(`${trimmedUser}: Login blocked — household cache unavailable.`, 'warning');
+    logUserAction('Login blocked — household cache unavailable.', 'warning', trimmedUser);
     return false;
   }
 
   showToast(remote.message || 'Login failed.', 'error');
-  addLog(`${trimmedUser}: Remote login failed (${remote.code || 'unknown'}).`, 'warning');
+  logUserAction(`Remote login failed (${remote.code || 'unknown'}).`, 'warning', trimmedUser);
   return false;
 }
 
@@ -196,7 +198,7 @@ export function logoutUser() {
   const name = getCurrentUserName();
   state.currentUser = null;
   localStorage.removeItem(LOCAL_SESSION_KEY);
-  addLog(`${name}: Logged out.`, 'info');
+  logUserAction('Logged out.', 'info', name);
   showLoginView();
 }
 

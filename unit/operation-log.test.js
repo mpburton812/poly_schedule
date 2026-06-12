@@ -29,6 +29,33 @@ vi.mock('../js/push-notifications.js', async (importOriginal) => {
   return { ...actual, ...pushMocks };
 });
 
+describe('system log rendering', () => {
+  beforeEach(async () => {
+    localStorage.clear();
+    const { state } = await import('../js/app/state.js');
+    state.logs = [];
+  });
+
+  it('marks user events and renders them with the user line class', async () => {
+    const { logUserAction, isUserLogEntry, renderSystemLogLine } = await import('../js/app/operation-log.js');
+    logUserAction('Submitted proposal: "Dinner".', 'info', 'Michael Burton');
+    const entry = JSON.parse(localStorage.getItem(LOGS_STORAGE_KEY))[0];
+    expect(isUserLogEntry(entry)).toBe(true);
+    expect(entry.user).toBe('Michael Burton');
+    expect(renderSystemLogLine(entry)).toContain('console-line--user');
+    expect(renderSystemLogLine(entry)).toContain('Michael Burton: Submitted proposal');
+  });
+
+  it('keeps operational errors as non-user log lines', async () => {
+    const { logOperationError, isUserLogEntry, renderSystemLogLine } = await import('../js/app/context.js');
+    logOperationError('Proposal submit', new Error('Network failed'), { proposalTitle: 'Dinner' });
+    const entry = JSON.parse(localStorage.getItem(LOGS_STORAGE_KEY))[0];
+    expect(isUserLogEntry(entry)).toBe(false);
+    expect(renderSystemLogLine(entry)).not.toContain('console-line--user');
+    expect(renderSystemLogLine(entry)).toContain('var(--error)');
+  });
+});
+
 describe('logOperationError', () => {
   beforeEach(async () => {
     localStorage.clear();

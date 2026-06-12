@@ -7,7 +7,6 @@ import {
   HOUSEHOLD_SYNC_TOKEN_KEY
 } from '../storage-keys.js';
 import { RulesEngine } from '../rules.js';
-import { escapeHtml } from '../escape.js';
 import {
   DEFAULT_AVATARS,
   isPartnerPassive,
@@ -32,6 +31,7 @@ import {
   isCalendarEvent
 } from '../proposal-workflow.js';
 import { renderChangeLogHtml } from '../change-log.js';
+import { renderSystemLogHtml } from '../app/operation-log.js';
 import { getGroupName } from '../group-name.js';
 
 
@@ -53,10 +53,7 @@ export function adminView(state) {
     const syncHubConfigured = !!(notifyUrl && notifySecret);
     const changeLogHtml = renderChangeLogHtml(state.changeLog || []);
 
-    const logsHtml = (state.logs || []).map(log => {
-      const color = log.type === 'error' ? 'var(--error)' : log.type === 'warning' ? 'var(--tertiary)' : 'inherit';
-      return `<p class="console-line"><span class="console-time">[${escapeHtml(log.time)}]</span> <span class="system-log-message" style="color: ${color};">${escapeHtml(log.message)}</span></p>`;
-    }).join('') || '<p class="console-line system-log-empty">No system events logged yet.</p>';
+    const logsHtml = renderSystemLogHtml(state.logs || []);
 
     return `
       <div class="mb-xl" style="margin-bottom: var(--space-xl);">
@@ -77,8 +74,80 @@ export function adminView(state) {
         </div>
 
         <div class="bento-card" style="padding: var(--space-lg); border: 1px solid var(--outline-variant);">
+          <h3 class="font-title-lg" style="font-weight: 700; margin-bottom: var(--space-md); display: flex; align-items: center; gap: var(--space-sm);">
+            <span class="material-symbols-outlined text-primary">terminal</span> System Administration Log
+          </h3>
+          <div class="console-container">
+            <div class="console-header">
+              <span class="font-label-sm">Operational Log (${(state.logs || []).length} entries)</span>
+            </div>
+            <div class="console-body" id="console-logs-body" style="max-height: 280px; overflow-y: auto;">
+              ${logsHtml}
+            </div>
+            <div class="console-action-row">
+              <button class="btn-outline" id="btn-export-logs" style="background: transparent; border: none; font-family: var(--font-mono); font-size: 0.75rem; color: rgba(255,255,255,0.6); cursor: pointer; display: flex; align-items: center; gap: 4px;">
+                <span class="material-symbols-outlined" style="font-size: 16px;">download</span> Export Logs
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <div class="bento-card" style="padding: var(--space-lg); border: 1px solid var(--outline-variant);">
+          <h3 class="font-title-lg" style="font-weight: 700; margin-bottom: var(--space-md); display: flex; align-items: center; gap: var(--space-sm);">
+            <span class="material-symbols-outlined text-primary">history</span> Change Control Log
+          </h3>
+          <p class="font-body-md" style="color: var(--on-surface-variant); margin-bottom: var(--space-md);">
+            Build history and release notes (${(state.changeLog || []).length} releases).
+          </p>
+          <div class="change-log-panel">
+            <div class="change-log-body" id="change-log-body">
+              ${changeLogHtml}
+            </div>
+          </div>
+        </div>
+
+        <div class="bento-card" style="padding: var(--space-lg); border: 1px solid var(--outline-variant);">
+          <h3 class="font-title-lg" style="font-weight: 700; margin-bottom: var(--space-md);">Proposal Archiving</h3>
+          <div class="form-group" style="margin-bottom: var(--space-md);">
+            <label class="form-label" for="admin-auto-archive-days">Auto-archive approved proposals after (days)</label>
+            <input class="form-input" id="admin-auto-archive-days" type="number" min="0" max="365" value="${autoArchiveDays}"/>
+            <p class="font-label-sm" style="color: var(--on-surface-variant); margin-top: var(--space-xs);">Set to 0 to disable automatic archiving (manual only).</p>
+          </div>
+          <button class="btn btn-filled" id="btn-save-auto-archive" style="align-self: flex-start;">Save Archive Setting</button>
+        </div>
+
+        <div class="bento-card" style="padding: var(--space-lg); border: 1px solid var(--outline-variant);">
           <h3 class="font-title-lg" style="font-weight: 700; margin-bottom: var(--space-xs); display: flex; align-items: center; gap: var(--space-sm);">
-            <span class="material-symbols-outlined text-primary">cloud_sync</span> Google Calendar Integration
+            <span class="material-symbols-outlined text-primary">hub</span> Household Sync Hub
+          </h3>
+          <p class="font-body-md" style="color: var(--on-surface-variant); margin-bottom: var(--space-md);">
+            Near-real-time coordination via the notify service. Google Calendar remains the source of truth.
+          </p>
+          ${syncHubConfigured
+            ? '<p class="font-label-sm" style="color: var(--secondary); margin-bottom: var(--space-md);">Notify service is configured for sync hub.</p>'
+            : '<p class="font-label-sm" style="color: var(--tertiary); margin-bottom: var(--space-md);">Configure the notify service below before enabling household sync.</p>'}
+
+          <div style="display: flex; flex-direction: column; gap: var(--space-md);">
+            ${householdId
+              ? `<p class="font-label-sm" style="color: var(--on-surface-variant); margin: 0;">Internal sync id (auto-assigned). Revision: <strong id="admin-sync-revision">${syncRevision}</strong></p>`
+              : '<p class="font-label-sm" style="color: var(--on-surface-variant); margin: 0;">Sync id is assigned automatically when config is first saved to Google Calendar.</p>'}
+            <div style="display: flex; gap: var(--space-sm); flex-wrap: wrap;">
+              <button class="btn btn-outline" id="btn-register-gcal-watch" type="button" ${!householdId || !credentialsConfigured ? 'disabled' : ''}>Register GCal Webhook</button>
+            </div>
+            <div class="form-group" style="margin-bottom: 0;">
+              <label class="form-label" for="admin-household-sync-token">Household sync token (optional)</label>
+              <input class="form-input" id="admin-household-sync-token" type="password" value="${householdSyncToken}" placeholder="Per-household secret for future device pairing"/>
+            </div>
+            <div style="display: flex; gap: var(--space-sm); flex-wrap: wrap;">
+              <button class="btn btn-outline" id="btn-generate-household-sync-token" type="button">Generate Token</button>
+              <button class="btn btn-filled" id="btn-save-household-sync-token" type="button">Save Sync Token</button>
+            </div>
+          </div>
+        </div>
+
+        <div class="bento-card" style="padding: var(--space-lg); border: 1px solid var(--outline-variant);">
+          <h3 class="font-title-lg" style="font-weight: 700; margin-bottom: var(--space-xs); display: flex; align-items: center; gap: var(--space-sm);">
+            <span class="material-symbols-outlined text-primary">cloud_sync</span> Google Calendar Settings
           </h3>
           <p class="font-body-md" style="color: var(--on-surface-variant); margin-bottom: var(--space-md);">
             One-time setup for the whole group. Credentials sync to other devices automatically after login. Each member connects Google Calendar once on their device.
@@ -122,35 +191,6 @@ export function adminView(state) {
 
         <div class="bento-card" style="padding: var(--space-lg); border: 1px solid var(--outline-variant);">
           <h3 class="font-title-lg" style="font-weight: 700; margin-bottom: var(--space-xs); display: flex; align-items: center; gap: var(--space-sm);">
-            <span class="material-symbols-outlined text-primary">hub</span> Household Sync Hub
-          </h3>
-          <p class="font-body-md" style="color: var(--on-surface-variant); margin-bottom: var(--space-md);">
-            Near-real-time coordination via the notify service. Google Calendar remains the source of truth.
-          </p>
-          ${syncHubConfigured
-            ? '<p class="font-label-sm" style="color: var(--secondary); margin-bottom: var(--space-md);">Notify service is configured for sync hub.</p>'
-            : '<p class="font-label-sm" style="color: var(--tertiary); margin-bottom: var(--space-md);">Configure the notify service below before enabling household sync.</p>'}
-
-          <div style="display: flex; flex-direction: column; gap: var(--space-md);">
-            ${householdId
-              ? `<p class="font-label-sm" style="color: var(--on-surface-variant); margin: 0;">Internal sync id (auto-assigned). Revision: <strong id="admin-sync-revision">${syncRevision}</strong></p>`
-              : '<p class="font-label-sm" style="color: var(--on-surface-variant); margin: 0;">Sync id is assigned automatically when config is first saved to Google Calendar.</p>'}
-            <div style="display: flex; gap: var(--space-sm); flex-wrap: wrap;">
-              <button class="btn btn-outline" id="btn-register-gcal-watch" type="button" ${!householdId || !credentialsConfigured ? 'disabled' : ''}>Register GCal Webhook</button>
-            </div>
-            <div class="form-group" style="margin-bottom: 0;">
-              <label class="form-label" for="admin-household-sync-token">Household sync token (optional)</label>
-              <input class="form-input" id="admin-household-sync-token" type="password" value="${householdSyncToken}" placeholder="Per-household secret for future device pairing"/>
-            </div>
-            <div style="display: flex; gap: var(--space-sm); flex-wrap: wrap;">
-              <button class="btn btn-outline" id="btn-generate-household-sync-token" type="button">Generate Token</button>
-              <button class="btn btn-filled" id="btn-save-household-sync-token" type="button">Save Sync Token</button>
-            </div>
-          </div>
-        </div>
-
-        <div class="bento-card" style="padding: var(--space-lg); border: 1px solid var(--outline-variant);">
-          <h3 class="font-title-lg" style="font-weight: 700; margin-bottom: var(--space-xs); display: flex; align-items: center; gap: var(--space-sm);">
             <span class="material-symbols-outlined text-primary">notifications_active</span> Mobile Push Notifications
           </h3>
           <p class="font-body-md" style="color: var(--on-surface-variant); margin-bottom: var(--space-md);">
@@ -182,49 +222,6 @@ export function adminView(state) {
             </p>
             <div id="notify-devices-panel" class="font-body-sm" style="color: var(--on-surface-variant);">
               ${notifyUrl && notifySecret ? 'Click Refresh to load devices.' : 'Configure the notify service first.'}
-            </div>
-          </div>
-        </div>
-
-        <div class="bento-card" style="padding: var(--space-lg); border: 1px solid var(--outline-variant);">
-          <h3 class="font-title-lg" style="font-weight: 700; margin-bottom: var(--space-md);">Proposal Archive</h3>
-          <div class="form-group" style="margin-bottom: var(--space-md);">
-            <label class="form-label" for="admin-auto-archive-days">Auto-archive approved proposals after (days)</label>
-            <input class="form-input" id="admin-auto-archive-days" type="number" min="0" max="365" value="${autoArchiveDays}"/>
-            <p class="font-label-sm" style="color: var(--on-surface-variant); margin-top: var(--space-xs);">Set to 0 to disable automatic archiving (manual only).</p>
-          </div>
-          <button class="btn btn-filled" id="btn-save-auto-archive" style="align-self: flex-start;">Save Archive Setting</button>
-        </div>
-
-        <div class="bento-card" style="padding: var(--space-lg); border: 1px solid var(--outline-variant);">
-          <h3 class="font-title-lg" style="font-weight: 700; margin-bottom: var(--space-md); display: flex; align-items: center; gap: var(--space-sm);">
-            <span class="material-symbols-outlined text-primary">history</span> Change Control Log
-          </h3>
-          <p class="font-body-md" style="color: var(--on-surface-variant); margin-bottom: var(--space-md);">
-            Build history and release notes (${(state.changeLog || []).length} releases).
-          </p>
-          <div class="change-log-panel">
-            <div class="change-log-body" id="change-log-body">
-              ${changeLogHtml}
-            </div>
-          </div>
-        </div>
-
-        <div class="bento-card" style="padding: var(--space-lg); border: 1px solid var(--outline-variant);">
-          <h3 class="font-title-lg" style="font-weight: 700; margin-bottom: var(--space-md); display: flex; align-items: center; gap: var(--space-sm);">
-            <span class="material-symbols-outlined text-primary">terminal</span> System Administration Log
-          </h3>
-          <div class="console-container">
-            <div class="console-header">
-              <span class="font-label-sm">Operational Log (${(state.logs || []).length} entries)</span>
-            </div>
-            <div class="console-body" id="console-logs-body" style="max-height: 280px; overflow-y: auto;">
-              ${logsHtml}
-            </div>
-            <div class="console-action-row">
-              <button class="btn-outline" id="btn-export-logs" style="background: transparent; border: none; font-family: var(--font-mono); font-size: 0.75rem; color: rgba(255,255,255,0.6); cursor: pointer; display: flex; align-items: center; gap: 4px;">
-                <span class="material-symbols-outlined" style="font-size: 16px;">download</span> Export Logs
-              </button>
             </div>
           </div>
         </div>
