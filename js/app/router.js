@@ -29,7 +29,6 @@ import {
 } from './bindings/create.js';
 import { bindLogisticsEvents, bindSettingsEvents } from './bindings/logistics.js';
 import {
-import {
   bindAdminEvents,
   bindAddPartnerEvents,
   bindAddHomeEvents,
