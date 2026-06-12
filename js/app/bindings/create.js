@@ -288,6 +288,8 @@ export function preserveCreateFormDraft() {
   if (titleEl) newProposalState.draftTitle = titleEl.value;
   const notesEl = document.getElementById('prop-notes');
   if (notesEl) newProposalState.draftNotes = notesEl.value;
+  const visibilityEl = document.getElementById('prop-visibility');
+  if (visibilityEl) newProposalState.draftVisibility = visibilityEl.value || 'standard';
 }
 
 export function loadDraftIntoForm(draftId) {
@@ -303,6 +305,7 @@ export function loadDraftIntoForm(draftId) {
   }
   newProposalState.draftTitle = draft.title || '';
   newProposalState.draftNotes = draft.notes || '';
+  newProposalState.draftVisibility = draft.visibility || 'standard';
   flowState.soloEventMode = draft.type === 'event' && isSoloEventProposal(draft, state.config);
   newProposalState.homeId = draft.homeId || 'h1';
   newProposalState.roomId = draft.roomId || 'r1';
@@ -326,6 +329,36 @@ export function syncParticipantRolesFromParticipants() {
       return { name, role: 'optional' };
     }
     return { name, role: existing[name] === 'optional' ? 'optional' : 'required' };
+  });
+}
+
+function readProposalVisibility() {
+  return document.getElementById('prop-visibility')?.value || newProposalState.draftVisibility || 'standard';
+}
+
+const PRIVACY_HINTS = {
+  standard: 'Everyone in the household can see event details on the schedule.',
+  private: 'Only invitees see details; others see times only (sleeping arrangements still visible).',
+  super_private: 'Only invitees can see details — everyone else sees a private placeholder.'
+};
+
+function bindVisibilityTabs() {
+  const tabs = document.getElementById('prop-visibility-tabs');
+  const input = document.getElementById('prop-visibility');
+  const hint = document.getElementById('prop-visibility-hint');
+  if (!tabs || !input) return;
+
+  tabs.querySelectorAll('[data-visibility]').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      const value = btn.dataset.visibility || 'standard';
+      input.value = value;
+      tabs.querySelectorAll('.switch-btn').forEach((b) => {
+        b.classList.toggle('active', b.dataset.visibility === value);
+      });
+      if (hint) hint.textContent = PRIVACY_HINTS[value] || PRIVACY_HINTS.standard;
+      newProposalState.draftVisibility = value;
+      scheduleDraftSave();
+    });
   });
 }
 
@@ -357,7 +390,8 @@ export function collectProposalFormData() {
       participants,
       participantRoles: normalizeParticipantRoles(participants, state.config, 'batch_sleeping'),
       proposer: currentUserName,
-      notes: document.getElementById('prop-notes')?.value?.trim() || ''
+      notes: document.getElementById('prop-notes')?.value?.trim() || '',
+      visibility: readProposalVisibility()
     };
   }
 
@@ -397,7 +431,8 @@ export function collectProposalFormData() {
     participants: [...newProposalState.participants],
     participantRoles: [...newProposalState.participantRoles],
     proposer: currentUserName,
-    notes: document.getElementById('prop-notes')?.value?.trim() || ''
+    notes: document.getElementById('prop-notes')?.value?.trim() || '',
+    visibility: readProposalVisibility()
   };
 
   if (flowState.currentCreateType === 'sleeping') {
@@ -847,6 +882,8 @@ export function bindCreateEvents() {
       scheduleDraftSave();
     });
   }
+
+  bindVisibilityTabs();
 
   const startDateInput = document.getElementById('prop-start-date');
   const durationInput = document.getElementById('prop-duration');

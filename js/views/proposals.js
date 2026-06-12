@@ -18,6 +18,8 @@ import {
   formatPersonConflictNotice
 } from '../helpers.js';
 import { isPastScheduledEvent } from '../gcal-sync.js';
+import { normalizeEventComments } from '../event-comments.js';
+import { VISIBILITY } from '../event-privacy.js';
 import {
   WORKFLOW,
   filterProposalsForTab,
@@ -184,13 +186,35 @@ export function proposalsView(state, activeTab = 'proposed') {
             </div>
           `
           : '';
+        const commentItems = normalizeEventComments(p.comments);
+        const commentsHtml = commentItems.length
+          ? `
+            <div class="proposal-notes-block">
+              <span class="font-label-sm" style="color: var(--on-surface-variant); display: block; margin-bottom: 4px;">COMMENTS</span>
+              ${commentItems.map((c) => {
+                const when = c.createdAt
+                  ? new Date(c.createdAt).toLocaleString(undefined, { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })
+                  : '';
+                return `<p class="proposal-notes-text"><strong>${escapeHtml(c.author)}</strong>${when ? ` · ${escapeHtml(when)}` : ''}<br/>${escapeHtml(c.text)}</p>`;
+              }).join('')}
+            </div>
+          `
+          : '';
+        const privacyLabel = p.visibility === VISIBILITY.PRIVATE
+          ? 'Private'
+          : p.visibility === VISIBILITY.SUPER_PRIVATE
+            ? 'Super Private'
+            : '';
+        const privacyBadge = privacyLabel
+          ? `<span class="chip" style="font-size: 10px; margin-left: 8px; pointer-events: none;">${privacyLabel}</span>`
+          : '';
 
         listHtml += `
           <div class="proposal-card ${p.type === 'sleeping' || p.type === 'batch_sleeping' ? 'sleeping' : ''}" id="prop-${p.id}">
             <div class="proposal-header">
               <div>
                 <span class="proposal-badge ${p.type === 'batch_sleeping' ? 'batch' : p.type}">${p.type === 'batch_sleeping' ? 'BATCH SLEEPING' : p.type.toUpperCase()} PROPOSAL</span>
-                <h3 class="font-title-lg" style="margin-top: 4px; font-weight: 700; color: var(--on-surface);">${escapeHtml(p.title)}${statusBadge}</h3>
+                <h3 class="font-title-lg" style="margin-top: 4px; font-weight: 700; color: var(--on-surface);">${escapeHtml(p.title)}${statusBadge}${privacyBadge}</h3>
               </div>
               <div style="text-align: right;">
                 <span class="font-label-sm" style="color: var(--on-surface-variant); display: block;">PROPOSED BY</span>
@@ -214,6 +238,7 @@ export function proposalsView(state, activeTab = 'proposed') {
             </div>
 
             ${notesHtml}
+            ${commentsHtml}
 
             ${batchNightsHtml}
 

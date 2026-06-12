@@ -47,8 +47,26 @@ test.describe('PolySchedule UI E2E Flow Tests', () => {
     await expect(page.locator('.logo-text')).toContainText('PolySchedule');
     await expect(page.locator('.week-grid')).toBeVisible();
     await expect(page.locator('.day-column')).toHaveCount(7);
+    await expect(page.locator('#btn-week-prev')).toBeVisible();
+    await expect(page.locator('#btn-week-next')).toBeVisible();
     await expect(page.locator('.card-event').first()).toBeVisible();
     await expect(page.locator('.card-sleeping').first()).toBeVisible();
+  });
+
+  test('should navigate between weeks on the schedule', async ({ page }) => {
+    const labelBefore = await page.locator('#btn-week-picker').innerText();
+    await page.click('#btn-week-next');
+    await expect(page.locator('#btn-week-picker')).not.toHaveText(labelBefore);
+    await page.click('#btn-week-prev');
+    await expect(page.locator('#btn-week-picker')).toHaveText(labelBefore);
+  });
+
+  test('should show privacy options when creating a proposal', async ({ page }) => {
+    await page.click('#fab-quick-add');
+    await expect(page.locator('#prop-visibility-tabs')).toBeVisible();
+    await page.click('[data-visibility="private"]');
+    await expect(page.locator('#prop-visibility')).toHaveValue('private');
+    await expect(page.locator('#prop-visibility-hint')).toContainText('Only invitees');
   });
 
   test('should show login page when not authenticated', async ({ page }) => {
@@ -364,7 +382,7 @@ test.describe('PolySchedule UI E2E Flow Tests', () => {
     await expect(page.url()).toContain('#add-home');
     await page.fill('#new-home-name', 'Chris Place');
     await page.click('#btn-submit-home');
-    await expect(page.url()).toContain('#add-partner');
+    await page.waitForURL(/#add-partner/, { timeout: 10000 });
     await expect(page.locator('#new-partner-name')).toHaveValue('Chris Newhome');
     await expect(page.locator('#new-partner-home')).toHaveValue(/h/);
   });
@@ -381,7 +399,7 @@ test.describe('PolySchedule UI E2E Flow Tests', () => {
     await page.fill('#edit-home-name', "Michael's Place Updated");
     await page.fill('#edit-home-address', '123 Main St');
     await page.click('#btn-save-edit-home');
-    await expect(page.url()).toContain('#logistics');
+    await page.waitForURL(/#logistics/, { timeout: 10000 });
     await expect(page.getByRole('heading', { name: "Michael's Place Updated" })).toBeVisible();
   });
 
@@ -411,7 +429,7 @@ test.describe('PolySchedule UI E2E Flow Tests', () => {
     await clickNav(page, '#logistics');
     await page.locator('.btn-edit-partner[data-partner-id="p4"]').click();
     await expect(page.url()).toContain('#edit-partner');
-    page.once('dialog', dialog => dialog.accept());
+    page.on('dialog', dialog => dialog.accept());
     await page.click('#btn-delete-edit-partner');
     await expect(page.url()).toContain('#logistics');
     await expect(page.getByRole('heading', { name: 'Bailey' })).toHaveCount(0);
@@ -421,7 +439,7 @@ test.describe('PolySchedule UI E2E Flow Tests', () => {
     await clickNav(page, '#logistics');
     await page.locator('.btn-edit-home[data-home-id="h2"]').click();
     await expect(page.url()).toContain('#edit-home');
-    page.once('dialog', dialog => dialog.accept());
+    page.on('dialog', dialog => dialog.accept());
     await page.click('#btn-delete-edit-home');
     await expect(page.url()).toContain('#logistics');
     await expect(page.getByRole('heading', { name: "Katie's Place" })).toHaveCount(0);

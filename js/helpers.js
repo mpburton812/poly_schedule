@@ -56,12 +56,39 @@ export function parseLocalDateString(dateStr, hours = 12, minutes = 0, seconds =
   return new Date(y, m - 1, d, hours, minutes, seconds, ms);
 }
 
+/** Normalize an email address for comparison. */
+export function normalizeEmail(value) {
+  return String(value || '').trim().toLowerCase();
+}
+
+/**
+ * Match a Google Calendar organizer/creator email to a household partner.
+ * Prefers `googleEmail`, then falls back to `notificationEmail`.
+ */
+export function findPartnerByCalendarEmail(config, email) {
+  const normalized = normalizeEmail(email);
+  if (!normalized || !config?.partners) return null;
+  return config.partners.find((p) => normalizeEmail(p.googleEmail) === normalized)
+    || config.partners.find((p) => normalizeEmail(p.notificationEmail) === normalized)
+    || null;
+}
+
 /** Format a Date as YYYY-MM-DD in local time. */
 export function formatLocalDateString(date) {
   const y = date.getFullYear();
   const m = String(date.getMonth() + 1).padStart(2, '0');
   const d = String(date.getDate()).padStart(2, '0');
   return `${y}-${m}-${d}`;
+}
+
+/** Monday 00:00:00 local time for the week containing `dateInput`. */
+export function getMondayOfWeek(dateInput = new Date()) {
+  const base = dateInput instanceof Date ? new Date(dateInput.getTime()) : new Date(dateInput);
+  const dayOfWeek = base.getDay();
+  const diff = base.getDate() - dayOfWeek + (dayOfWeek === 0 ? -6 : 1);
+  base.setDate(diff);
+  base.setHours(0, 0, 0, 0);
+  return base;
 }
 
 /**

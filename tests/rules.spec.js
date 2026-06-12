@@ -61,17 +61,21 @@ test.describe('Rules Engine Unit Tests', () => {
   test('should detect batch partner max nights quota violation', async ({ page }) => {
     const warnings = await page.evaluate(() => {
       return import('./js/rules.js').then(({ RulesEngine }) => {
-        const today = new Date();
+        // Anchor to Monday so all four nights fall in one ISO week (Mon–Sun).
+        const weekStart = new Date(2026, 5, 8, 12, 0, 0);
         const dateStr = (offset) => {
-          const d = new Date(today);
-          d.setDate(today.getDate() + offset);
-          return d.toISOString().split('T')[0];
+          const d = new Date(weekStart);
+          d.setDate(weekStart.getDate() + offset);
+          const y = d.getFullYear();
+          const m = String(d.getMonth() + 1).padStart(2, '0');
+          const day = String(d.getDate()).padStart(2, '0');
+          return `${y}-${m}-${day}`;
         };
         const batchProposal = {
           id: 'batch_test',
           type: 'batch_sleeping',
-          start: today.toISOString(),
-          end: new Date(today.getTime() + 4 * 86400000).toISOString(),
+          start: weekStart.toISOString(),
+          end: new Date(weekStart.getTime() + 4 * 86400000).toISOString(),
           batchNights: [0, 1, 2, 3].map(offset => ({
             date: dateStr(offset),
             assignments: [{
@@ -99,10 +103,11 @@ test.describe('Rules Engine Unit Tests', () => {
   test('should detect max partner nights quota violation', async ({ page }) => {
     const warnings = await page.evaluate(() => {
       return import('./js/rules.js').then(({ RulesEngine }) => {
-        const today = new Date();
+        // Anchor to Monday so existing + proposed nights share one ISO week.
+        const weekStart = new Date(2026, 5, 8, 12, 0, 0);
         const getRelDate = (offset, hr) => {
-          const d = new Date(today);
-          d.setDate(today.getDate() + offset);
+          const d = new Date(weekStart);
+          d.setDate(weekStart.getDate() + offset);
           d.setHours(hr, 0, 0, 0);
           return d.toISOString();
         };

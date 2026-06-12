@@ -12,6 +12,8 @@ import { HouseholdStore } from './household-store.js';
 import { ProposalManager } from './proposal-manager.js';
 import { CalendarAPI } from './gcal-api.js';
 import { withGCalAuth } from './gcal-auth.js';
+import { appendEventComment } from './event-comments.js';
+import { detectGCalExternalChanges } from './gcal-change-alerts.js';
 
 import {
   renamePartnerReferences,
@@ -82,10 +84,45 @@ export const CalendarSync = {
   accessToken: '',
   apiKey: '',
   onStateUpdate: null,
+  suppressGCalChangeAlerts: false,
+  locallyMutatedEventIds: new Set(),
+  lastFetchedGCalItems: [],
+
+  markLocalGCalMutation(eventId) {
+    if (eventId) this.locallyMutatedEventIds.add(eventId);
+  },
+
+  async notifyGCalExternalChanges(previousEvents) {
+    const { notifyGCalEventCreated, notifyGCalEventDeleted } = await import('./app/notification-store.js');
+    const changes = await detectGCalExternalChanges({
+      previousEvents,
+      nextEvents: this.events,
+      config: this.config,
+      locallyMutedIds: this.locallyMutatedEventIds,
+      gcalItems: this.lastFetchedGCalItems,
+      fetchCancelledItem: (eventId) => this.fetchGCalEventRaw(eventId, { showDeleted: true })
+    });
+    for (const { event, actor } of changes.added) {
+      notifyGCalEventCreated(event, this.config, {
+        actorLabel: actor.label,
+        actorPartnerId: actor.partnerId
+      });
+    }
+    for (const { event, actor } of changes.removed) {
+      notifyGCalEventDeleted(event, this.config, {
+        actorLabel: actor.label,
+        actorPartnerId: actor.partnerId,
+        actorEmail: actor.email,
+        actorGoogleId: actor.googleId
+      });
+    }
+    this.locallyMutatedEventIds.clear();
+  },
 
   async init(mode, credentials, onUpdateCallback) {
     this.mode = mode;
     this.onStateUpdate = onUpdateCallback;
+    this.suppressGCalChangeAlerts = true;
     
     if (credentials) {
       this.accessToken = credentials.accessToken || '';
@@ -100,8 +137,11 @@ export const CalendarSync = {
     await this.loadEvents();
 
     if (this.mode === 'sync' && needsGCalAlignment()) {
-      return this.alignGoogleCalendarOnce();
+      const alignStats = await this.alignGoogleCalendarOnce();
+      this.suppressGCalChangeAlerts = false;
+      return alignStats;
     }
+    this.suppressGCalChangeAlerts = false;
     return null;
   },
 
@@ -117,6 +157,15 @@ export const CalendarSync = {
   },
 
   async loadEvents() {
+    let previousEvents = [];
+    if (!isCacheMode(this.mode)) {
+      try {
+        previousEvents = JSON.parse(localStorage.getItem(LOCAL_EVENTS_KEY) || '[]');
+      } catch {
+        previousEvents = [];
+      }
+    }
+
     if (isCacheMode(this.mode)) {
       const saved = localStorage.getItem(LOCAL_EVENTS_KEY);
       if (saved) {
@@ -131,6 +180,9 @@ export const CalendarSync = {
         const localEvents = JSON.parse(localStorage.getItem(LOCAL_EVENTS_KEY) || '[]');
         this.events = mergeGCalWithLocalEvents(gcalEvents, localEvents);
         this.migrateAndNormalizeEvents();
+        if (!this.suppressGCalChangeAlerts) {
+          await this.notifyGCalExternalChanges(previousEvents);
+        }
       } catch (e) {
         console.error('Failed to fetch events from GCal, falling back to local storage', e);
         this.events = JSON.parse(localStorage.getItem(LOCAL_EVENTS_KEY) || '[]');
@@ -410,6 +462,7 @@ export const CalendarSync = {
     } else {
       try {
         const created = await this.createGCalEvent(newEvent);
+        this.markLocalGCalMutation(created.id);
         newEvent.id = created.id; // Map back the Google Calendar Event ID
         this.events.push(newEvent);
         this.persistLocalEventsMirror();
@@ -449,10 +502,12 @@ export const CalendarSync = {
       if (this.mode === 'sync') {
         try {
           if (!isLocalEventId(eventId)) {
+            this.markLocalGCalMutation(eventId);
             await this.deleteGCalEvent(eventId);
           }
           for (const child of expanded) {
             const created = await this.createGCalEvent(child);
+            this.markLocalGCalMutation(created.id);
             child.id = created.id;
             updated.expandedEventIds.push(created.id);
             this.events.push(child);
@@ -480,6 +535,7 @@ export const CalendarSync = {
     } else if (shouldRemoveEventFromGCal(updated)) {
       if (shouldAttemptGCalDelete(eventId)) {
         try {
+          this.markLocalGCalMutation(eventId);
           await this.deleteGCalEvent(eventId);
         } catch (e) {
           console.error('Failed to remove calendar event from Google Calendar', e);
@@ -494,6 +550,7 @@ export const CalendarSync = {
     } else {
       try {
         const { id: syncedId } = await this.upsertGCalEvent(eventId, updated);
+        this.markLocalGCalMutation(syncedId || eventId);
         if (syncedId !== eventId) {
           this.remapEventId(eventId, syncedId, updated);
         } else {
@@ -508,6 +565,15 @@ export const CalendarSync = {
 
     if (this.onStateUpdate) this.onStateUpdate();
     return updated;
+  },
+
+  async addEventComment(eventId, text, authorName) {
+    const idx = this.events.findIndex(e => e.id === eventId);
+    if (idx === -1) throw new Error('Event not found');
+    const event = { ...this.events[idx] };
+    const entry = appendEventComment(event, authorName, text);
+    if (!entry) throw new Error('Comment text is required');
+    return this.updateEvent(eventId, { comments: event.comments }, { skipWorkflow: true });
   },
 
   async deleteEvent(eventId) {
@@ -532,6 +598,7 @@ export const CalendarSync = {
 
     if (this.mode === 'sync' && gcalIdsToDelete.length) {
       for (const id of gcalIdsToDelete) {
+        this.markLocalGCalMutation(id);
         try {
           await this.deleteGCalEvent(id);
         } catch (err) {
@@ -555,6 +622,18 @@ export const CalendarSync = {
         apiKey: this.apiKey,
         accessToken: this.accessToken,
         ...opts
+      })
+    );
+  },
+
+  async fetchGCalEventRaw(eventId, { showDeleted = false } = {}) {
+    return withGCalAuth(this, () =>
+      CalendarAPI.fetchEvent({
+        calendarId: this.calendarId,
+        apiKey: this.apiKey,
+        accessToken: this.accessToken,
+        eventId,
+        showDeleted
       })
     );
   },

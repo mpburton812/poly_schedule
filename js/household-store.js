@@ -231,32 +231,40 @@ export const HouseholdStore = {
   },
 
   removePartner(context, eventsArray, partnerId) {
-    const partner = this.config?.partners?.find(p => p.id === partnerId);
+    const config = context.config ?? this.config;
+    if (!config) return false;
+    const partner = config.partners?.find(p => p.id === partnerId);
     if (!partner) return false;
-    removePartnerReferences(this.config, eventsArray, partnerId, partner.name);
-    this.config.partners = this.config.partners.filter(p => p.id !== partnerId);
+    removePartnerReferences(config, eventsArray, partnerId, partner.name);
+    config.partners = config.partners.filter(p => p.id !== partnerId);
+    this.config = config;
+    context.config = config;
     if (context.mode === 'sync') {
-      this.saveConfig(context, this.config, eventsArray).catch(err => console.error('Failed to save config to GCal', err));
+      this.saveConfig(context, config, eventsArray).catch(err => console.error('Failed to save config to GCal', err));
       context.syncEventsToGCal(eventsArray.map(e => e.id));
     } else {
       context.persistEvents();
-      localStorage.setItem(LOCAL_CONFIG_KEY, JSON.stringify(this.config));
+      localStorage.setItem(LOCAL_CONFIG_KEY, JSON.stringify(config));
     }
     if (context.onStateUpdate) context.onStateUpdate();
     return true;
   },
 
   removeHome(context, eventsArray, homeId) {
-    const home = this.config?.residences?.find(h => h.id === homeId);
+    const config = context.config ?? this.config;
+    if (!config) return false;
+    const home = config.residences?.find(h => h.id === homeId);
     if (!home) return false;
-    removeHomeReferences(this.config, eventsArray, homeId);
-    this.config.residences = this.config.residences.filter(h => h.id !== homeId);
+    removeHomeReferences(config, eventsArray, homeId);
+    config.residences = config.residences.filter(h => h.id !== homeId);
+    this.config = config;
+    context.config = config;
     if (context.mode === 'sync') {
-      this.saveConfig(context, this.config, eventsArray).catch(err => console.error('Failed to save config to GCal', err));
+      this.saveConfig(context, config, eventsArray).catch(err => console.error('Failed to save config to GCal', err));
       context.syncEventsToGCal(eventsArray.map(e => e.id));
     } else {
       context.persistEvents();
-      localStorage.setItem(LOCAL_CONFIG_KEY, JSON.stringify(this.config));
+      localStorage.setItem(LOCAL_CONFIG_KEY, JSON.stringify(config));
     }
     if (context.onStateUpdate) context.onStateUpdate();
     return true;

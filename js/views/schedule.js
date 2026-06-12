@@ -1,37 +1,22 @@
-import { RulesEngine } from '../rules.js';
 import { escapeHtml } from '../escape.js';
 import {
-  DEFAULT_AVATARS,
-  isPartnerPassive,
-  renderHomeSelectOptions,
-  renderAvatarPickerHtml,
-  render12HourTimePicker,
-  responseStatusLabel,
-  defaultBatchAssignment,
-  defaultBatchNight,
-  normalizeBatchNight,
-  getBedroomOptionsForHome,
-  getCurrentUserPartner,
-  hasSleepingPartnerConnections
+  formatLocalDateString,
+  getMondayOfWeek
 } from '../helpers.js';
+import { getEventDisplayPolicy } from '../event-privacy.js';
 import {
   WORKFLOW,
-  filterProposalsForTab,
-  getWorkflowState,
-  allowsAbstain,
-  isPassivePerson,
-  getAutoArchiveDays,
-  isCalendarEvent
+  getWorkflowState
 } from '../proposal-workflow.js';
 
 
 export function scheduleView(state) {
-    const today = state.selectedDate ? new Date(state.selectedDate) : new Date();
-    // Monday of current week
-    const dayOfWeek = today.getDay();
-    const diff = today.getDate() - dayOfWeek + (dayOfWeek === 0 ? -6 : 1);
-    const startOfWeek = new Date(today.setDate(diff));
-    
+    const anchor = state.selectedDate ? new Date(state.selectedDate) : new Date();
+    const startOfWeek = getMondayOfWeek(anchor);
+    const now = new Date();
+    const thisWeekStart = getMondayOfWeek(now);
+    const isCurrentWeek = startOfWeek.getTime() === thisWeekStart.getTime();
+
     const weekdays = [];
     for (let i = 0; i < 7; i++) {
       const d = new Date(startOfWeek);
@@ -40,7 +25,13 @@ export function scheduleView(state) {
     }
 
     const monthName = startOfWeek.toLocaleString('default', { month: 'short' });
-    const weekLabel = `Week of ${monthName} ${startOfWeek.getDate()}`;
+    const weekYearSuffix = startOfWeek.getFullYear() !== now.getFullYear()
+      ? `, ${startOfWeek.getFullYear()}`
+      : '';
+    const weekLabel = `Week of ${monthName} ${startOfWeek.getDate()}${weekYearSuffix}`;
+    const weekInputValue = formatLocalDateString(startOfWeek);
+
+    const viewerRef = state.currentUser?.id || state.currentUser?.name;
 
     // Filter confirmed events for this week
     const weekEvents = state.events.filter(e => {
@@ -104,37 +95,44 @@ export function scheduleView(state) {
         dayEvents.forEach(e => {
           const isProposed = getWorkflowState(e) === WORKFLOW.PROPOSED;
           const proposedClass = isProposed ? ' is-proposed' : '';
+          const display = getEventDisplayPolicy(e, viewerRef, state.config);
 
           if (e.type === 'sleeping') {
+            const sleepingText = display.showSleepingArrangement
+              ? `${e.roomName || 'Room'}: ${(e.participants || []).join(' & ')}`
+              : 'Private';
             cardsHtml += `
-              <div class="card-sleeping${proposedClass}" data-id="${e.id}">
+              <div class="card-sleeping${proposedClass}${display.redacted ? ' is-private' : ''}" data-id="${e.id}">
                 <div class="sleeping-header">
                   <span class="material-symbols-outlined" style="font-size: 16px;">bed</span>
-                  <span class="font-label-md">SLEEPING</span>
+                  <span class="font-label-md">${display.redacted && !display.showSleepingArrangement ? 'PRIVATE' : 'SLEEPING'}</span>
                 </div>
                 <div class="sleeping-content">
-                  ${escapeHtml(e.roomName || 'Room')}: ${escapeHtml(e.participants.join(' & '))}
+                  ${escapeHtml(sleepingText)}
                 </div>
               </div>
             `;
           } else {
             let avatarsHtml = '';
-            e.participants.forEach(pName => {
-              const p = state.config.partners.find(part => part.name === pName);
-              const color = pName === 'Alex' ? 'var(--primary-fixed-dim)' : pName === 'Sam' ? 'var(--secondary-fixed-dim)' : 'var(--tertiary-fixed-dim)';
-              if (p && p.avatar) {
-                avatarsHtml += `<div class="avatar-stack-item" style="background-color: ${color};"><img src="${escapeHtml(p.avatar)}" alt="${escapeHtml(pName)}"/></div>`;
-              } else {
-                avatarsHtml += `<div class="avatar-stack-item" style="background-color: var(--outline-variant); font-size: 8px; color: var(--on-surface-variant); display: flex; align-items: center; justify-content: center; font-weight: bold;">${escapeHtml(pName[0])}</div>`;
-              }
-            });
+            if (display.showParticipants) {
+              e.participants.forEach(pName => {
+                const p = state.config.partners.find(part => part.name === pName);
+                const color = pName === 'Alex' ? 'var(--primary-fixed-dim)' : pName === 'Sam' ? 'var(--secondary-fixed-dim)' : 'var(--tertiary-fixed-dim)';
+                if (p && p.avatar) {
+                  avatarsHtml += `<div class="avatar-stack-item" style="background-color: ${color};"><img src="${escapeHtml(p.avatar)}" alt="${escapeHtml(pName)}"/></div>`;
+                } else {
+                  avatarsHtml += `<div class="avatar-stack-item" style="background-color: var(--outline-variant); font-size: 8px; color: var(--on-surface-variant); display: flex; align-items: center; justify-content: center; font-weight: bold;">${escapeHtml(pName[0])}</div>`;
+                }
+              });
+            }
 
             const timeStr = new Date(e.start).toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit', hour12: true });
+            const attendeeMeta = display.showParticipants ? `${e.participants.length} Attendees` : 'Private';
             cardsHtml += `
-              <div class="card-event${proposedClass}" data-id="${e.id}">
-                <div class="event-title">${escapeHtml(e.title)}</div>
-                <div class="event-meta font-label-sm">${timeStr} • ${e.participants.length} Attendees</div>
-                <div class="avatar-stack">${avatarsHtml}</div>
+              <div class="card-event${proposedClass}${display.redacted ? ' is-private' : ''}" data-id="${e.id}">
+                <div class="event-title">${escapeHtml(display.title)}</div>
+                <div class="event-meta font-label-sm">${timeStr} • ${attendeeMeta}</div>
+                ${avatarsHtml ? `<div class="avatar-stack">${avatarsHtml}</div>` : ''}
               </div>
             `;
           }
@@ -163,14 +161,23 @@ export function scheduleView(state) {
     return `
       <!-- Filter and Week Selector Header -->
       <section class="filter-bar">
-        <div class="week-selector-container" style="position: relative; display: inline-block;">
-          <button class="chip active" id="btn-week-selector">
-            <span>${weekLabel}</span>
-            <span class="material-symbols-outlined" style="font-size: 16px;">expand_more</span>
+        <div class="week-nav">
+          <button type="button" class="week-nav-btn btn-icon-only" id="btn-week-prev" aria-label="Previous week">
+            <span class="material-symbols-outlined">chevron_left</span>
           </button>
-          <input type="date" id="input-week-selector" value="${startOfWeek.toISOString().split('T')[0]}" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; opacity: 0; cursor: pointer;"/>
+          <div class="week-picker-wrap">
+            <button type="button" class="chip active" id="btn-week-picker">
+              <span>${weekLabel}</span>
+              <span class="material-symbols-outlined" style="font-size: 16px;">calendar_month</span>
+            </button>
+            <input type="date" id="input-week-selector" value="${weekInputValue}" tabindex="-1" aria-hidden="true"/>
+          </div>
+          <button type="button" class="week-nav-btn btn-icon-only" id="btn-week-next" aria-label="Next week">
+            <span class="material-symbols-outlined">chevron_right</span>
+          </button>
+          <button type="button" class="chip${isCurrentWeek ? ' is-muted' : ''}" id="btn-week-today"${isCurrentWeek ? ' disabled' : ''}>Today</button>
         </div>
-        
+
         <div style="position: relative; display: inline-block;">
           <select class="chip" id="filter-partner-select" style="border: 1px solid var(--outline-variant); border-radius: var(--radius-full); padding: 4px 12px; font-family: var(--font-body); font-size: 0.875rem; background-color: var(--surface); color: var(--on-surface); cursor: pointer; outline: none; transition: background-color 0.2s, border-color 0.2s;">
             <option value="all" ${state.filterPartner === 'all' ? 'selected' : ''}>All Partners</option>

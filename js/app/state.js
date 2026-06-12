@@ -81,7 +81,8 @@ export const newProposalState = {
   batchAssignments: [],
   batchStartDate: new Date().toISOString().split('T')[0],
   draftTitle: '',
-  draftNotes: ''
+  draftNotes: '',
+  draftVisibility: 'standard'
 };
 
 export function resetNewProposalFormState() {
@@ -94,6 +95,7 @@ export function resetNewProposalFormState() {
   newProposalState.batchAssignments = [];
   newProposalState.batchStartDate = new Date().toISOString().split('T')[0];
   newProposalState.draftNotes = '';
+  newProposalState.draftVisibility = 'standard';
 }
 
 export function resetCreateFlowForNavigation() {

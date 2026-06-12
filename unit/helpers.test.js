@@ -10,6 +10,8 @@ import {
   sortPartnersWithCurrentUserFirst,
   normalizeConfigPartners,
   parseLocalDateString,
+  getMondayOfWeek,
+  findPartnerByCalendarEmail,
   renderBatchNightsReviewHtml
 } from '../js/helpers.js';
 import { DEFAULT_AVATARS } from '../js/helpers.js';
@@ -85,6 +87,33 @@ describe('parseLocalDateString', () => {
     expect(date.getMonth()).toBe(5);
     expect(date.getDate()).toBe(10);
     expect(date.getHours()).toBe(19);
+  });
+});
+
+describe('getMondayOfWeek', () => {
+  it('returns Monday 00:00 for a mid-week date', () => {
+    const monday = getMondayOfWeek(new Date(2026, 5, 11)); // Wed Jun 11 2026
+    expect(monday.getDay()).toBe(1);
+    expect(monday.getDate()).toBe(8);
+    expect(monday.getHours()).toBe(0);
+  });
+});
+
+describe('findPartnerByCalendarEmail', () => {
+  const config = {
+    partners: [
+      { id: 'p1', name: 'Alex', googleEmail: 'alex@gmail.com', notificationEmail: 'notify@example.com' },
+      { id: 'p2', name: 'Sam', notificationEmail: 'sam@example.com' }
+    ]
+  };
+
+  it('matches googleEmail first', () => {
+    expect(findPartnerByCalendarEmail(config, 'alex@gmail.com')?.id).toBe('p1');
+  });
+
+  it('falls back to notificationEmail', () => {
+    expect(findPartnerByCalendarEmail(config, 'sam@example.com')?.id).toBe('p2');
+    expect(findPartnerByCalendarEmail(config, 'notify@example.com')?.id).toBe('p1');
   });
 });
 

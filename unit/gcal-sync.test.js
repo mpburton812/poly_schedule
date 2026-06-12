@@ -6,6 +6,8 @@ import {
   formatGCalSummary,
   formatGCalResource,
   formatSleepingAllDayDates,
+  packEventMetaJson,
+  GCAL_META_PROPERTY,
   shouldSyncEventToGCal,
   shouldRemoveEventFromGCal,
   gcalColorIdForEvent,
@@ -43,7 +45,50 @@ describe('stripProposalPrefix', () => {
 });
 
 describe('serializeEventMeta / parseGCalEventItem', () => {
-  it('round-trips workflow metadata through GCal description JSON', () => {
+  it('round-trips workflow metadata through GCal extendedProperties', () => {
+    const source = {
+      id: 'evt_1',
+      title: 'Team Dinner',
+      type: 'event',
+      status: 'pending',
+      workflowState: 'proposed',
+      proposer: 'Alex Rivera',
+      participantRoles: [{ name: 'Alex Rivera', role: 'required' }],
+      participants: ['Alex Rivera', 'Sam Davis'],
+      responses: { 'Alex Rivera': { status: 'accept', comment: '' } },
+      visibility: 'private',
+      comments: [{ id: 'c1', author: 'Alex Rivera', text: 'See you there', createdAt: '2026-06-10T12:00:00.000Z' }],
+      notes: 'Bring a dish',
+      start: '2026-06-10T18:00:00.000Z',
+      end: '2026-06-10T21:00:00.000Z'
+    };
+
+    const resource = formatGCalResource(source);
+    expect(resource.description).toContain('Bring a dish');
+    expect(resource.description).toContain('--- Comments ---');
+    expect(resource.description).not.toMatch(/^\s*\{/);
+    expect(resource.extendedProperties.shared[GCAL_META_PROPERTY]).toBeTruthy();
+    expect(resource.summary).toBe('[PROPOSAL] Private');
+
+    const gcalItem = {
+      id: 'gcal_abc',
+      summary: resource.summary,
+      description: resource.description,
+      extendedProperties: resource.extendedProperties,
+      start: { dateTime: source.start },
+      end: { dateTime: source.end },
+      location: ''
+    };
+
+    const parsed = parseGCalEventItem(gcalItem);
+    expect(parsed.title).toBe('Team Dinner');
+    expect(parsed.workflowState).toBe('proposed');
+    expect(parsed.visibility).toBe('private');
+    expect(parsed.comments).toHaveLength(1);
+    expect(parsed.notes).toBe('Bring a dish');
+  });
+
+  it('still parses legacy description JSON', () => {
     const source = {
       id: 'evt_1',
       title: 'Team Dinner',
@@ -61,7 +106,7 @@ describe('serializeEventMeta / parseGCalEventItem', () => {
     const gcalItem = {
       id: 'gcal_abc',
       summary: formatGCalSummary(source),
-      description: JSON.stringify(serializeEventMeta(source), null, 2),
+      description: packEventMetaJson(source),
       start: { dateTime: source.start },
       end: { dateTime: source.end },
       location: ''

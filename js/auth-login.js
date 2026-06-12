@@ -1,5 +1,6 @@
 import { NOTIFY_URL_KEY, LOCAL_CONFIG_KEY, LOCAL_EVENTS_KEY, LAST_SYNC_REVISION_KEY } from './storage-keys.js';
 import { CalendarSync } from './calendar.js';
+import { HouseholdStore } from './household-store.js';
 import { applyHouseholdServicesFromConfig } from './household-services.js';
 import { applyGoogleIntegrationFromConfig } from './google-integration.js';
 import { normalizeHouseholdConfigShape } from './helpers.js';
@@ -90,6 +91,7 @@ export function applyRemoteLoginPayload({ config, events, revision }, state) {
   state.events = events;
   CalendarSync.config = config;
   CalendarSync.events = events;
+  HouseholdStore.config = config;
   localStorage.setItem(LOCAL_CONFIG_KEY, JSON.stringify(config));
   localStorage.setItem(LOCAL_EVENTS_KEY, JSON.stringify(events));
   if (revision != null) {

@@ -198,6 +198,10 @@ export async function handleGoogleAuthState(authState) {
       setCalendarStatus('connected');
       CalendarSync.mode = 'sync';
       syncCalendarSyncFromAuth(CalendarSync);
+      if (authState.user?.email && state.currentUser?.id) {
+        const { syncPartnerGoogleEmailFromAuth } = await import('./household-config.js');
+        await syncPartnerGoogleEmailFromAuth(state.currentUser.id, authState.user.email).catch(() => {});
+      }
       showToast('Connected to Google Calendar.', 'success');
       if (isLoggedIn()) {
         router();

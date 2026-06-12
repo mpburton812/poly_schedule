@@ -1,13 +1,36 @@
 {
   "latest": {
-    "summary": "Pronouns, logging, AM/PM times, and proposal submit fix",
+    "summary": "GCal change alerts, event privacy, schedule navigation, and Google email matching",
     "changes": [
-      "Profile pronoun picker with presets, neopronouns, and custom forms",
-      "Pronoun-aware rule warnings with correct verb agreement",
-      "Change control log grouped by dev promotion with readable styling",
-      "System administration log attributes actions to signed-in users",
-      "AM/PM time formatting across logs, proposals, and event details",
-      "Fix batch sleeping proposal submit (missing rules engine import)"
+      "Notify household members when events are added or removed directly in Google Calendar",
+      "Attribute external GCal edits to the partner who made them via organizer/creator email",
+      "Store Google Calendar account email on partner profiles for reliable actor matching",
+      "Auto-save Google account email when a partner connects Google Calendar",
+      "Private and Super Private proposal visibility with per-user schedule redaction",
+      "Move calendar sync metadata to extendedProperties; human-readable Google Calendar descriptions",
+      "Sync ongoing event comments to Google Calendar notes",
+      "Schedule week navigation: previous/next week, date picker, and Today button",
+      "Privacy selector (Standard / Private / Super Private) at top of create-proposal form",
+      "Fix app startup error from duplicate AuthManager import in profile modal",
+      "E2E fixes: household config after login, async save redirects, rules week-boundary flake",
+      "Unit and e2e tests for GCal alerts, privacy, week navigation, and calendar email matching"
+    ]
+  },
+  "1006a26": {
+    "summary": "GCal change alerts, event privacy, schedule navigation, and Google email matching",
+    "changes": [
+      "Notify household members when events are added or removed directly in Google Calendar",
+      "Attribute external GCal edits to the partner who made them via organizer/creator email",
+      "Store Google Calendar account email on partner profiles for reliable actor matching",
+      "Auto-save Google account email when a partner connects Google Calendar",
+      "Private and Super Private proposal visibility with per-user schedule redaction",
+      "Move calendar sync metadata to extendedProperties; human-readable Google Calendar descriptions",
+      "Sync ongoing event comments to Google Calendar notes",
+      "Schedule week navigation: previous/next week, date picker, and Today button",
+      "Privacy selector (Standard / Private / Super Private) at top of create-proposal form",
+      "Fix app startup error from duplicate AuthManager import in profile modal",
+      "E2E fixes: household config after login, async save redirects, rules week-boundary flake",
+      "Unit and e2e tests for GCal alerts, privacy, week navigation, and calendar email matching"
     ]
   }
 }

@@ -9,8 +9,11 @@ import {
   dispatchProposalApprovedPush,
   dispatchProposalDeclinedPush,
   dispatchProposalWithdrawnPush,
+  dispatchGCalEventCreatedPush,
+  dispatchGCalEventDeletedPush,
   buildProposalReviewRecipients
 } from '../push-notifications.js';
+import { eventLabel, allHouseholdPartnerIds, collectEventStakeholderIds } from '../gcal-change-alerts.js';
 import { getWorkflowState, getRequiredVoters, getResponseForParticipant, userNeedsProposalVote, WORKFLOW, isProposalType } from '../proposal-workflow.js';
 
 export function loadNotificationsStore() {
@@ -187,6 +190,67 @@ export function syncPendingProposalAlertsForUser() {
       description: `"${proposal.title}" from ${proposal.proposer} is waiting for your response.`,
       dedupeKey: `pending_${proposal.id}_${state.currentUser.id}`
     });
+  });
+}
+
+function formatGCalActorLine(actorLabel, actorEmail) {
+  if (actorLabel && actorEmail && !String(actorLabel).includes('@')) {
+    return `${actorLabel} (${actorEmail})`;
+  }
+  return actorLabel || actorEmail || 'someone in Google Calendar';
+}
+
+export function notifyGCalEventCreated(event, config, { actorLabel = null, actorPartnerId = null } = {}) {
+  if (!event || !config) return;
+  const label = eventLabel(event);
+  const when = formatAppDateTime(new Date(event.start));
+  const actorLine = actorLabel ? ` by ${formatGCalActorLine(actorLabel, null)}` : ' in Google Calendar';
+  const recipients = allHouseholdPartnerIds(config).filter((id) => id && id !== actorPartnerId);
+
+  recipients.forEach((recipientId) => {
+    pushAppNotification({
+      title: 'New calendar event',
+      description: `"${label}" was added${actorLine} (${when}).`,
+      dedupeKey: `gcal_add_${event.id}_${recipientId}`,
+      recipientId
+    });
+  });
+
+  dispatchGCalEventCreatedPush(event, config, { actorLabel, actorPartnerId, label, when });
+}
+
+export function notifyGCalEventDeleted(event, config, {
+  actorLabel = null,
+  actorPartnerId = null,
+  actorEmail = null,
+  actorGoogleId = null
+} = {}) {
+  if (!event || !config) return;
+  const label = eventLabel(event);
+  const when = formatAppDateTime(new Date(event.start));
+  const actorText = formatGCalActorLine(actorLabel, actorEmail);
+  const stakeholderIds = collectEventStakeholderIds(event, config);
+  const recipients = [...stakeholderIds].filter((id) => id && id !== actorPartnerId);
+
+  if (!recipients.length) return;
+
+  recipients.forEach((recipientId) => {
+    pushAppNotification({
+      title: 'Calendar event cancelled',
+      description: `"${label}" scheduled for ${when} was removed from Google Calendar by ${actorText}.`,
+      dedupeKey: `gcal_del_${event.id}_${recipientId}_${actorGoogleId || actorEmail || 'unknown'}`,
+      recipientId
+    });
+  });
+
+  dispatchGCalEventDeletedPush(event, config, {
+    actorLabel: actorText,
+    actorPartnerId,
+    actorEmail,
+    actorGoogleId,
+    label,
+    when,
+    recipientIds: recipients
   });
 }
 

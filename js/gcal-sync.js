@@ -9,8 +9,11 @@ import {
 
 import { formatAppDateTime } from './helpers.js';
 import { WORKFLOW, getWorkflowState } from './proposal-workflow.js';
+import { isPrivateVisibility } from './event-privacy.js';
+import { formatGCalDescription, normalizeEventComments } from './event-comments.js';
 
 export const GCAL_CONFIG_SUMMARY = '[CONFIG] PolySchedule Core Settings';
+export const GCAL_META_PROPERTY = 'polyschedule_meta';
 
 /** Parse a failed Google REST response into a short, user-facing message. */
 export async function googleApiErrorFromResponse(res, fallback) {
@@ -93,6 +96,10 @@ export function proposalTitlePrefix(event) {
 }
 
 export function formatGCalSummary(event) {
+  if (isPrivateVisibility(event)) {
+    const prefix = proposalTitlePrefix(event);
+    return prefix ? `${prefix}Private` : 'Private';
+  }
   const base = stripProposalPrefix(event.title || 'Untitled Event');
   const prefix = proposalTitlePrefix(event);
   return prefix ? `${prefix}${base}` : base;
@@ -101,6 +108,7 @@ export function formatGCalSummary(event) {
 /** Pack PolySchedule fields stored in a GCal event description. */
 export function serializeEventMeta(event) {
   const meta = {
+    title: event.title || '',
     type: event.type || 'event',
     status: event.status || 'confirmed',
     workflowState: event.workflowState,
@@ -122,11 +130,37 @@ export function serializeEventMeta(event) {
     declinedBy: event.declinedBy,
     declinedAt: event.declinedAt,
     expandedEventIds: event.expandedEventIds,
-    notes: event.notes || ''
+    notes: event.notes || '',
+    visibility: event.visibility || 'standard',
+    comments: normalizeEventComments(event.comments)
   };
   if (event.batchNights?.length) meta.batchNights = event.batchNights;
   if (event.personConflicts?.length) meta.personConflicts = event.personConflicts;
   return meta;
+}
+
+function parseMetaFromGCalItem(item) {
+  const packed = item?.extendedProperties?.shared?.[GCAL_META_PROPERTY];
+  if (packed) {
+    try {
+      return JSON.parse(packed);
+    } catch {
+      // fall through to legacy description JSON
+    }
+  }
+  if (item.description?.trim().startsWith('{')) {
+    try {
+      return JSON.parse(item.description);
+    } catch {
+      return null;
+    }
+  }
+  return null;
+}
+
+/** @deprecated Prefer extendedProperties; kept for tests importing serialize output directly. */
+export function packEventMetaJson(event) {
+  return JSON.stringify(serializeEventMeta(event));
 }
 
 /** Parse a Google Calendar API event into a PolySchedule record. */
@@ -155,48 +189,53 @@ export function parseGCalEventItem(item) {
   let declinedAt;
   let expandedEventIds;
   let personConflicts;
-  let notes = '';
-  let location = item.location || '';
+  let visibility;
+  let comments;
 
   const rawTitle = item.summary || 'Untitled Event';
 
-  if (item.description?.trim().startsWith('{')) {
-    try {
-      const meta = JSON.parse(item.description);
-      type = meta.type || type;
-      status = meta.status || status;
-      workflowState = meta.workflowState;
-      participantRoles = meta.participantRoles;
-      revision = meta.revision;
-      roomName = meta.roomName || roomName;
-      homeName = meta.homeName || homeName;
-      roomId = meta.roomId || roomId;
-      homeId = meta.homeId || homeId;
-      location = meta.location || location;
-      proposer = meta.proposer || proposer;
-      responses = meta.responses || responses;
-      participants = meta.participants || participants;
-      batchNights = meta.batchNights;
-      approvedAt = meta.approvedAt;
-      archivedAt = meta.archivedAt;
-      autoArchiveAt = meta.autoArchiveAt;
-      submittedAt = meta.submittedAt;
-      submittedBy = meta.submittedBy;
-      declinedBy = meta.declinedBy;
-      declinedAt = meta.declinedAt;
-      expandedEventIds = meta.expandedEventIds;
-      personConflicts = meta.personConflicts;
-      notes = meta.notes || '';
-    } catch {
-      // Plain-text description — fall through to heuristics below.
-    }
+  const meta = parseMetaFromGCalItem(item);
+  let notes = '';
+  let location = item.location || '';
+  let storedTitle = '';
+
+  if (meta) {
+    storedTitle = meta.title || '';
+    type = meta.type || type;
+    status = meta.status || status;
+    workflowState = meta.workflowState;
+    participantRoles = meta.participantRoles;
+    revision = meta.revision;
+    roomName = meta.roomName || roomName;
+    homeName = meta.homeName || homeName;
+    roomId = meta.roomId || roomId;
+    homeId = meta.homeId || homeId;
+    location = meta.location || location;
+    proposer = meta.proposer || proposer;
+    responses = meta.responses || responses;
+    participants = meta.participants || participants;
+    batchNights = meta.batchNights;
+    approvedAt = meta.approvedAt;
+    archivedAt = meta.archivedAt;
+    autoArchiveAt = meta.autoArchiveAt;
+    submittedAt = meta.submittedAt;
+    submittedBy = meta.submittedBy;
+    declinedBy = meta.declinedBy;
+    declinedAt = meta.declinedAt;
+    expandedEventIds = meta.expandedEventIds;
+    personConflicts = meta.personConflicts;
+    notes = meta.notes || notes;
+    visibility = meta.visibility;
+    comments = meta.comments;
+  } else if (item.description?.trim() && !item.description.trim().startsWith('{')) {
+    notes = item.description.trim();
   }
 
   if (participants.length === 0) {
     participants = (item.attendees || []).map(a => a.displayName || a.email.split('@')[0]);
   }
 
-  const title = stripProposalPrefix(rawTitle);
+  const title = storedTitle || stripProposalPrefix(rawTitle);
 
   if (!type || type === 'event') {
     if (rawTitle.toUpperCase().includes('SLEEP') || rawTitle.startsWith('[PROPOSAL-SLEEP]')) {
@@ -241,6 +280,8 @@ export function parseGCalEventItem(item) {
   if (expandedEventIds) event.expandedEventIds = expandedEventIds;
   if (personConflicts?.length) event.personConflicts = personConflicts;
   if (notes) event.notes = notes;
+  if (visibility) event.visibility = visibility;
+  if (comments?.length) event.comments = normalizeEventComments(comments);
 
   return event;
 }
@@ -366,10 +407,16 @@ export function formatSleepingAllDayDates(event) {
 }
 
 export function formatGCalResource(event) {
+  const metaJson = packEventMetaJson(event);
   const base = {
     summary: formatGCalSummary(event),
-    location: event.location || '',
-    description: JSON.stringify(serializeEventMeta(event), null, 2),
+    location: isPrivateVisibility(event) ? '' : (event.location || ''),
+    description: formatGCalDescription(event),
+    extendedProperties: {
+      shared: {
+        [GCAL_META_PROPERTY]: metaJson
+      }
+    },
     colorId: gcalColorIdForEvent(event),
     status: gcalStatusForEvent(event)
   };

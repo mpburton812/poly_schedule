@@ -28,8 +28,8 @@
  * @property {PartnerPronouns} [pronouns] Subject/object/possessive forms for generated text.
  * @property {string} [defaultHome] Default residence id.
  * @property {PartnerRules} [rules] Sleeping and partner limit rules.
- * @property {string[]} [sleepingPartners] Legacy sleeping connection names.
- */
+ * @property {string} [notificationEmail] Email for push/notify fallback delivery.
+ * @property {string} [googleEmail] Google account email used for Calendar actor matching.
 
 /**
  * @typedef {Object} Residence
@@ -80,6 +80,8 @@
  * @property {string} [homeId]
  * @property {string} [roomId]
  * @property {string} [archivedAt]
+ * @property {'standard'|'private'|'super_private'} [visibility]
+ * @property {Array<{ id: string, author: string, text: string, createdAt: string }>} [comments]
  */
 
 export {};

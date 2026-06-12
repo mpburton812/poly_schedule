@@ -110,6 +110,11 @@ export function editPartnerView(state, partnerId) {
             <input class="form-input" id="edit-partner-notification-email" type="email" placeholder="partner@example.com" value="${escapeHtml(partner.notificationEmail || '')}"/>
             <p class="font-label-sm" style="color: var(--on-surface-variant); margin-top: var(--space-xs);">Email backup when push is unavailable.</p>
           </div>
+          <div class="form-group">
+            <label class="form-label" for="edit-partner-google-email">Google Calendar account email (optional)</label>
+            <input class="form-input" id="edit-partner-google-email" type="email" placeholder="partner@gmail.com" value="${escapeHtml(partner.googleEmail || '')}"/>
+            <p class="font-label-sm" style="color: var(--on-surface-variant); margin-top: var(--space-xs);">Matches this partner when they change events directly in Google Calendar.</p>
+          </div>
           ${activeFields}
           <div class="form-group">
             <label class="form-label" for="edit-partner-home">Default Home</label>

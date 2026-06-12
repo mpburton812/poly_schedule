@@ -1,7 +1,7 @@
 import { GCAL_CONFIG_SUMMARY, googleApiErrorFromResponse } from './gcal-sync.js';
 
 export const CalendarAPI = {
-  async fetchEventItems({ calendarId, apiKey, accessToken, daysBack = 30, daysForward = 60 }) {
+  async fetchEventItems({ calendarId, apiKey, accessToken, daysBack = 30, daysForward = 60, showDeleted = false }) {
     const timeMin = new Date();
     timeMin.setDate(timeMin.getDate() - daysBack);
     const timeMax = new Date();
@@ -17,6 +17,7 @@ export const CalendarAPI = {
         singleEvents: 'true',
         key: apiKey
       });
+      if (showDeleted) params.set('showDeleted', 'true');
       if (pageToken) params.set('pageToken', pageToken);
 
       const url = `https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(calendarId)}/events?${params}`;
@@ -32,6 +33,18 @@ export const CalendarAPI = {
     } while (pageToken);
 
     return items;
+  },
+
+  async fetchEvent({ calendarId, apiKey, accessToken, eventId, showDeleted = false }) {
+    const params = new URLSearchParams({ key: apiKey });
+    if (showDeleted) params.set('showDeleted', 'true');
+    const url = `https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(calendarId)}/events/${encodeURIComponent(eventId)}?${params}`;
+    const res = await fetch(url, {
+      headers: { Authorization: `Bearer ${accessToken}` }
+    });
+    if (res.status === 404 || res.status === 410) return null;
+    if (!res.ok) throw await googleApiErrorFromResponse(res, 'Failed to fetch calendar event from Google Calendar');
+    return res.json();
   },
 
   async createEvent({ calendarId, apiKey, accessToken, resource }) {

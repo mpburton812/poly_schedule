@@ -32,7 +32,9 @@ export const PUSH_TYPE_LABELS = {
   'proposal-approved': 'Proposal approved',
   'proposal-declined': 'Proposal declined',
   'proposal-retracted': 'Proposal retracted',
-  'proposal-cancelled': 'Proposal cancelled'
+  'proposal-cancelled': 'Proposal cancelled',
+  'gcal-event-created': 'Events added in Google Calendar',
+  'gcal-event-deleted': 'Events removed in Google Calendar'
 };
 
 export function getPushTypePrefs() {
@@ -138,6 +140,10 @@ export function voteActionLabel(vote) {
   if (vote === 'reject') return 'rejected';
   if (vote === 'abstain') return 'abstained';
   return 'responded to';
+}
+
+function scheduleUrl() {
+  return './index.html#schedule';
 }
 
 function proposalsUrl(proposalId = null) {
@@ -383,6 +389,51 @@ export async function dispatchProposalDeclinedPush(proposal, config, declinedBy)
 
 export async function dispatchProposalWithdrawnPush(proposal, config, options) {
   return dispatchPushEvent(attachRecipientEmails(buildProposalWithdrawnPushPayload(proposal, config, options), config));
+}
+
+export function buildGCalEventCreatedPushPayload(event, config, { actorLabel = null, actorPartnerId = null, label = null, when = null } = {}) {
+  const recipients = (config?.partners || [])
+    .map((p) => p.id)
+    .filter((id) => id && id !== actorPartnerId);
+  if (!recipients.length) return null;
+  const actorLine = actorLabel ? ` by ${actorLabel}` : '';
+  return {
+    type: 'gcal-event-created',
+    proposalId: event?.id || 'gcal',
+    title: 'New calendar event',
+    body: `"${label || event?.title || 'Event'}" was added${actorLine}${when ? ` (${when})` : ''}.`,
+    url: scheduleUrl(),
+    dedupeKey: `gcal_add_${event?.id}`,
+    recipientIds: recipients
+  };
+}
+
+export function buildGCalEventDeletedPushPayload(event, config, {
+  actorLabel = null,
+  actorPartnerId = null,
+  label = null,
+  when = null,
+  recipientIds = []
+} = {}) {
+  const ids = (recipientIds || []).filter((id) => id && id !== actorPartnerId);
+  if (!ids.length) return null;
+  return {
+    type: 'gcal-event-deleted',
+    proposalId: event?.id || 'gcal',
+    title: 'Calendar event cancelled',
+    body: `"${label || event?.title || 'Event'}"${when ? ` (${when})` : ''} was removed by ${actorLabel || 'someone'}.`,
+    url: scheduleUrl(),
+    dedupeKey: `gcal_del_${event?.id}_${actorPartnerId || 'unknown'}`,
+    recipientIds: ids
+  };
+}
+
+export async function dispatchGCalEventCreatedPush(event, config, options = {}) {
+  return dispatchPushEvent(attachRecipientEmails(buildGCalEventCreatedPushPayload(event, config, options), config));
+}
+
+export async function dispatchGCalEventDeletedPush(event, config, options = {}) {
+  return dispatchPushEvent(attachRecipientEmails(buildGCalEventDeletedPushPayload(event, config, options), config));
 }
 
 export async function sendTestPush(partnerId) {

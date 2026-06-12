@@ -657,6 +657,16 @@ body {
 }
 
 /* Event & Sleeping Arrangement Cards */
+.card-event.is-private,
+.card-sleeping.is-private {
+  opacity: 0.88;
+  border-style: dashed;
+}
+.card-event.is-private .event-title,
+.card-sleeping.is-private .sleeping-content {
+  font-style: italic;
+  color: var(--on-surface-variant);
+}
 .card-event {
   background-color: #e8f5e9;
   border-radius: var(--radius-md);
@@ -848,6 +858,48 @@ body {
   background-color: var(--secondary-container);
   color: var(--on-secondary-container);
   border-color: transparent;
+}
+.chip.is-muted,
+.chip:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+
+.week-nav {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-xs);
+  flex-shrink: 0;
+}
+.week-nav-btn {
+  width: 36px;
+  height: 36px;
+  border: 1px solid var(--outline-variant);
+  border-radius: var(--radius-full);
+  background: var(--surface);
+  color: var(--on-surface);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}
+.week-nav-btn:hover {
+  background-color: rgba(87, 66, 64, 0.05);
+}
+.week-picker-wrap {
+  position: relative;
+}
+.week-picker-wrap input[type="date"] {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+  pointer-events: none;
+}
+.privacy-hint {
+  color: var(--on-surface-variant);
+  margin-top: var(--space-xs);
+  line-height: 1.4;
 }
 
 /* Bento Cards / Special Row layouts */

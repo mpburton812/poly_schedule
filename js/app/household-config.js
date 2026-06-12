@@ -7,6 +7,7 @@ import { showToast } from './toast.js';
 import { establishSession } from './session.js';
 import { assertUsernameAvailable, claimUsernameGlobally } from '../username-registry.js';
 import { ensureHouseholdIdentity } from '../household-sync.js';
+import { normalizeEmail } from '../helpers.js';
 
 import { assertCalendarConnectedForWrite } from '../calendar-status.js';
 
@@ -69,6 +70,9 @@ export async function updatePartnerProfile(partnerId, updates) {
   if (updates.notificationEmail !== undefined) {
     partner.notificationEmail = String(updates.notificationEmail || '').trim();
   }
+  if (updates.googleEmail !== undefined) {
+    partner.googleEmail = normalizeEmail(updates.googleEmail);
+  }
 
   await persistHouseholdConfig(`Updated profile for ${partner.name}`);
 
@@ -78,5 +82,19 @@ export async function updatePartnerProfile(partnerId, updates) {
 
   state.events = CalendarSync.events;
   import('./render-bus.js').then(({ requestRender }) => requestRender());
+  return true;
+}
+
+/** Save the Google account email for a partner after OAuth connect. */
+export async function syncPartnerGoogleEmailFromAuth(partnerId, email) {
+  const partner = state.config?.partners?.find((p) => p.id === partnerId);
+  if (!partner) return false;
+
+  const next = normalizeEmail(email);
+  if (!next) return false;
+  if (normalizeEmail(partner.googleEmail) === next) return false;
+
+  partner.googleEmail = next;
+  await persistHouseholdConfig(`Linked Google account for ${partner.name}`);
   return true;
 }

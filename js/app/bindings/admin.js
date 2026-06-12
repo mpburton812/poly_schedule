@@ -386,7 +386,8 @@ export function bindEditPartnerEvents() {
     const profileUpdates = {
       name,
       avatar: getSelectedAvatar(),
-      notificationEmail: document.getElementById('edit-partner-notification-email')?.value.trim() || ''
+      notificationEmail: document.getElementById('edit-partner-notification-email')?.value.trim() || '',
+      googleEmail: document.getElementById('edit-partner-google-email')?.value.trim() || ''
     };
 
     if (!isPartnerPassive(partner)) {

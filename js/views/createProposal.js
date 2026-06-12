@@ -200,6 +200,12 @@ export function createProposalView(state, type = 'event', formState = {}) {
     }
 
     const polyFamilyName = getGroupName(state.config);
+    const draftVisibility = formState.draftVisibility || 'standard';
+    const privacyHints = {
+      standard: 'Everyone in the household can see event details on the schedule.',
+      private: 'Only invitees see details; others see times only (sleeping arrangements still visible).',
+      super_private: 'Only invitees can see details — everyone else sees a private placeholder.'
+    };
 
     const contextStartStr = formState.batchStartDate || new Date().toISOString().split('T')[0];
     const contextStart = new Date(contextStartStr + 'T12:00:00');
@@ -245,6 +251,17 @@ export function createProposalView(state, type = 'event', formState = {}) {
         ` : `
           <button class="switch-btn" disabled style="opacity: 0.4; cursor: not-allowed; background-color: var(--surface-container-highest);" title="No sleeping connections configured for your profile.">Sleeping (Disabled)</button>
         `}
+      </div>
+
+      <div class="form-group" id="prop-visibility-section" style="margin-bottom: var(--space-md);">
+        <label class="form-label">Who can see this on the schedule?</label>
+        <div class="switch-selector" id="prop-visibility-tabs" role="group" aria-label="Privacy level">
+          <button type="button" class="switch-btn ${draftVisibility === 'standard' ? 'active' : ''}" data-visibility="standard">Standard</button>
+          <button type="button" class="switch-btn ${draftVisibility === 'private' ? 'active' : ''}" data-visibility="private">Private</button>
+          <button type="button" class="switch-btn ${draftVisibility === 'super_private' ? 'active' : ''}" data-visibility="super_private">Super Private</button>
+        </div>
+        <p class="font-label-sm privacy-hint" id="prop-visibility-hint">${privacyHints[draftVisibility] || privacyHints.standard}</p>
+        <input type="hidden" id="prop-visibility" value="${draftVisibility}"/>
       </div>
 
       <!-- Live Logistics Rules Warning Banner -->
