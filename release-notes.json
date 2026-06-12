@@ -1,9 +1,18 @@
 {
   "latest": {
-    "summary": "Fix app startup crash from duplicate CalendarSync import",
+    "summary": "Google OAuth settings visible during Admin setup",
     "changes": [
-      "Remove duplicate CalendarSync import in session.js that broke module loading",
-      "Load CalendarSync lazily in offline banner handler to avoid import cycles"
+      "Show Google Calendar Settings near the top of Admin when credentials are not configured",
+      "Scroll and highlight Google Calendar Settings when opened from the connect gate",
+      "Keep Google Calendar Settings in its normal position once credentials are saved"
+    ]
+  },
+  "00eec1c": {
+    "summary": "Google OAuth settings visible during Admin setup",
+    "changes": [
+      "Show Google Calendar Settings near the top of Admin when credentials are not configured",
+      "Scroll and highlight Google Calendar Settings when opened from the connect gate",
+      "Keep Google Calendar Settings in its normal position once credentials are saved"
     ]
   },
   "c6895c8": {

@@ -3,7 +3,7 @@ import { CalendarSync } from '../calendar.js';
 import { Views } from '../views.js';
 import { ensureGoogleCredentialsFromConfig } from '../google-integration.js';
 import { hasGoogleIntegrationCredentials, isGoogleCalendarReady, setCalendarStatus } from '../calendar-status.js';
-import { state } from './state.js';
+import { state, flowState } from './state.js';
 import { isAdmin } from './session.js';
 import { showToast } from './toast.js';
 
@@ -60,6 +60,7 @@ function bindGoogleConnectGateEvents() {
 
   document.getElementById('btn-open-admin-google-setup')?.addEventListener('click', () => {
     dismissGoogleConnectGate();
+    flowState.adminFocusSection = 'google';
     window.location.hash = '#admin';
     import('./router.js').then(({ router }) => router());
   });

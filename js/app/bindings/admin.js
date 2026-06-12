@@ -74,6 +74,19 @@ export function bindAdminEvents() {
   bindHouseholdSyncEvents(document);
   bindNotifyCredentialsEvents(document);
   bindAdminDevicesEvents(document);
+  focusAdminSectionIfRequested();
+}
+
+function focusAdminSectionIfRequested() {
+  if (flowState.adminFocusSection !== 'google') return;
+  flowState.adminFocusSection = null;
+  requestAnimationFrame(() => {
+    const el = document.getElementById('admin-google-calendar-settings');
+    if (!el) return;
+    el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    el.classList.add('admin-section-highlight');
+    setTimeout(() => el.classList.remove('admin-section-highlight'), 2400);
+  });
 }
 
 export function bindLoginEvents() {

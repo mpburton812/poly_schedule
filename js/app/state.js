@@ -69,7 +69,8 @@ export const flowState = {
   currentDraftId: null,
   draftSaveTimer: null,
   soloEventMode: false,
-  highlightProposalId: null
+  highlightProposalId: null,
+  adminFocusSection: null
 };
 
 export const newProposalState = {
