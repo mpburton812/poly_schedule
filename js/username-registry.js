@@ -74,7 +74,7 @@ export async function assertUsernameAvailable(username, {
     return global;
   }
   if (!global.available) {
-    return { ok: false, message: 'This username is already used by another household. Choose a different username.' };
+    return { ok: false, message: 'This username is already used by another partner. Choose a different username.' };
   }
 
   return { ok: true, verified: global.verified };
@@ -100,7 +100,7 @@ export async function claimUsernameGlobally(username, householdId, partnerId) {
       body: JSON.stringify({ username: trimmed, householdId, partnerId })
     });
     if (res.status === 409) {
-      return { ok: false, message: 'This username is already used by another household. Choose a different username.' };
+      return { ok: false, message: 'This username is already used by another partner. Choose a different username.' };
     }
     if (!res.ok) {
       const body = await res.json().catch(() => ({}));

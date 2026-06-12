@@ -1,6 +1,5 @@
 import {
-  CALENDAR_ID_KEY,
-  MODE_KEY
+  CALENDAR_ID_KEY
 } from '../../storage-keys.js';
 import { AuthManager } from '../../auth.js';
 import { CalendarSync } from '../../calendar.js';
@@ -9,7 +8,6 @@ import { escapeHtml } from '../../escape.js';
 import { state } from '../state.js';
 import { logUserAction, showToast, logoutGoogleSync, getCurrentUserId } from '../context.js';
 import {
-  generateHouseholdId,
   generateHouseholdSyncToken,
   registerGCalWatchOnServer,
   setHouseholdSyncToken,
@@ -170,35 +168,6 @@ export function bindSettingsEvents(container = document) {
 }
 
 export function bindHouseholdSyncEvents(container = document) {
-  const btnGenerate = container.querySelector('#btn-generate-household-id');
-  if (btnGenerate) {
-    btnGenerate.addEventListener('click', async () => {
-      if (!state.config) {
-        showToast('Load household config first (sync or offline mode).', 'warning');
-        return;
-      }
-      if (state.config.householdId) {
-        showToast('Household ID already exists.', 'info');
-        return;
-      }
-      state.config.householdId = generateHouseholdId();
-      if (typeof state.config.syncRevision !== 'number') state.config.syncRevision = 0;
-      try {
-        await CalendarSync.saveConfig(state.config);
-        const input = container.querySelector('#admin-household-id');
-        if (input) input.value = state.config.householdId;
-        const rev = container.querySelector('#admin-sync-revision');
-        if (rev) rev.textContent = String(state.config.syncRevision);
-        const watchBtn = container.querySelector('#btn-register-gcal-watch');
-        if (watchBtn) watchBtn.disabled = false;
-        logUserAction(`Household ID created: ${state.config.householdId}`, 'info');
-        showToast('Household ID saved to calendar config.', 'success');
-      } catch (err) {
-        showToast(err.message || 'Failed to save household ID.', 'error');
-      }
-    });
-  }
-
   const btnSaveToken = container.querySelector('#btn-save-household-sync-token');
   if (btnSaveToken) {
     btnSaveToken.addEventListener('click', () => {
@@ -256,12 +225,12 @@ export function bindHouseholdSyncEvents(container = document) {
       }
       const householdId = state.config?.householdId;
       if (!householdId) {
-        showToast('Generate a household ID first.', 'warning');
+        showToast('Save household config to Google Calendar first so a sync id is assigned.', 'warning');
         return;
       }
       AuthManager.reloadFromStorage();
       if (!AuthManager.accessToken || !AuthManager.apiKey) {
-        showToast('Connect Google Calendar first (Sync Google).', 'warning');
+        showToast('Connect Google Calendar first.', 'warning');
         return;
       }
       const calendarId = localStorage.getItem(CALENDAR_ID_KEY) || 'primary';

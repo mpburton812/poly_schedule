@@ -1,5 +1,4 @@
 import {
-  MODE_KEY,
   LAST_SYNC_REVISION_KEY,
   LOCAL_CONFIG_KEY
 } from './storage-keys.js';
@@ -200,7 +199,7 @@ export const HouseholdStore = {
       needsAuth = true;
     }
 
-    if (gcalSynced || (syncMod.isSyncHubConfigured() && localStorage.getItem(MODE_KEY) === 'sync')) {
+    if (gcalSynced || syncMod.isSyncHubConfigured()) {
       try {
         await syncMod.afterHouseholdWrite(['config'], {
           config: newConfig,

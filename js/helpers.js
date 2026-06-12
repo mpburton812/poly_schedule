@@ -102,10 +102,13 @@ export function canPartnerLogin(partner) {
     && (!!String(partner.password || '').length || !!String(partner.passwordHash || '').length);
 }
 
-/** True when the household has no login-capable partners yet. */
+/** True when the group has no login-capable partners yet. */
 export function needsHouseholdSetup(config) {
   return !(config?.partners || []).some(canPartnerLogin);
 }
+
+/** @deprecated Use needsHouseholdSetup */
+export const needsInitialSetup = needsHouseholdSetup;
 
 /** Ensure household config has required top-level arrays. */
 export function normalizeHouseholdConfigShape(config) {

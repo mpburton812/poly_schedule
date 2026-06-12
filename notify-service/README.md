@@ -26,7 +26,7 @@ Google Calendar stays the source of truth. The notify service coordinates near-r
 
 | Endpoint | Purpose |
 |----------|---------|
-| `POST /v1/auth/login` | Username/password login — returns household config (public) |
+| `POST /v1/auth/login` | Username/password login — returns config, events, `groupName`, `googleIntegration`, and `notifyService` |
 | `GET /v1/usernames/check` | Check global username availability |
 | `POST /v1/sync/register` | Register a device for a household |
 | `GET /v1/sync/status` | Current revision for polling fallback |
@@ -39,7 +39,9 @@ Google Calendar stays the source of truth. The notify service coordinates near-r
 
 Set `PUBLIC_BASE_URL` to your Render HTTPS URL so GCal webhooks can reach `/v1/gcal/webhook`.
 
-On the PolySchedule **Admin** page: configure notify URL/secret, generate a **Household ID**, then **Register GCal Webhook** after Google sync is connected.
+Optional **single-household mode**: set `HOUSEHOLD_ID` to the internal id from your synced config. Login and username checks then use that household only (no cross-household registry).
+
+On the PolySchedule **Admin** page: configure notify URL/secret, save config to Google Calendar (sync id is assigned automatically), then **Register GCal Webhook** after Google is connected.
 
 ## Event types
 

@@ -66,6 +66,6 @@ describe('username-registry client', () => {
     });
 
     expect(result.ok).toBe(false);
-    expect(result.message).toContain('another household');
+    expect(result.message).toContain('another partner');
   });
 });

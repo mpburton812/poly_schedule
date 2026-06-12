@@ -1,12 +1,14 @@
 import {
   ACCESS_TOKEN_KEY
 } from '../storage-keys.js';
+import { LOCAL_CONFIG_KEY } from '../storage-keys.js';
 import { AuthManager } from '../auth.js';
 import { CalendarSync } from '../calendar.js';
 import { LEGACY_PROFILE_KEY } from '../storage-keys.js';
 import { isPartnerPassive, getRouteBase } from '../helpers.js';
 import { shouldSyncWithGoogleCalendar } from '../gcal-sync.js';
 import { loadCacheSnapshot, applyCacheSnapshot } from '../cache-store.js';
+import { migrateFamilyNameToConfig } from '../group-name.js';
 import {
   setCalendarStatus,
   isCalendarConnected,
@@ -17,7 +19,7 @@ import {
   state,
 } from './state.js';
 import { LOCAL_SESSION_KEY } from '../storage-keys.js';
-import { loadPersistedLogs, addLog, initChangeLog, syncPromotionChangeLog, logOperationError, showToast, updateNotificationsBadge, establishSession, logoutUser, showLoginView, showCreateHouseholdView, bindImpersonationBanner, isLoggedIn } from './context.js';
+import { loadPersistedLogs, addLog, initChangeLog, syncPromotionChangeLog, logOperationError, showToast, updateNotificationsBadge, establishSession, logoutUser, showLoginView, showInitialSetupView, bindImpersonationBanner, isLoggedIn } from './context.js';
 import {
   openNotificationsModal,
   openUserProfileModal
@@ -64,8 +66,8 @@ function determineInitialView() {
     localStorage.removeItem(LOCAL_SESSION_KEY);
   }
 
-  if (getRouteBase() === 'create-household') {
-    showCreateHouseholdView();
+  if (getRouteBase() === 'initial-setup' || getRouteBase() === 'create-household') {
+    showInitialSetupView();
   } else {
     showLoginView();
   }
@@ -83,6 +85,10 @@ function createSyncHooks() {
 export async function bootstrapInitial() {
   AuthManager.reloadFromStorage();
   applyCacheSnapshot(loadCacheSnapshot(), { state, CalendarSync });
+  if (state.config && migrateFamilyNameToConfig(state.config)) {
+    localStorage.setItem(LOCAL_CONFIG_KEY, JSON.stringify(state.config));
+    CalendarSync.config = state.config;
+  }
   CalendarSync.mode = 'cache';
 
   if (shouldSyncWithGoogleCalendar()) {

@@ -1,8 +1,7 @@
 import {
   CLIENT_ID_KEY,
   API_KEY_KEY,
-  ACCESS_TOKEN_KEY,
-  MODE_KEY
+  ACCESS_TOKEN_KEY
 } from './storage-keys.js';
 /**
  * Google Calendar ↔ PolySchedule event serialization helpers.

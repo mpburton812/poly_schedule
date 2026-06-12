@@ -33,7 +33,7 @@ import { settingsView } from './settings.js';
 import { adminView } from './admin.js';
 import { addPartnerView } from './addPartner.js';
 import { addHomeView } from './addHome.js';
-import { loginView, createHouseholdView } from './login.js';
+import { loginView, initialSetupView, createHouseholdView } from './login.js';
 import { googleConnectGateView } from './googleConnectGate.js';
 import { editPartnerView } from './editPartner.js';
 import { editHomeView } from './editHome.js';
@@ -49,6 +49,7 @@ export const Views = {
   addPartner: addPartnerView,
   addHome: addHomeView,
   login: loginView,
+  initialSetup: initialSetupView,
   createHousehold: createHouseholdView,
   googleConnectGate: googleConnectGateView,
   editPartner: editPartnerView,

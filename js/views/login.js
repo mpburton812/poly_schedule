@@ -1,44 +1,3 @@
-import { AuthManager } from '../auth.js';
-import { CALENDAR_ID_KEY, CLIENT_ID_KEY, API_KEY_KEY } from '../storage-keys.js';
-
-function googleCredentialDefaults() {
-  return {
-    clientId: AuthManager.clientId || localStorage.getItem(CLIENT_ID_KEY) || '',
-    apiKey: AuthManager.apiKey || localStorage.getItem(API_KEY_KEY) || '',
-    calendarId: localStorage.getItem(CALENDAR_ID_KEY) || 'primary'
-  };
-}
-
-function connectExistingHouseholdHtml() {
-  const { clientId, apiKey, calendarId } = googleCredentialDefaults();
-  return `
-        <div class="bento-card" id="connect-household-form" style="width: 100%; max-width: 440px; padding: var(--space-xl); border: 1px solid var(--outline-variant);">
-          <div style="text-align: center; margin-bottom: var(--space-lg);">
-            <span class="material-symbols-outlined" style="font-size: 48px; color: var(--primary);">cloud_sync</span>
-            <h2 class="font-headline-lg" style="margin-top: var(--space-sm); font-weight: 700;">Connect Existing Household</h2>
-            <p class="font-body-md" style="color: var(--on-surface-variant); margin-top: 4px;">
-              On a new phone or after clearing browser data, enter the same Google Calendar credentials as your other device, then sign in with Google to load your partners and schedule.
-            </p>
-          </div>
-          <div class="form-group">
-            <label class="form-label" for="connect-client-id">Google Client ID</label>
-            <input class="form-input" id="connect-client-id" type="text" autocomplete="off" placeholder="From Google Cloud Console" value="${clientId}"/>
-          </div>
-          <div class="form-group">
-            <label class="form-label" for="connect-api-key">Google API Key</label>
-            <input class="form-input" id="connect-api-key" type="text" autocomplete="off" placeholder="Calendar API key" value="${apiKey}"/>
-          </div>
-          <div class="form-group">
-            <label class="form-label" for="connect-calendar-id">Calendar ID</label>
-            <input class="form-input" id="connect-calendar-id" type="text" autocomplete="off" placeholder="primary or shared calendar ID" value="${calendarId}"/>
-          </div>
-          <button class="btn btn-filled" id="btn-connect-existing-household" style="width: 100%; margin-top: var(--space-sm);">
-            Connect Google Calendar &amp; Load Household
-          </button>
-        </div>
-  `;
-}
-
 export function loginView() {
   return `
     <div style="display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 60vh; padding: var(--space-lg);">
@@ -58,24 +17,23 @@ export function loginView() {
         </div>
         <button class="btn btn-filled" id="btn-login" style="width: 100%; margin-top: var(--space-sm);">Log In</button>
         <p class="font-body-md" style="text-align: center; margin-top: var(--space-lg); color: var(--on-surface-variant);">
-          New to PolySchedule?
-          <a href="#create-household" id="link-create-household" style="color: var(--primary); font-weight: 600; text-decoration: none;">Create New Household</a>
+          Setting up PolySchedule for the first time?
+          <a href="#initial-setup" id="link-initial-setup" style="color: var(--primary); font-weight: 600; text-decoration: none;">First-time setup</a>
         </p>
       </div>
     </div>
   `;
 }
 
-export function createHouseholdView() {
+export function initialSetupView() {
   return `
-    <div style="display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 60vh; padding: var(--space-lg); gap: var(--space-xl);">
-      ${connectExistingHouseholdHtml()}
+    <div style="display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 60vh; padding: var(--space-lg);">
       <div class="bento-card" id="setup-form" style="width: 100%; max-width: 440px; padding: var(--space-xl); border: 1px solid var(--outline-variant);">
         <div style="text-align: center; margin-bottom: var(--space-lg);">
           <span class="material-symbols-outlined" style="font-size: 48px; color: var(--on-surface-variant);">person_add</span>
-          <h2 class="font-headline-lg" style="margin-top: var(--space-sm); font-weight: 700;">Create New Household</h2>
+          <h2 class="font-headline-lg" style="margin-top: var(--space-sm); font-weight: 700;">First-Time Setup</h2>
           <p class="font-body-md" style="color: var(--on-surface-variant); margin-top: 4px;">
-            Only use this if nobody in your group has set up PolySchedule yet.
+            Create the first admin account for your group. After setup, connect Google Calendar and configure the notify service in Admin settings.
           </p>
         </div>
         <div class="form-group">
@@ -99,3 +57,6 @@ export function createHouseholdView() {
     </div>
   `;
 }
+
+/** @deprecated Use initialSetupView */
+export const createHouseholdView = initialSetupView;

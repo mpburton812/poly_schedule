@@ -163,16 +163,19 @@ export function showLoginView() {
   }
 }
 
-export function showCreateHouseholdView() {
+export function showInitialSetupView() {
   updateUIForAuthState(false);
-  state.currentView = 'create-household';
+  state.currentView = 'initial-setup';
   const container = document.getElementById('app-view-container');
   if (container) {
-    container.innerHTML = Views.createHousehold();
+    container.innerHTML = Views.initialSetup();
     updateGuestGoogleLoginButton();
-    import('./bindings/admin.js').then(({ bindCreateHouseholdEvents }) => bindCreateHouseholdEvents());
+    import('./bindings/admin.js').then(({ bindInitialSetupEvents }) => bindInitialSetupEvents());
   }
 }
+
+/** @deprecated Use showInitialSetupView */
+export const showCreateHouseholdView = showInitialSetupView;
 
 export function establishSession(partner) {
   state.currentUser = {
@@ -219,8 +222,8 @@ export async function createFirstAdminPartner({ name, username, password }) {
   }
 
   if (!state.config) {
-    showToast('Household config is not loaded yet. Refresh and try again.', 'error');
-    return false;
+    state.config = { partners: [], residences: [], groupName: 'The Poly Circle' };
+    CalendarSync.config = state.config;
   }
 
   ensureHouseholdIdentity(state.config);

@@ -12,7 +12,7 @@ import {
   isAdmin,
   isLoggedIn,
   showLoginView,
-  showCreateHouseholdView,
+  showInitialSetupView,
   syncPendingProposalAlertsForUser
 } from './context.js';
 import { needsGoogleCalendarConnect, isGoogleGateActive, showGoogleConnectGate } from './google-connect-gate.js';
@@ -39,8 +39,8 @@ onRenderRequest(() => renderView());
 export function router() {
   if (!isLoggedIn()) {
     const guestView = getRouteBase();
-    if (guestView === 'create-household') {
-      showCreateHouseholdView();
+    if (guestView === 'initial-setup' || guestView === 'create-household') {
+      showInitialSetupView();
     } else {
       showLoginView();
     }

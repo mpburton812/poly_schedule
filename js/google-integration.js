@@ -1,8 +1,7 @@
 import {
   CALENDAR_ID_KEY,
   CLIENT_ID_KEY,
-  API_KEY_KEY,
-  MODE_KEY
+  API_KEY_KEY
 } from './storage-keys.js';
 /**
  * Household Google Calendar integration settings (synced via config).
@@ -60,7 +59,6 @@ export function applyGoogleIntegrationFromConfig(config, { CalendarSync = null }
 
   AuthManager.setCredentials(integration.clientId, integration.apiKey);
   localStorage.setItem(CALENDAR_ID_KEY, integration.calendarId);
-  localStorage.setItem(MODE_KEY, 'sync');
   if (CalendarSync) {
     CalendarSync.calendarId = integration.calendarId;
     CalendarSync.apiKey = integration.apiKey;

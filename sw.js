@@ -3,7 +3,7 @@
  * Handles offline resource caching and native device notification event mapping.
  */
 
-const CACHE_NAME = 'polyschedule-v14';
+const CACHE_NAME = 'polyschedule-v15';
 const ASSETS_TO_CACHE = [
   './',
   './index.html',
@@ -26,7 +26,7 @@ const ASSETS_TO_CACHE = [
   './js/auth.js',
   './js/calendar.js',
   './js/gcal-sync.js',
-  './js/cache-store.js',
+  './js/group-name.js',
   './js/calendar-status.js',
   './js/auth-login.js',
   './js/app/google-connect-gate.js',

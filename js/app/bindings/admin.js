@@ -1,7 +1,7 @@
 import {
   CALENDAR_ID_KEY,
-  MODE_KEY,
-  FAMILY_NAME_KEY
+  CLIENT_ID_KEY,
+  API_KEY_KEY
 } from '../../storage-keys.js';
 import { CalendarSync } from '../../calendar.js';
 import { AuthManager } from '../../auth.js';
@@ -41,10 +41,21 @@ export function bindAdminEvents() {
   const familyInput = document.getElementById('admin-poly-family-name');
   if (btnSave && familyInput) {
     btnSave.addEventListener('click', () => {
-      const name = familyInput.value.trim() || 'The Poly Circle';
-      localStorage.setItem(FAMILY_NAME_KEY, name);
-      logUserAction(`Group name updated to "${name}".`, 'info');
-      showToast('Group name saved.', 'success');
+      void (async () => {
+        const name = familyInput.value.trim() || 'The Poly Circle';
+        if (!state.config) {
+          showToast('Household config is not loaded yet.', 'error');
+          return;
+        }
+        state.config.groupName = name;
+        try {
+          await persistHouseholdConfig(`Group name updated to "${name}"`);
+          logUserAction(`Group name updated to "${name}".`, 'info');
+          showToast('Group name saved to cloud config.', 'success');
+        } catch {
+          /* persistHouseholdConfig already toasts */
+        }
+      })();
     });
   }
 
@@ -87,31 +98,7 @@ export function bindLoginEvents() {
   }
 }
 
-export function bindCreateHouseholdEvents() {
-  const btnConnect = document.getElementById('btn-connect-existing-household');
-  if (btnConnect) {
-    btnConnect.addEventListener('click', () => {
-      const clientId = document.getElementById('connect-client-id')?.value.trim();
-      const apiKey = document.getElementById('connect-api-key')?.value.trim();
-      const calendarId = document.getElementById('connect-calendar-id')?.value.trim() || 'primary';
-
-      if (!clientId || !apiKey) {
-        showToast('Enter Google Client ID and API Key (same as on your desktop Admin page).', 'warning');
-        return;
-      }
-
-      AuthManager.setCredentials(clientId, apiKey);
-      localStorage.setItem(CALENDAR_ID_KEY, calendarId);
-
-      try {
-        AuthManager.login();
-        showToast('Complete Google sign-in to load your household.', 'info');
-      } catch (err) {
-        showToast(err.message || 'Could not start Google sign-in.', 'error');
-      }
-    });
-  }
-
+export function bindInitialSetupEvents() {
   const btnSetup = document.getElementById('btn-setup-household');
   if (btnSetup) {
     btnSetup.addEventListener('click', () => {
@@ -123,6 +110,9 @@ export function bindCreateHouseholdEvents() {
     });
   }
 }
+
+/** @deprecated Use bindInitialSetupEvents */
+export const bindCreateHouseholdEvents = bindInitialSetupEvents;
 
 export function bindAddPartnerEvents() {
   restoreAddPartnerDraft();

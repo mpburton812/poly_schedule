@@ -2,9 +2,9 @@ import {
   CALENDAR_ID_KEY,
   CLIENT_ID_KEY,
   API_KEY_KEY,
-  FAMILY_NAME_KEY,
   NOTIFY_URL_KEY,
-  NOTIFY_SECRET_KEY
+  NOTIFY_SECRET_KEY,
+  HOUSEHOLD_SYNC_TOKEN_KEY
 } from '../storage-keys.js';
 import { RulesEngine } from '../rules.js';
 import { escapeHtml } from '../escape.js';
@@ -32,10 +32,11 @@ import {
   isCalendarEvent
 } from '../proposal-workflow.js';
 import { renderChangeLogHtml } from '../change-log.js';
+import { getGroupName } from '../group-name.js';
 
 
 export function adminView(state) {
-    const polyFamilyName = localStorage.getItem(FAMILY_NAME_KEY) || 'The Poly Circle';
+    const polyFamilyName = getGroupName(state.config);
     const autoArchiveDays = getAutoArchiveDays();
     const googleIntegration = state.config?.googleIntegration || {};
     const clientId = googleIntegration.clientId || localStorage.getItem(CLIENT_ID_KEY) || '';
@@ -47,7 +48,7 @@ export function adminView(state) {
     const notifySecret = notifyService.secret || localStorage.getItem(NOTIFY_SECRET_KEY) || '';
     const householdId = state.config?.householdId || '';
     const syncRevision = state.config?.syncRevision ?? 0;
-    const householdSyncToken = syncHub.token || localStorage.getItem('polyschedule_household_sync_token') || '';
+    const householdSyncToken = syncHub.token || localStorage.getItem(HOUSEHOLD_SYNC_TOKEN_KEY) || '';
     const credentialsConfigured = !!(clientId && apiKey);
     const syncHubConfigured = !!(notifyUrl && notifySecret);
     const changeLogHtml = renderChangeLogHtml(state.changeLog || []);
@@ -80,7 +81,7 @@ export function adminView(state) {
             <span class="material-symbols-outlined text-primary">cloud_sync</span> Google Calendar Integration
           </h3>
           <p class="font-body-md" style="color: var(--on-surface-variant); margin-bottom: var(--space-md);">
-            One-time setup for the whole household. Credentials are saved to the shared calendar config and sync to other devices automatically. Each member still uses <strong>Sync Google</strong> once to connect their own Google account.
+            One-time setup for the whole group. Credentials sync to other devices automatically after login. Each member connects Google Calendar once on their device.
           </p>
           ${credentialsConfigured
             ? '<p class="font-label-sm" style="color: var(--secondary); margin-bottom: var(--space-md);">Credentials are configured.</p>'
@@ -114,7 +115,7 @@ export function adminView(state) {
               <button class="btn btn-outline" id="btn-disconnect-google" type="button">Disconnect Google Sync</button>
             </div>
             <p class="font-label-sm" style="color: var(--on-surface-variant); margin: 0;">
-              After saving, click <strong>Sync Google</strong> in the top bar, then <strong>Test Calendar API</strong>. The system log will show the exact HTTP status and Google error message.
+              After saving credentials, connect Google Calendar from the gate or OFFLINE banner, then use <strong>Test Calendar API</strong>.
             </p>
           </div>
         </div>
@@ -124,22 +125,17 @@ export function adminView(state) {
             <span class="material-symbols-outlined text-primary">hub</span> Household Sync Hub
           </h3>
           <p class="font-body-md" style="color: var(--on-surface-variant); margin-bottom: var(--space-md);">
-            Near-real-time coordination via the notify service. Google Calendar remains the source of truth; household ID and sync token sync to other devices automatically.
+            Near-real-time coordination via the notify service. Google Calendar remains the source of truth.
           </p>
           ${syncHubConfigured
             ? '<p class="font-label-sm" style="color: var(--secondary); margin-bottom: var(--space-md);">Notify service is configured for sync hub.</p>'
             : '<p class="font-label-sm" style="color: var(--tertiary); margin-bottom: var(--space-md);">Configure the notify service below before enabling household sync.</p>'}
 
           <div style="display: flex; flex-direction: column; gap: var(--space-md);">
-            <div class="form-group" style="margin-bottom: 0;">
-              <label class="form-label" for="admin-household-id">Household ID</label>
-              <input class="form-input" id="admin-household-id" type="text" readonly value="${householdId}" placeholder="Not assigned yet"/>
-              <p class="font-label-sm" style="color: var(--on-surface-variant); margin-top: var(--space-xs);">
-                Stored in your Google Calendar config event. Revision: <strong id="admin-sync-revision">${syncRevision}</strong>
-              </p>
-            </div>
+            ${householdId
+              ? `<p class="font-label-sm" style="color: var(--on-surface-variant); margin: 0;">Internal sync id (auto-assigned). Revision: <strong id="admin-sync-revision">${syncRevision}</strong></p>`
+              : '<p class="font-label-sm" style="color: var(--on-surface-variant); margin: 0;">Sync id is assigned automatically when config is first saved to Google Calendar.</p>'}
             <div style="display: flex; gap: var(--space-sm); flex-wrap: wrap;">
-              <button class="btn btn-outline" id="btn-generate-household-id" type="button">Generate Household ID</button>
               <button class="btn btn-outline" id="btn-register-gcal-watch" type="button" ${!householdId || !credentialsConfigured ? 'disabled' : ''}>Register GCal Webhook</button>
             </div>
             <div class="form-group" style="margin-bottom: 0;">

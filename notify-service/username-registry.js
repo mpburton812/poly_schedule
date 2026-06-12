@@ -1,6 +1,7 @@
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import { getFixedHouseholdId } from './fixed-household.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const DATA_DIR = process.env.DATA_DIR || path.join(__dirname, 'data');
@@ -41,18 +42,21 @@ function isSameOwner(entry, householdId, partnerId) {
   return entry?.householdId === householdId && entry?.partnerId === partnerId;
 }
 
-function scanHouseholdCachesForUsername(normalized, { excludeHouseholdId = null, excludePartnerId = null } = {}) {
+function scanHouseholdCachesForUsername(normalized, { excludeHouseholdId = null, excludePartnerId = null, householdId = null } = {}) {
   const doc = loadHouseholdsDoc();
-  for (const [householdId, household] of Object.entries(doc.households || {})) {
+  const entries = householdId
+    ? [[householdId, doc.households?.[householdId]]].filter(([, row]) => row)
+    : Object.entries(doc.households || {});
+  for (const [hid, household] of entries) {
     for (const partner of household?.config?.partners || []) {
       if (partner?.passive || !partner?.username) continue;
       if (normalizeUsername(partner.username) !== normalized) continue;
       if (excludeHouseholdId && excludePartnerId
-        && householdId === excludeHouseholdId
+        && hid === excludeHouseholdId
         && partner.id === excludePartnerId) {
         continue;
       }
-      return { taken: true, householdId, partnerId: partner.id, source: 'cache' };
+      return { taken: true, householdId: hid, partnerId: partner.id, source: 'cache' };
     }
   }
   return { taken: false };
@@ -61,6 +65,17 @@ function scanHouseholdCachesForUsername(normalized, { excludeHouseholdId = null,
 export function isUsernameTaken(username, { excludeHouseholdId = null, excludePartnerId = null } = {}) {
   const normalized = normalizeUsername(username);
   if (!normalized) return { taken: false, normalized };
+
+  const fixedHouseholdId = getFixedHouseholdId();
+  if (fixedHouseholdId) {
+    const cacheHit = scanHouseholdCachesForUsername(normalized, {
+      excludeHouseholdId,
+      excludePartnerId,
+      householdId: fixedHouseholdId
+    });
+    if (cacheHit.taken) return { ...cacheHit, normalized };
+    return { taken: false, normalized };
+  }
 
   const doc = loadUsernamesDoc();
   const entry = doc.usernames[normalized];
@@ -76,20 +91,25 @@ export function isUsernameTaken(username, { excludeHouseholdId = null, excludePa
 
 export function claimUsername(username, householdId, partnerId) {
   const normalized = normalizeUsername(username);
-  if (!normalized || !householdId || !partnerId) {
+  const fixedHouseholdId = getFixedHouseholdId();
+  const targetHouseholdId = fixedHouseholdId || householdId;
+  if (!normalized || !targetHouseholdId || !partnerId) {
     throw new Error('username, householdId, and partnerId are required');
   }
 
-  const existing = isUsernameTaken(username, { excludeHouseholdId: householdId, excludePartnerId: partnerId });
+  const existing = isUsernameTaken(username, {
+    excludeHouseholdId: targetHouseholdId,
+    excludePartnerId: partnerId
+  });
   if (existing.taken) {
-    const err = new Error('Username is already in use by another household.');
+    const err = new Error('Username is already in use by another partner.');
     err.code = 'USERNAME_TAKEN';
     throw err;
   }
 
   const doc = loadUsernamesDoc();
   doc.usernames[normalized] = {
-    householdId,
+    householdId: targetHouseholdId,
     partnerId,
     updatedAt: new Date().toISOString()
   };
@@ -132,7 +152,7 @@ export function syncHouseholdUsernames(householdId, config) {
   for (const [normalized, partnerId] of desired.entries()) {
     const existing = doc.usernames[normalized];
     if (existing && !isSameOwner(existing, householdId, partnerId)) {
-      const err = new Error(`Username "${normalized}" is already registered to another household.`);
+      const err = new Error(`Username "${normalized}" is already registered to another partner.`);
       err.code = 'USERNAME_CONFLICT';
       throw err;
     }
