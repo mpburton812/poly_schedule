@@ -27,7 +27,8 @@ import {
   getAutoArchiveDays,
   isCalendarEvent
 } from '../proposal-workflow.js';
-import { PUSH_TYPE_LABELS, PUSH_TYPE_PREFS_KEY } from '../push-notifications.js';
+import { PUSH_TYPE_LABELS } from '../push-notifications.js';
+import { PUSH_TYPE_PREFS_KEY } from '../storage-keys.js';
 
 
 export function settingsView(state) {

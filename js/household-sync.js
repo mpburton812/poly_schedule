@@ -1,16 +1,17 @@
 import {
   MODE_KEY,
   DEVICE_ID_KEY,
-  LAST_SYNC_REVISION_KEY
+  LAST_SYNC_REVISION_KEY,
+  HOUSEHOLD_SYNC_TOKEN_KEY,
+  LOCAL_CONFIG_KEY,
+  LOCAL_EVENTS_KEY
 } from './storage-keys.js';
 /**
  * Household near-real-time sync — Render hub + Google Calendar source of truth.
  */
 
-import { NOTIFY_SECRET_KEY, NOTIFY_URL_KEY } from './push-notifications.js';
+import { NOTIFY_SECRET_KEY, NOTIFY_URL_KEY } from './storage-keys.js';
 import {
-  LOCAL_CONFIG_KEY,
-  LOCAL_EVENTS_KEY,
   pickNewerHouseholdConfig
 } from './helpers.js';
 

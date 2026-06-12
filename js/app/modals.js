@@ -10,18 +10,8 @@ import { AuthManager } from '../auth.js';
 import { CalendarSync } from '../calendar.js';
 import { renderAvatarPickerHtml } from '../avatar.js';
 import { state } from './state.js';
-import {
-  addLog,
-  logOperationError,
-  showToast,
-  updateNotificationsBadge,
-  logoutUser,
-  getCurrentUserName,
-  updatePartnerProfile,
-  persistCurrentUserNotifications,
-  pushAppNotification,
-  LOCAL_SESSION_KEY
-} from './context.js';
+import { LOCAL_SESSION_KEY } from '../storage-keys.js';
+import { addLog, logOperationError, showToast, updateNotificationsBadge, logoutUser, getCurrentUserName, updatePartnerProfile, persistCurrentUserNotifications, pushAppNotification } from './context.js';
 import { getCurrentUserPartner, formatAppDateTime } from '../helpers.js';
 import { renderPronounPickerHtml, bindPronounPicker } from '../pronouns.js';
 import { escapeHtml } from '../escape.js';

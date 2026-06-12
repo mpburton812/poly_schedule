@@ -4,14 +4,8 @@ import {
 import { CalendarSync } from '../../calendar.js';
 import { hashPassword } from '../../crypto.js';
 import { normalizePronouns } from '../../pronouns.js';
-import {
-  CREATE_NEW_HOME,
-  RETURN_ADD_PARTNER_KEY,
-  SELECT_HOME_KEY,
-  ADD_PARTNER_DRAFT_KEY,
-  isPartnerPassive,
-  applyHomeAssociationDefaults
-} from '../../helpers.js';
+import { RETURN_ADD_PARTNER_KEY, SELECT_HOME_KEY, ADD_PARTNER_DRAFT_KEY } from '../../storage-keys.js';
+import { CREATE_NEW_HOME, isPartnerPassive, applyHomeAssociationDefaults } from '../../helpers.js';;
 import {
   setAutoArchiveDays,
   getAutoArchiveDays

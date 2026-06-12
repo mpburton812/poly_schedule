@@ -5,9 +5,10 @@ import {
  * Build promotion audit trail (version.json + release-notes.json).
  */
 
-import { CHANGE_LOG_STORAGE_KEY, formatAppDateTime } from './helpers.js';
+import { formatAppDateTime } from './helpers.js';
+import { CHANGE_LOG_KEY } from './storage-keys.js';
 
-export const PROMOTION_KEY_STORAGE = PROMOTION_KEY_STORAGE;
+
 
 function getStorage() {
   try {
@@ -125,7 +126,7 @@ export function recordPromotionIfNeeded(changeLog, versionInfo, releaseNotes = n
 }
 
 export function persistChangeLog(changeLog) {
-  getStorage()?.setItem(CHANGE_LOG_STORAGE_KEY, JSON.stringify(changeLog));
+  getStorage()?.setItem(CHANGE_LOG_KEY, JSON.stringify(changeLog));
 }
 
 export function refreshChangeLogDom(changeLog) {

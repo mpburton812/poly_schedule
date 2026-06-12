@@ -1,13 +1,7 @@
 import { CalendarSync } from '../calendar.js';
 import { Views } from '../views.js';
-import {
-  parseHashParams,
-  getRouteBase,
-  getCurrentUserPartner,
-  canCreateSleepingProposals,
-  ADD_PARTNER_DRAFT_KEY,
-  SELECT_HOME_KEY
-} from '../helpers.js';
+import { ADD_PARTNER_DRAFT_KEY, SELECT_HOME_KEY } from '../storage-keys.js';
+import { parseHashParams, getRouteBase, getCurrentUserPartner, canCreateSleepingProposals } from '../helpers.js';;
 import {
   state,
   flowState,

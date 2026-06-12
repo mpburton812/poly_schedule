@@ -20,6 +20,10 @@ export const PROMOTION_KEY_STORAGE = 'polyschedule_active_promotion_key';
 export const NOTIFICATIONS_BY_USER_KEY = 'polyschedule_notifications_by_user';
 export const LEGACY_NOTIFICATIONS_KEY = 'polyschedule_notifications';
 export const PUSH_TYPE_PREFS_KEY = 'polyschedule_push_type_prefs';
+export const PUSH_ENABLED_KEY = 'polyschedule_push_enabled';
+export const PUSH_QUIET_HOURS_KEY = 'polyschedule_push_quiet_hours';
+export const PUSH_QUIET_START_KEY = 'polyschedule_push_quiet_start';
+export const PUSH_QUIET_END_KEY = 'polyschedule_push_quiet_end';
 
 export const DEVICE_ID_KEY = 'polyschedule_device_id';
 export const HOUSEHOLD_SYNC_TOKEN_KEY = 'polyschedule_sync_token';

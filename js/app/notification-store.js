@@ -61,7 +61,7 @@ export function pushAppNotification({ title, description, dedupeKey, recipientId
       return { list, added: false };
     }
     const notification = {
-      id: \`notif_\${Date.now()}_\${Math.random().toString(36).slice(2, 7)}\`,
+      id: `notif_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
       title,
       description,
       timestamp: formatAppTime(),
@@ -103,8 +103,8 @@ export function notifyProposalReviewers(proposal, config, options = {}) {
     if (actingUserId && recipient.id === actingUserId) return;
     pushAppNotification({
       title: 'Proposal needs your review',
-      description: \`"\${proposal.title}" from \${proposal.proposer} is waiting for your response.\${isPastScheduledEvent(proposal) ? ' This proposal is scheduled in the past.' : ''}\`,
-      dedupeKey: \`pending_\${proposal.id}_\${recipient.id}\`,
+      description: `"${proposal.title}" from ${proposal.proposer} is waiting for your response.${isPastScheduledEvent(proposal) ? ' This proposal is scheduled in the past.' : ''}`,
+      dedupeKey: `pending_${proposal.id}_${recipient.id}`,
       recipientId: recipient.id
     });
   });
@@ -121,8 +121,8 @@ export function notifyProposerOfProposalVote(proposal, config, { voterName, vote
   const voterFirst = voterName.split(' ')[0];
   pushAppNotification({
     title: 'New response on your proposal',
-    description: \`\${voterFirst} \${vote === 'accept' ? 'accepted' : vote === 'reject' ? 'rejected' : 'abstained on'} "\${proposal.title}".\`,
-    dedupeKey: \`vote_\${proposal.id}_\${voterName}_\${vote}\`,
+    description: `${voterFirst} ${vote === 'accept' ? 'accepted' : vote === 'reject' ? 'rejected' : 'abstained on'} "${proposal.title}".`,
+    dedupeKey: `vote_${proposal.id}_${voterName}_${vote}`,
     recipientId: proposer.id
   });
   dispatchProposalVotePush(proposal, config, voterName, vote);
@@ -136,8 +136,8 @@ export function notifyProposalOutcome(proposal, config, { outcome, declinedBy = 
   if (outcome === 'approved') {
     pushAppNotification({
       title: 'Proposal approved',
-      description: \`"\${proposal.title}" was approved and added to the calendar.\`,
-      dedupeKey: \`approved_\${proposal.id}\`,
+      description: `"${proposal.title}" was approved and added to the calendar.`,
+      dedupeKey: `approved_${proposal.id}`,
       recipientId: proposer.id
     });
     dispatchProposalApprovedPush(proposal, config);
@@ -145,11 +145,11 @@ export function notifyProposalOutcome(proposal, config, { outcome, declinedBy = 
   }
 
   if (outcome === 'declined') {
-    const byLine = declinedBy ? \` by \${declinedBy.split(' ')[0]}\` : '';
+    const byLine = declinedBy ? ` by ${declinedBy.split(' ')[0]}` : '';
     pushAppNotification({
       title: 'Proposal declined',
-      description: \`"\${proposal.title}" was declined\${byLine}.\`,
-      dedupeKey: \`declined_\${proposal.id}_\${declinedBy || 'unknown'}\`,
+      description: `"${proposal.title}" was declined${byLine}.`,
+      dedupeKey: `declined_${proposal.id}_${declinedBy || 'unknown'}`,
       recipientId: proposer.id
     });
     dispatchProposalDeclinedPush(proposal, config, declinedBy);
@@ -160,14 +160,14 @@ export function notifyProposalWithdrawn(proposal, config, { kind = 'retracted', 
   if (!proposal || getWorkflowState(proposal) !== WORKFLOW.PROPOSED) return;
   const actor = actorName || getCurrentUserName();
   const actorFirst = actor.split(' ')[0];
-  const reasonNote = reason ? \` Reason: \${reason}\` : '';
+  const reasonNote = reason ? ` Reason: ${reason}` : '';
 
   buildProposalReviewRecipients(proposal, config).forEach(recipient => {
     if (actingUserId && recipient.id === actingUserId) return;
     pushAppNotification({
       title: kind === 'cancelled' ? 'Proposal cancelled' : 'Proposal retracted',
-      description: \`\${actorFirst} \${kind === 'cancelled' ? 'cancelled' : 'retracted'} "\${proposal.title}".\${reasonNote}\`,
-      dedupeKey: \`\${kind}_\${proposal.id}_\${recipient.id}\`,
+      description: `${actorFirst} ${kind === 'cancelled' ? 'cancelled' : 'retracted'} "${proposal.title}".${reasonNote}`,
+      dedupeKey: `${kind}_${proposal.id}_${recipient.id}`,
       recipientId: recipient.id
     });
   });
@@ -184,8 +184,8 @@ export function syncPendingProposalAlertsForUser() {
     if (!userNeedsProposalVote(proposal, userRef, state.config)) return;
     pushAppNotification({
       title: 'Proposal needs your review',
-      description: \`"\${proposal.title}" from \${proposal.proposer} is waiting for your response.\`,
-      dedupeKey: \`pending_\${proposal.id}_\${state.currentUser.id}\`
+      description: `"${proposal.title}" from ${proposal.proposer} is waiting for your response.`,
+      dedupeKey: `pending_${proposal.id}_${state.currentUser.id}`
     });
   });
 }

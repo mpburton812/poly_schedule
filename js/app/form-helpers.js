@@ -1,5 +1,6 @@
 import { flowState } from './state.js';
-import { RETURN_ADD_PARTNER_KEY, SELECT_HOME_KEY, ADD_PARTNER_DRAFT_KEY, CREATE_NEW_HOME } from '../helpers.js';
+import { RETURN_ADD_PARTNER_KEY, SELECT_HOME_KEY, ADD_PARTNER_DRAFT_KEY } from '../storage-keys.js';
+import { CREATE_NEW_HOME } from '../helpers.js';;
 
 export function bindHomeSelectCreateNew(selectEl) {
   if (!selectEl) return;

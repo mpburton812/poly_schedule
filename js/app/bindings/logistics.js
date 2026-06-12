@@ -20,17 +20,8 @@ import {
   setNotifyServiceOnConfig,
   setSyncHubOnConfig
 } from '../../household-services.js';
-import {
-  NOTIFY_URL_KEY,
-  NOTIFY_SECRET_KEY,
-  enablePushOnThisDevice,
-  disablePushOnThisDevice,
-  sendTestPush,
-  saveQuietHoursSettings,
-  savePushTypePrefs,
-  getPushTypePrefs,
-  fetchRegisteredDevices
-} from '../../push-notifications.js';
+import { NOTIFY_URL_KEY, NOTIFY_SECRET_KEY } from '../../storage-keys.js';
+import { enablePushOnThisDevice, disablePushOnThisDevice, sendTestPush, saveQuietHoursSettings, savePushTypePrefs, getPushTypePrefs, fetchRegisteredDevices } from '../../push-notifications.js';
 
 export function bindLogisticsEvents(container = document) {
   const exportBtn = container.querySelector('#btn-export-logs');

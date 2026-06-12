@@ -33,7 +33,7 @@ export function addLog(message, type = 'info', meta = null) {
       const p = document.createElement('p');
       p.className = 'console-line';
       const color = type === 'error' ? 'var(--error)' : type === 'warning' ? 'var(--tertiary)' : 'inherit';
-      p.innerHTML = \`<span class="console-time">[\${escapeHtml(time)}]</span> <span style="color: \${color};">\${escapeHtml(message)}</span>\`;
+      p.innerHTML = `<span class="console-time">[${escapeHtml(time)}]</span> <span style="color: ${color};">${escapeHtml(message)}</span>`;
       consoleBody.appendChild(p);
       consoleBody.scrollTop = consoleBody.scrollHeight;
     });
@@ -53,26 +53,26 @@ export function buildOperationSupportContext(context = {}) {
 export function logOperationError(operation, err, context = {}) {
   const error = err instanceof Error ? err : new Error(String(err ?? 'Unknown error'));
   const support = buildOperationSupportContext(context);
-  const detailParts = [\`error=\${error.message}\`];
+  const detailParts = [`error=${error.message}`];
 
   if (error.name && error.name !== 'Error') {
-    detailParts.push(\`type=\${error.name}\`);
+    detailParts.push(`type=${error.name}`);
   }
   if (error.status) {
-    detailParts.push(\`httpStatus=\${error.status}\`);
+    detailParts.push(`httpStatus=${error.status}`);
   }
   if (error.code) {
-    detailParts.push(\`code=\${error.code}\`);
+    detailParts.push(`code=${error.code}`);
   }
   Object.entries(support).forEach(([key, value]) => {
     if (value == null || value === '') return;
-    detailParts.push(\`\${key}=\${String(value)}\`);
+    detailParts.push(`${key}=${String(value)}`);
   });
   if (error.stack) {
-    detailParts.push(\`stack=\${error.stack.split('\\n').slice(1, 4).map(line => line.trim()).join(' | ')}\`);
+    detailParts.push(`stack=${error.stack.split('\n').slice(1, 4).map(line => line.trim()).join(' | ')}`);
   }
 
-  const message = \`\${operation} failed · \${detailParts.join(' · ')}\`;
+  const message = `${operation} failed · ${detailParts.join(' · ')}`;
   addLog(message, 'error', {
     operation,
     errorMessage: error.message,
@@ -80,12 +80,12 @@ export function logOperationError(operation, err, context = {}) {
     support,
     stack: error.stack || null
   });
-  console.error(\`[\${operation}]\`, error, support);
+  console.error(`[${operation}]`, error, support);
   return message;
 }
 
 export function logUserAction(message, type = 'info') {
-  addLog(\`\${state.currentUser?.name || 'User'}: \${message}\`, type);
+  addLog(`${state.currentUser?.name || 'User'}: ${message}`, type);
 }
 
 export function initChangeLog() {

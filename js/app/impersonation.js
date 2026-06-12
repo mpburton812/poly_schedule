@@ -16,7 +16,7 @@ export function updateImpersonationBanner() {
 
   const activePartners = (state.config?.partners || []).filter(p => !isPartnerPassive(p));
   select.innerHTML = activePartners.map(p =>
-    \`<option value="\${p.id}" \${p.id === state.currentUser?.id ? 'selected' : ''}>\${p.name}</option>\`
+    `<option value="${p.id}" ${p.id === state.currentUser?.id ? 'selected' : ''}>${p.name}</option>`
   ).join('');
   banner.style.display = 'flex';
 }
@@ -29,8 +29,8 @@ export function impersonatePartner(partnerId) {
   const actorName = state.currentUser?.name || 'Admin';
   resetCreateFlowForUserSwitch();
   establishSession(partner);
-  addLog(\`\${actorName}: Impersonating user "\${partner.name}".\`, 'warning');
-  showToast(\`Viewing as \${partner.name.split(' ')[0]}\`, 'info');
+  addLog(`${actorName}: Impersonating user "${partner.name}".`, 'warning');
+  showToast(`Viewing as ${partner.name.split(' ')[0]}`, 'info');
   
   import('./render-bus.js').then(({ requestRender }) => requestRender());
 }

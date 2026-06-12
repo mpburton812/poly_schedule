@@ -123,7 +123,7 @@ export async function attemptLogin(username, password) {
       ? 'No household accounts exist yet — create the first admin account.'
       : 'Invalid username or password.';
     showToast(hint, 'error');
-    addLog(\`\${trimmedUser}: Failed login attempt.\`, 'warning');
+    addLog(`${trimmedUser}: Failed login attempt.`, 'warning');
     return false;
   }
   
@@ -134,8 +134,8 @@ export async function attemptLogin(username, password) {
   }
 
   establishSession(authenticatedPartner);
-  addLog(\`\${authenticatedPartner.name}: Logged in successfully.\`, 'info');
-  showToast(\`Welcome back, \${authenticatedPartner.name.split(' ')[0]}!\`, 'success');
+  addLog(`${authenticatedPartner.name}: Logged in successfully.`, 'info');
+  showToast(`Welcome back, ${authenticatedPartner.name.split(' ')[0]}!`, 'success');
   window.location.hash = '#schedule';
   import('./render-bus.js').then(({ requestRender }) => requestRender());
   return true;
@@ -167,7 +167,7 @@ export async function createFirstAdminPartner({ name, username, password }) {
     return false;
   }
 
-  const newId = \`p_\${crypto.randomUUID?.() || Date.now()}\`;
+  const newId = `p_${crypto.randomUUID?.() || Date.now()}`;
   const passwordHash = await hashPassword(trimmedPassword, newId);
 
   const partner = {
@@ -190,11 +190,11 @@ export async function createFirstAdminPartner({ name, username, password }) {
     saveResult = await CalendarSync.saveConfig(state.config);
   } catch (err) {
     state.config.partners.pop();
-    showToast(\`Failed to save household: \${err.message}\`, 'error');
+    showToast(`Failed to save household: ${err.message}`, 'error');
     return false;
   }
 
-  addLog(\`\${partner.name}: Created first admin account.\`, 'info');
+  addLog(`${partner.name}: Created first admin account.`, 'info');
   establishSession(partner);
   if (saveResult?.needsAuth) {
     showToast(
@@ -204,7 +204,7 @@ export async function createFirstAdminPartner({ name, username, password }) {
     const loginBtn = document.getElementById('btn-google-login');
     if (loginBtn) loginBtn.style.display = 'inline-flex';
   } else {
-    showToast(\`Welcome, \${partner.name.split(' ')[0]}!\`, 'success');
+    showToast(`Welcome, ${partner.name.split(' ')[0]}!`, 'success');
   }
   window.location.hash = '#schedule';
   import('./render-bus.js').then(({ requestRender }) => requestRender());
@@ -215,7 +215,7 @@ export function logoutUser() {
   const name = getCurrentUserName();
   state.currentUser = null;
   localStorage.removeItem(LOCAL_SESSION_KEY);
-  addLog(\`\${name}: Logged out.\`, 'info');
+  addLog(`${name}: Logged out.`, 'info');
   showLoginView();
 }
 

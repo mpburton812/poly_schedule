@@ -1,5 +1,7 @@
 import {
-  CALENDAR_ID_KEY
+  CALENDAR_ID_KEY,
+  LOCAL_CONFIG_KEY,
+  LOCAL_EVENTS_KEY
 } from './storage-keys.js';
 /**
  * PolySchedule Google Calendar & State Manager
@@ -21,9 +23,7 @@ import {
   normalizeHouseholdConfigShape,
   pickNewerHouseholdConfig,
   syncAllHomeAssociationDefaults,
-  findPartnerByRef,
-  LOCAL_CONFIG_KEY,
-  LOCAL_EVENTS_KEY
+  findPartnerByRef
 } from './helpers.js';
 import {
   WORKFLOW,

@@ -13,7 +13,7 @@ export async function persistHouseholdConfig(logMessage) {
     if (logMessage) logUserAction(logMessage, 'info');
     return result;
   } catch (err) {
-    showToast(\`Failed to save changes: \${err.message}\`, 'error');
+    showToast(`Failed to save changes: ${err.message}`, 'error');
     throw err;
   }
 }
@@ -43,7 +43,7 @@ export async function updatePartnerProfile(partnerId, updates) {
     partner.notificationEmail = String(updates.notificationEmail || '').trim();
   }
 
-  await persistHouseholdConfig(\`Updated profile for \${partner.name}\`);
+  await persistHouseholdConfig(`Updated profile for ${partner.name}`);
 
   if (state.currentUser?.id === partnerId) {
     establishSession(partner);

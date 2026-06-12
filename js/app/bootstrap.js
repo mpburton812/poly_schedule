@@ -4,25 +4,14 @@ import {
 } from '../storage-keys.js';
 import { AuthManager } from '../auth.js';
 import { CalendarSync } from '../calendar.js';
-import { isPartnerPassive, LEGACY_PROFILE_KEY } from '../helpers.js';
+import { LEGACY_PROFILE_KEY } from '../storage-keys.js';
+import { isPartnerPassive } from '../helpers.js';;
 import { resolveSyncBootstrapMode } from '../gcal-sync.js';
 import {
   state,
 } from './state.js';
-import {
-  loadPersistedLogs,
-  addLog,
-  initChangeLog,
-  syncPromotionChangeLog,
-  logOperationError,
-  showToast,
-  updateNotificationsBadge,
-  establishSession,
-  logoutUser,
-  showLoginView,
-  LOCAL_SESSION_KEY,
-  bindImpersonationBanner
-} from './context.js';
+import { LOCAL_SESSION_KEY } from '../storage-keys.js';
+import { loadPersistedLogs, addLog, initChangeLog, syncPromotionChangeLog, logOperationError, showToast, updateNotificationsBadge, establishSession, logoutUser, showLoginView, bindImpersonationBanner } from './context.js';
 import {
   openNotificationsModal,
   openUserProfileModal

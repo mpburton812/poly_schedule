@@ -1,9 +1,9 @@
 import {
   MODE_KEY,
-  LAST_SYNC_REVISION_KEY
+  LAST_SYNC_REVISION_KEY,
+  LOCAL_CONFIG_KEY
 } from './storage-keys.js';
 import {
-  LOCAL_CONFIG_KEY,
   normalizeHouseholdConfigShape,
   pickNewerHouseholdConfig,
   normalizeConfigPartners,

@@ -3,14 +3,9 @@
  * Per-device push enablement stays in localStorage.
  */
 
-import {
-  NOTIFY_SECRET_KEY,
-  NOTIFY_URL_KEY
-} from './push-notifications.js';
-import {
-  HOUSEHOLD_SYNC_TOKEN_KEY,
-  setHouseholdSyncToken
-} from './household-sync.js';
+import { NOTIFY_SECRET_KEY, NOTIFY_URL_KEY } from './storage-keys.js';
+import { HOUSEHOLD_SYNC_TOKEN_KEY } from './storage-keys.js';
+import { setHouseholdSyncToken } from './household-sync.js';
 
 /**
  * @param {import('./types.js').AppConfig & { notifyService?: object, syncHub?: object }} config

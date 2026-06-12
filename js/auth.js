@@ -8,7 +8,7 @@ import {
  * Manages Google Identity Services OAuth 2.0 flow and local credentials configurations.
  */
 
-import { GOOGLE_PROFILE_KEY, LEGACY_PROFILE_KEY } from './helpers.js';
+import { GOOGLE_PROFILE_KEY, LEGACY_PROFILE_KEY } from './storage-keys.js';
 
 export const AuthManager = {
   clientId: localStorage.getItem(CLIENT_ID_KEY) || '',
