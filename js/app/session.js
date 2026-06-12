@@ -1,7 +1,7 @@
+import { state } from './state.js';
 import { AuthManager } from '../auth.js';
 import { CALENDAR_ID_KEY, MODE_KEY } from '../storage-keys.js';
 import { router } from './router.js';
-import { AuthManager } from '../auth.js';
 import { PROPOSAL_DRAFT_KEY_PREFIX } from '../storage-keys.js';
 import { hashPassword } from '../crypto.js';
 import { CalendarSync } from '../calendar.js';
