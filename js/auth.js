@@ -124,8 +124,9 @@ export const AuthManager = {
   },
 
   login() {
+    this.reloadFromStorage();
     if (!this.clientId) {
-      throw new Error('Please configure your Google Client ID and API Key in Settings first.');
+      throw new Error('Google Calendar is not configured for this household. An admin must set OAuth Client ID and API Key under Admin → Google Calendar Settings.');
     }
     
     if (!this.tokenClient) {

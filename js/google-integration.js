@@ -72,3 +72,14 @@ export function applyGoogleIntegrationFromConfig(config, { CalendarSync = null }
 
   return true;
 }
+
+export function ensureGoogleCredentialsFromConfig(config, { CalendarSync = null } = {}) {
+  if (config) {
+    applyGoogleIntegrationFromConfig(config, { CalendarSync });
+  }
+  AuthManager.reloadFromStorage();
+  return !!(
+    localStorage.getItem(CLIENT_ID_KEY)
+    && localStorage.getItem(API_KEY_KEY)
+  );
+}

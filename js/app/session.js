@@ -38,6 +38,8 @@ import { updateImpersonationBanner } from './impersonation.js';
 import { refreshCurrentUserNotifications, syncPendingProposalAlertsForUser } from './notification-store.js';
 import { updateOfflineBanner } from '../calendar-status.js';
 import { needsGoogleCalendarConnect, showGoogleConnectGate } from './google-connect-gate.js';
+import { ensureGoogleCredentialsFromConfig } from '../google-integration.js';
+import { CalendarSync } from '../calendar.js';
 
 export function getCurrentUserId() {
   return state.currentUser?.id || null;
@@ -99,6 +101,7 @@ async function completeLogin(partner, message) {
   logUserAction(message, 'info', partner.name);
   showToast(`Welcome back, ${partner.name.split(' ')[0]}!`, 'success');
   if (needsGoogleCalendarConnect()) {
+    ensureGoogleCredentialsFromConfig(state.config, { CalendarSync });
     showGoogleConnectGate();
     return true;
   }

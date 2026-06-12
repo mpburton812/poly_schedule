@@ -23,6 +23,10 @@ vi.mock('../js/auth.js', () => ({
       this.apiKey = apiKey;
       localStorage.setItem('polyschedule_client_id', clientId);
       localStorage.setItem('polyschedule_api_key', apiKey);
+    },
+    reloadFromStorage() {
+      this.clientId = localStorage.getItem('polyschedule_client_id') || '';
+      this.apiKey = localStorage.getItem('polyschedule_api_key') || '';
     }
   }
 }));
@@ -30,6 +34,7 @@ vi.mock('../js/auth.js', () => ({
 import { AuthManager } from '../js/auth.js';
 import {
   applyGoogleIntegrationFromConfig,
+  ensureGoogleCredentialsFromConfig,
   getGoogleIntegrationFromConfig,
   setGoogleIntegrationOnConfig
 } from '../js/google-integration.js';
@@ -105,5 +110,28 @@ describe('applyGoogleIntegrationFromConfig', () => {
 
     expect(applied).toBe(false);
     expect(window.dispatchEvent).not.toHaveBeenCalled();
+  });
+});
+
+describe('ensureGoogleCredentialsFromConfig', () => {
+  it('returns false when config has no integration', () => {
+    localStorage.clear();
+    expect(ensureGoogleCredentialsFromConfig({ partners: [] })).toBe(false);
+  });
+
+  it('loads household credentials onto a fresh device', () => {
+    localStorage.clear();
+    AuthManager.clientId = '';
+    AuthManager.apiKey = '';
+    const ready = ensureGoogleCredentialsFromConfig({
+      googleIntegration: {
+        clientId: 'cid.apps.googleusercontent.com',
+        apiKey: 'key',
+        calendarId: 'household@group.calendar.google.com'
+      }
+    });
+    expect(ready).toBe(true);
+    expect(localStorage.getItem('polyschedule_client_id')).toBe('cid.apps.googleusercontent.com');
+    expect(AuthManager.clientId).toBe('cid.apps.googleusercontent.com');
   });
 });
