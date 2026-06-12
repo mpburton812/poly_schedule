@@ -1,12 +1,18 @@
 {
   "latest": {
-    "summary": "Resolved proposals tab, private conflict alerts, and sleeping night date sync fix",
+    "summary": "Archived proposal tab, admin log user tagging, and admin panel reorder",
     "changes": [
-      "Merge Approved and Archived into a Resolved tab with per-proposal Approved/Archived badges",
-      "Keep users on the Resolved tab when archiving; Declined remains its own tab",
-      "Redact private appointment details in person schedule conflict warnings",
-      "Fix sleeping event dates so the app schedule matches Google Calendar all-day nights",
-      "Use local calendar dates for sleeping GCal sync (parse, write, and schedule grouping)"
+      "Replace Declined tab with Archived; Resolved shows approved and declined outcomes",
+      "Tag user actions in the System Administration Log with partner names in light blue",
+      "Reorder admin sections: Group Settings, System Log, Change Control, Archiving, Sync Hub, GCal, Push"
+    ]
+  },
+  "33ccbd9": {
+    "summary": "Archived proposal tab, admin log user tagging, and admin panel reorder",
+    "changes": [
+      "Replace Declined tab with Archived; Resolved shows approved and declined outcomes",
+      "Tag user actions in the System Administration Log with partner names in light blue",
+      "Reorder admin sections: Group Settings, System Log, Change Control, Archiving, Sync Hub, GCal, Push"
     ]
   },
   "2216eba": {
