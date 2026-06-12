@@ -1,36 +1,12 @@
 {
   "latest": {
-    "summary": "GCal change alerts, event privacy, schedule navigation, and Google email matching",
+    "summary": "Resolved proposals tab, private conflict alerts, and sleeping night date sync fix",
     "changes": [
-      "Notify household members when events are added or removed directly in Google Calendar",
-      "Attribute external GCal edits to the partner who made them via organizer/creator email",
-      "Store Google Calendar account email on partner profiles for reliable actor matching",
-      "Auto-save Google account email when a partner connects Google Calendar",
-      "Private and Super Private proposal visibility with per-user schedule redaction",
-      "Move calendar sync metadata to extendedProperties; human-readable Google Calendar descriptions",
-      "Sync ongoing event comments to Google Calendar notes",
-      "Schedule week navigation: previous/next week, date picker, and Today button",
-      "Privacy selector (Standard / Private / Super Private) at top of create-proposal form",
-      "Fix app startup error from duplicate AuthManager import in profile modal",
-      "E2E fixes: household config after login, async save redirects, rules week-boundary flake",
-      "Unit and e2e tests for GCal alerts, privacy, week navigation, and calendar email matching"
-    ]
-  },
-  "c0edf16": {
-    "summary": "GCal change alerts, event privacy, schedule navigation, and Google email matching",
-    "changes": [
-      "Notify household members when events are added or removed directly in Google Calendar",
-      "Attribute external GCal edits to the partner who made them via organizer/creator email",
-      "Store Google Calendar account email on partner profiles for reliable actor matching",
-      "Auto-save Google account email when a partner connects Google Calendar",
-      "Private and Super Private proposal visibility with per-user schedule redaction",
-      "Move calendar sync metadata to extendedProperties; human-readable Google Calendar descriptions",
-      "Sync ongoing event comments to Google Calendar notes",
-      "Schedule week navigation: previous/next week, date picker, and Today button",
-      "Privacy selector (Standard / Private / Super Private) at top of create-proposal form",
-      "Fix app startup error from duplicate AuthManager import in profile modal",
-      "E2E fixes: household config after login, async save redirects, rules week-boundary flake",
-      "Unit and e2e tests for GCal alerts, privacy, week navigation, and calendar email matching"
+      "Merge Approved and Archived into a Resolved tab with per-proposal Approved/Archived badges",
+      "Keep users on the Resolved tab when archiving; Declined remains its own tab",
+      "Redact private appointment details in person schedule conflict warnings",
+      "Fix sleeping event dates so the app schedule matches Google Calendar all-day nights",
+      "Use local calendar dates for sleeping GCal sync (parse, write, and schedule grouping)"
     ]
   }
 }

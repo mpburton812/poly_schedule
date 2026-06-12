@@ -94,6 +94,38 @@ describe('RulesEngine.evaluateEventPersonConflicts', () => {
     expect(conflicts[0].message).toContain('Date Night');
   });
 
+  it('redacts private conflicting events for non-invitees', () => {
+    const conflicts = RulesEngine.evaluateEventPersonConflicts(
+      {
+        id: 'prop_new',
+        type: 'event',
+        title: 'Hang out',
+        proposer: 'Michael Burton',
+        participants: ['Michael Burton', 'Katie Thompson'],
+        start: '2026-06-13T04:00:00.000Z',
+        end: '2026-06-14T04:00:00.000Z'
+      },
+      [{
+        id: 'sleep1',
+        type: 'sleeping',
+        title: "SLEEP: Katie's Bedroom: Katie Thompson & Zachery",
+        visibility: 'private',
+        status: 'confirmed',
+        workflowState: 'approved',
+        participants: ['Katie Thompson', 'Zachery'],
+        start: '2026-06-13T04:00:00.000Z',
+        end: '2026-06-14T04:00:00.000Z'
+      }],
+      {},
+      { viewerRef: 'Michael Burton' }
+    );
+
+    expect(conflicts).toHaveLength(1);
+    expect(conflicts[0].message).toContain('Private Appointment');
+    expect(conflicts[0].message).not.toContain('Bedroom');
+    expect(conflicts[0].eventVisibility).toBe('private');
+  });
+
   it('ignores non-overlapping events', () => {
     const conflicts = RulesEngine.evaluateEventPersonConflicts(
       {

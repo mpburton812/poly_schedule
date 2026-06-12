@@ -249,8 +249,7 @@ export function filterProposalsForTab(events, tab, userName, config) {
     const ws = getWorkflowState(e);
     if (tab === 'drafts') return ws === WORKFLOW.DRAFT && e.proposer === userName;
     if (tab === 'proposed') return ws === WORKFLOW.PROPOSED;
-    if (tab === 'approved') return ws === WORKFLOW.APPROVED;
-    if (tab === 'archived') return ws === WORKFLOW.ARCHIVED;
+    if (tab === 'resolved') return ws === WORKFLOW.APPROVED || ws === WORKFLOW.ARCHIVED;
     if (tab === 'declined') return ws === WORKFLOW.DECLINED;
     return false;
   });

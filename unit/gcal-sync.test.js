@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { eventScheduleDayKey, parseLocalDateString } from '../js/helpers.js';
 import {
   stripProposalPrefix,
   serializeEventMeta,
@@ -305,11 +306,39 @@ describe('formatGCalResource sleeping events', () => {
 describe('formatSleepingAllDayDates', () => {
   it('sets exclusive end date for one-night sleep', () => {
     const { start, end } = formatSleepingAllDayDates({
-      start: '2026-06-10T22:00:00.000Z'
+      start: '2026-06-10T02:00:00.000Z'
     });
     expect(start.date).toBeTruthy();
     expect(end.date).toBeTruthy();
     expect(end.date > start.date).toBe(true);
+  });
+
+  it('uses local calendar night for evening ISO starts (not UTC date)', () => {
+    const { start, end } = formatSleepingAllDayDates({
+      type: 'sleeping',
+      start: parseLocalDateString('2026-06-09', 22, 0, 0, 0).toISOString()
+    });
+    expect(start.date).toBe('2026-06-09');
+    expect(end.date).toBe('2026-06-10');
+  });
+});
+
+describe('parseGCalEventItem sleeping nights', () => {
+  it('maps all-day GCal dates to local 10 PM start and aligns schedule day', () => {
+    const parsed = parseGCalEventItem({
+      id: 'g1',
+      summary: 'SLEEP: Room: Alex & Sam',
+      start: { date: '2026-06-09' },
+      end: { date: '2026-06-10' },
+      extendedProperties: {
+        shared: {
+          polyschedule_meta: JSON.stringify({ type: 'sleeping', title: 'SLEEP: Room: Alex & Sam' })
+        }
+      }
+    });
+    expect(parsed.type).toBe('sleeping');
+    expect(formatSleepingAllDayDates(parsed).start.date).toBe('2026-06-09');
+    expect(eventScheduleDayKey(parsed)).toBe('2026-06-09');
   });
 });
 

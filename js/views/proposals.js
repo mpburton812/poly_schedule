@@ -41,8 +41,7 @@ export function proposalsView(state, activeTab = 'proposed') {
     const tabLabels = {
       drafts: 'Drafts',
       proposed: 'Proposed',
-      approved: 'Approved',
-      archived: 'Archived',
+      resolved: 'Resolved',
       declined: 'Declined'
     };
 
@@ -161,7 +160,11 @@ export function proposalsView(state, activeTab = 'proposed') {
               <span class="material-symbols-outlined" aria-hidden="true">warning</span>
               <div>
                 <strong>Person schedule conflict</strong>
-                ${formatPersonConflictNotice(p.personConflicts)}
+                ${formatPersonConflictNotice(p.personConflicts, {
+                  viewerRef: state.currentUser?.id || state.currentUser?.name,
+                  config: state.config,
+                  events: state.events
+                })}
                 <p class="font-label-sm" style="margin-top: var(--space-xs); opacity: 0.85;">Reviewers should confirm this overlap is intentional before accepting.</p>
               </div>
             </div>
@@ -256,7 +259,7 @@ export function proposalsView(state, activeTab = 'proposed') {
       });
     }
 
-    const tabs = ['drafts', 'proposed', 'approved', 'archived', 'declined'];
+    const tabs = ['drafts', 'proposed', 'resolved', 'declined'];
     const tabsHtml = tabs.map(tab => `
       <button class="tab-button ${activeTab === tab ? 'active' : ''}" id="btn-tab-${tab}">${tabLabels[tab]}</button>
     `).join('');

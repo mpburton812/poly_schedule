@@ -77,3 +77,19 @@ export function getEventDisplayPolicy(event, userRef, config) {
     showComments: false
   };
 }
+
+/** Build a person-schedule conflict line, redacting private events for non-invitees. */
+export function buildPersonConflictMessage(overlappingPeople = [], otherEvent, viewerRef, config) {
+  const names = overlappingPeople.map((name) => name.split(' ')[0]).join(', ');
+  const verb = overlappingPeople.length === 1 ? 'is' : 'are';
+
+  if (!canUserSeeEventDetails(otherEvent, viewerRef, config)) {
+    return `${names} ${verb} also scheduled for a Private Appointment at that time.`;
+  }
+
+  const timeOpts = { hour: 'numeric', minute: '2-digit', hour12: true };
+  const startOther = new Date(otherEvent.start);
+  const endOther = new Date(otherEvent.end);
+  const title = otherEvent.title || 'Untitled Event';
+  return `${names} ${verb} also scheduled for "${title}" (${startOther.toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' })} · ${startOther.toLocaleTimeString(undefined, timeOpts)}–${endOther.toLocaleTimeString(undefined, timeOpts)}).`;
+}

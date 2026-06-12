@@ -4,6 +4,7 @@
  */
 
 import { findPartnerByRef, batchProposalToSleepingEvents } from './helpers.js';
+import { buildPersonConflictMessage, getEventVisibility } from './event-privacy.js';
 import {
   partnerSleepingWithMessage,
   partnerSoloNightsMessage
@@ -472,8 +473,8 @@ export const RulesEngine = {
    * Detect overlapping timed events that share participants (including proposer).
    * Returns advisory warnings — submission is still allowed.
    */
-  evaluateEventPersonConflicts(proposal, existingEvents = [], config = {}) {
-    void config;
+  evaluateEventPersonConflicts(proposal, existingEvents = [], config = {}, options = {}) {
+    const viewerRef = options.viewerRef ?? null;
     if (!proposal || proposal.type !== 'event') return [];
 
     const people = collectEventPeople(proposal);
@@ -487,16 +488,15 @@ export const RulesEngine = {
       const overlappingPeople = people.filter(person => personScheduledOnEvent(person, other));
       if (!overlappingPeople.length) continue;
 
-      const timeOpts = { hour: 'numeric', minute: '2-digit', hour12: true };
-      const startOther = new Date(other.start);
-      const endOther = new Date(other.end);
-      const names = overlappingPeople.map(name => name.split(' ')[0]).join(', ');
       conflicts.push({
         type: 'PERSON_CONFLICT',
         eventId: other.id,
         eventTitle: other.title || 'Untitled Event',
+        eventVisibility: getEventVisibility(other),
+        eventStart: other.start,
+        eventEnd: other.end,
         people: overlappingPeople,
-        message: `${names} ${overlappingPeople.length === 1 ? 'is' : 'are'} also scheduled for "${other.title || 'Untitled Event'}" (${startOther.toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' })} · ${startOther.toLocaleTimeString(undefined, timeOpts)}–${endOther.toLocaleTimeString(undefined, timeOpts)}).`
+        message: buildPersonConflictMessage(overlappingPeople, other, viewerRef, config)
       });
     }
 

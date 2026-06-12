@@ -1,7 +1,9 @@
 import { escapeHtml } from '../escape.js';
 import {
   formatLocalDateString,
-  getMondayOfWeek
+  getMondayOfWeek,
+  eventScheduleDayKey,
+  sleepingNightStart
 } from '../helpers.js';
 import { getEventDisplayPolicy } from '../event-privacy.js';
 import {
@@ -35,7 +37,7 @@ export function scheduleView(state) {
 
     // Filter confirmed events for this week
     const weekEvents = state.events.filter(e => {
-      const eDate = new Date(e.start);
+      const eDate = e.type === 'sleeping' ? sleepingNightStart(e) : new Date(e.start);
       const mon = new Date(startOfWeek);
       mon.setHours(0,0,0,0);
       const sun = new Date(startOfWeek);
@@ -75,12 +77,9 @@ export function scheduleView(state) {
 
     for (let i = 0; i < 7; i++) {
       const day = weekdays[i];
-      const dayStr = day.toDateString();
+      const dayKey = formatLocalDateString(day);
 
-      const dayEvents = weekEvents.filter(e => {
-        const startD = new Date(e.start);
-        return startD.toDateString() === dayStr;
-      });
+      const dayEvents = weekEvents.filter(e => eventScheduleDayKey(e) === dayKey);
 
       dayEvents.sort((a, b) => (a.type === 'sleeping' ? 1 : -1));
 

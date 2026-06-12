@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   buildInitialResponses,
   evaluateProposedProposal,
+  filterProposalsForTab,
   getProposalOutcome,
   getRequiredVoters,
   isSoloEventProposal,
@@ -197,5 +198,22 @@ describe('buildInitialResponses', () => {
     expect(responses['Michael Burton'].status).toBe('accept');
     expect(responses['Katie Thompson'].status).toBe('accept');
     expect(responses['Katie Thompson'].comment).toBe('Submitted on behalf');
+  });
+});
+
+describe('filterProposalsForTab', () => {
+  const config = { partners: [{ id: 'p1', name: 'Alex Rivera' }] };
+  const events = [
+    { id: '1', type: 'event', workflowState: WORKFLOW.DRAFT, proposer: 'Alex Rivera' },
+    { id: '2', type: 'event', workflowState: WORKFLOW.PROPOSED, proposer: 'Alex Rivera' },
+    { id: '3', type: 'event', workflowState: WORKFLOW.APPROVED, proposer: 'Alex Rivera' },
+    { id: '4', type: 'event', workflowState: WORKFLOW.ARCHIVED, proposer: 'Alex Rivera' },
+    { id: '5', type: 'event', workflowState: WORKFLOW.DECLINED, proposer: 'Alex Rivera' }
+  ];
+
+  it('groups approved and archived proposals under resolved', () => {
+    const resolved = filterProposalsForTab(events, 'resolved', 'Alex Rivera', config);
+    expect(resolved.map((e) => e.id)).toEqual(['3', '4']);
+    expect(filterProposalsForTab(events, 'declined', 'Alex Rivera', config).map((e) => e.id)).toEqual(['5']);
   });
 });

@@ -7,7 +7,7 @@ import {
  * Google Calendar ↔ PolySchedule event serialization helpers.
  */
 
-import { formatAppDateTime } from './helpers.js';
+import { formatAppDateTime, parseLocalDateString, formatLocalDateString, sleepingNightStart, sleepingNightEnd, sleepingNightLocalDate } from './helpers.js';
 import { WORKFLOW, getWorkflowState } from './proposal-workflow.js';
 import { isPrivateVisibility } from './event-privacy.js';
 import { formatGCalDescription, normalizeEventComments } from './event-comments.js';
@@ -266,6 +266,11 @@ export function parseGCalEventItem(item) {
     responses
   };
 
+  if (type === 'sleeping' && item.start?.date && !item.start.dateTime) {
+    event.start = sleepingNightStart({ start: item.start.date }).toISOString();
+    event.end = sleepingNightEnd({ start: item.start.date }).toISOString();
+  }
+
   if (workflowState) event.workflowState = workflowState;
   if (participantRoles) event.participantRoles = participantRoles;
   if (revision != null) event.revision = revision;
@@ -349,24 +354,25 @@ export function gcalStatusForEvent(event) {
 /** True when the scheduled start is already in the past. */
 export function isPastScheduledEvent(event) {
   if (!event?.start) return false;
-  const start = new Date(event.start);
-  if (Number.isNaN(start.getTime())) return false;
   if (event.type === 'sleeping' || event.type === 'batch_sleeping') {
+    const startDay = sleepingNightStart(event);
+    if (Number.isNaN(startDay.getTime())) return false;
     const today = new Date();
     today.setHours(0, 0, 0, 0);
-    const startDay = new Date(start);
-    startDay.setHours(0, 0, 0, 0);
-    return startDay < today;
+    const nightDay = new Date(startDay);
+    nightDay.setHours(0, 0, 0, 0);
+    return nightDay < today;
   }
+  const start = new Date(event.start);
+  if (Number.isNaN(start.getTime())) return false;
   return start.getTime() < Date.now();
 }
 
 export function pastScheduleWarning(event) {
   if (!isPastScheduledEvent(event)) return null;
-  const start = new Date(event.start);
   const when = event.type === 'sleeping'
-    ? formatAppDateTime(start).split(',')[0].trim()
-    : formatAppDateTime(start);
+    ? formatAppDateTime(sleepingNightStart(event)).split(',')[0].trim()
+    : formatAppDateTime(new Date(event.start));
   return {
     type: 'PAST_SCHEDULE',
     message: `This proposal is scheduled in the past (${when}). Reviewers will be alerted.`
@@ -390,19 +396,12 @@ export function mergeGCalWithLocalEvents(gcalEvents = [], localEvents = []) {
 
 /** All-day date range for a sleeping night (GCal end date is exclusive). */
 export function formatSleepingAllDayDates(event) {
-  const startSource = typeof event.start === 'string' && !event.start.includes('T')
-    ? new Date(`${event.start}T12:00:00`)
-    : new Date(event.start);
-  const y = startSource.getFullYear();
-  const m = String(startSource.getMonth() + 1).padStart(2, '0');
-  const d = String(startSource.getDate()).padStart(2, '0');
-  const dateStr = `${y}-${m}-${d}`;
-  const endDay = new Date(startSource);
+  const dateStr = sleepingNightLocalDate(event);
+  const endDay = parseLocalDateString(dateStr, 12, 0, 0, 0);
   endDay.setDate(endDay.getDate() + 1);
-  const endStr = `${endDay.getFullYear()}-${String(endDay.getMonth() + 1).padStart(2, '0')}-${String(endDay.getDate()).padStart(2, '0')}`;
   return {
     start: { date: dateStr },
-    end: { date: endStr }
+    end: { date: formatLocalDateString(endDay) }
   };
 }
 

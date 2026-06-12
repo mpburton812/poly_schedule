@@ -3,7 +3,8 @@ import {
   VISIBILITY,
   canUserSeeEventDetails,
   canUserSeeSleepingArrangement,
-  getEventDisplayPolicy
+  getEventDisplayPolicy,
+  buildPersonConflictMessage
 } from '../js/event-privacy.js';
 import { formatGCalDescription, appendEventComment } from '../js/event-comments.js';
 
@@ -57,6 +58,20 @@ describe('event privacy', () => {
     expect(canUserSeeSleepingArrangement(sleeping, 'Jordan Lee', config)).toBe(false);
     const display = getEventDisplayPolicy(sleeping, 'Jordan Lee', config);
     expect(display.showSleepingArrangement).toBe(false);
+  });
+
+  it('redacts private appointment details in person conflict messages', () => {
+    const privateSleep = {
+      type: 'sleeping',
+      title: "SLEEP: Katie's Bedroom: Katie Thompson & Zachery",
+      visibility: VISIBILITY.PRIVATE,
+      participants: ['Alex Rivera', 'Sam Davis'],
+      start: '2026-06-13T04:00:00.000Z',
+      end: '2026-06-14T04:00:00.000Z'
+    };
+    const message = buildPersonConflictMessage(['Alex Rivera'], privateSleep, 'Jordan Lee', config);
+    expect(message).toBe('Alex is also scheduled for a Private Appointment at that time.');
+    expect(message).not.toContain('Bedroom');
   });
 });
 

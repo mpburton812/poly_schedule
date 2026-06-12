@@ -28,8 +28,7 @@ export function bindProposalsEvents() {
   };
   bindTab('btn-tab-drafts', 'drafts');
   bindTab('btn-tab-proposed', 'proposed');
-  bindTab('btn-tab-approved', 'approved');
-  bindTab('btn-tab-archived', 'archived');
+  bindTab('btn-tab-resolved', 'resolved');
   bindTab('btn-tab-declined', 'declined');
 
   if (flowState.highlightProposalId) {
@@ -101,7 +100,7 @@ function bindProposalActionHandlers() {
         }
 
         if (finalEvent && afterWs === WORKFLOW.APPROVED) {
-          flowState.activeProposalsTab = 'approved';
+          flowState.activeProposalsTab = 'resolved';
           showToast('Proposal approved!', 'success');
         } else {
           showToast('Vote submitted successfully!', 'success');
@@ -235,7 +234,7 @@ function bindProposalActionHandlers() {
         await CalendarSync.archiveProposal(id);
         addLog(`Proposal archived: "${proposal.title}"`, 'info');
         showToast('Proposal archived.', 'success');
-        flowState.activeProposalsTab = 'archived';
+        flowState.activeProposalsTab = 'resolved';
         renderView();
       } catch (err) {
         logOperationError('Proposal archive', err, {

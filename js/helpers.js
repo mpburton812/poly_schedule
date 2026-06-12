@@ -17,6 +17,7 @@ import {
 import { normalizePronouns } from './pronouns.js';
 import { DEFAULT_AVATARS, migrateAvatarUrl, isCustomAvatar } from './avatar.js';
 import { escapeHtml } from './escape.js';
+import { buildPersonConflictMessage } from './event-privacy.js';
 
 export { DEFAULT_AVATARS, migrateAvatarUrl, isCustomAvatar };
 
@@ -89,6 +90,36 @@ export function getMondayOfWeek(dateInput = new Date()) {
   base.setDate(diff);
   base.setHours(0, 0, 0, 0);
   return base;
+}
+
+/** Local calendar night (YYYY-MM-DD) for a sleeping event. */
+export function sleepingNightLocalDate(event) {
+  const raw = event?.start;
+  if (!raw) return '';
+  if (typeof raw === 'string' && !raw.includes('T')) {
+    return String(raw).slice(0, 10);
+  }
+  return formatLocalDateString(new Date(raw));
+}
+
+export function sleepingNightStart(event) {
+  return parseLocalDateString(sleepingNightLocalDate(event), 22, 0, 0, 0);
+}
+
+export function sleepingNightEnd(event) {
+  const end = sleepingNightStart(event);
+  end.setDate(end.getDate() + 1);
+  end.setHours(8, 0, 0, 0);
+  return end;
+}
+
+/** Local calendar day key for grouping events on the schedule. */
+export function eventScheduleDayKey(event) {
+  if (event?.type === 'sleeping') {
+    return sleepingNightLocalDate(event);
+  }
+  if (!event?.start) return '';
+  return formatLocalDateString(new Date(event.start));
 }
 
 /**
@@ -618,7 +649,7 @@ export function expandBatchSleepingToEvents(batchProposal) {
 /** Remove duplicate confirmed sleeping events created by repeated batch approvals. */
 export function sleepingEventFingerprint(event) {
   if (event.type !== 'sleeping') return null;
-  const day = new Date(event.start).toISOString().slice(0, 10);
+  const day = sleepingNightLocalDate(event);
   const participants = [...(event.participants || [])].sort().join('|');
   return `${day}|${event.homeId || ''}|${event.roomId || ''}|${participants}|${event.title || ''}`;
 }
@@ -713,10 +744,28 @@ export function buildBatchNightsPayload(startDateStr, nightCount, nightAssignmen
 
 export { renderAvatarPickerHtml } from './avatar.js';
 
-export function formatPersonConflictNotice(conflicts = []) {
+function conflictEventSnapshot(conflict, events = []) {
+  return events.find((e) => e.id === conflict.eventId) || {
+    id: conflict.eventId,
+    title: conflict.eventTitle,
+    visibility: conflict.eventVisibility,
+    start: conflict.eventStart,
+    end: conflict.eventEnd
+  };
+}
+
+export function resolvePersonConflictMessage(conflict, { viewerRef, config, events = [] } = {}) {
+  if (!conflict || conflict.type !== 'PERSON_CONFLICT') return conflict?.message || '';
+  if (!viewerRef || !config) return conflict.message || '';
+  const other = conflictEventSnapshot(conflict, events);
+  return buildPersonConflictMessage(conflict.people || [], other, viewerRef, config);
+}
+
+export function formatPersonConflictNotice(conflicts = [], context = {}) {
   if (!conflicts?.length) return '';
-  if (conflicts.length === 1) return `<p>${escapeHtml(conflicts[0].message)}</p>`;
-  return `<ul class="banner-alert-list">${conflicts.map(c => `<li>${escapeHtml(c.message)}</li>`).join('')}</ul>`;
+  const messages = conflicts.map((c) => resolvePersonConflictMessage(c, context));
+  if (messages.length === 1) return `<p>${escapeHtml(messages[0])}</p>`;
+  return `<ul class="banner-alert-list">${messages.map((m) => `<li>${escapeHtml(m)}</li>`).join('')}</ul>`;
 }
 
 export function parseHashParams() {

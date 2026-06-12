@@ -14,7 +14,8 @@ import {
   getBedroomOptionsForHome,
   buildBatchNightsPayload,
   formatAppTime,
-  mustIncludeCurrentUserInSleepingProposal
+  mustIncludeCurrentUserInSleepingProposal,
+  resolvePersonConflictMessage
 } from '../../helpers.js';
 import { pastScheduleWarning } from '../../gcal-sync.js';
 import {
@@ -147,10 +148,24 @@ export function readBatchAssignmentsFromDom() {
   return newProposalState.batchAssignments;
 }
 
-export function formatWarningList(warnings) {
+function personConflictContext() {
+  return {
+    viewerRef: getCurrentUserId() || getCurrentUserName(),
+    config: state.config,
+    events: state.events
+  };
+}
+
+export function formatWarningList(warnings, context = {}) {
   if (!warnings.length) return '';
-  if (warnings.length === 1) return escapeHtml(warnings[0].message);
-  return `<ul class="banner-alert-list">${warnings.map(w => `<li>${escapeHtml(w.message)}</li>`).join('')}</ul>`;
+  const lines = warnings.map((w) => {
+    if (w.type === 'PERSON_CONFLICT') {
+      return resolvePersonConflictMessage(w, context);
+    }
+    return w.message;
+  });
+  if (lines.length === 1) return escapeHtml(lines[0]);
+  return `<ul class="banner-alert-list">${lines.map((line) => `<li>${escapeHtml(line)}</li>`).join('')}</ul>`;
 }
 
 export function showProposalRulesBanner(warnings) {
@@ -190,7 +205,7 @@ export function showProposalRulesBanner(warnings) {
       titleEl.textContent = titles.join(' · ');
       const parts = [];
       if (personConflictWarnings.length) {
-        parts.push(formatWarningList(personConflictWarnings));
+        parts.push(formatWarningList(personConflictWarnings, personConflictContext()));
       }
       if (pastScheduleWarnings.length) {
         parts.push(`<ul class="banner-alert-list">${pastScheduleWarnings.map(w => `<li>${w.message}</li>`).join('')}</ul>`);
@@ -597,7 +612,8 @@ export async function submitCurrentProposal() {
       const personConflicts = RulesEngine.evaluateEventPersonConflicts(
         proposalPayload,
         state.events,
-        state.config
+        state.config,
+        { viewerRef: getCurrentUserId() || getCurrentUserName() }
       );
       data.personConflicts = personConflicts;
       advisoryWarnings.push(...personConflicts);
@@ -669,7 +685,9 @@ export function runRulesChecks() {
 
   if (flowState.currentCreateType === 'event') {
     const warnings = [
-      ...RulesEngine.evaluateEventPersonConflicts(data, state.events, state.config),
+      ...RulesEngine.evaluateEventPersonConflicts(data, state.events, state.config, {
+        viewerRef: getCurrentUserId() || getCurrentUserName()
+      }),
       pastScheduleWarning(data)
     ].filter(Boolean);
     showProposalRulesBanner(warnings);
