@@ -11,7 +11,7 @@ import {
   state,
 } from './state.js';
 import { LOCAL_SESSION_KEY } from '../storage-keys.js';
-import { loadPersistedLogs, addLog, initChangeLog, syncPromotionChangeLog, logOperationError, showToast, updateNotificationsBadge, establishSession, logoutUser, showLoginView, bindImpersonationBanner } from './context.js';
+import { loadPersistedLogs, addLog, initChangeLog, syncPromotionChangeLog, logOperationError, showToast, updateNotificationsBadge, establishSession, logoutUser, showLoginView, bindImpersonationBanner, isLoggedIn } from './context.js';
 import {
   openNotificationsModal,
   openUserProfileModal
@@ -168,6 +168,14 @@ export async function handleGoogleAuthState(authState) {
     const result = await bootstrapData('sync');
     if (result.ok) {
       showToast('Connected to Google Calendar.', 'success');
+      if (!isLoggedIn()) {
+        if (needsHouseholdSetup(state.config)) {
+          showToast('Google connected, but no login accounts were found in this calendar. Check Calendar ID on the connect form.', 'warning');
+        } else {
+          showToast('Household loaded. Sign in with your username and password.', 'success');
+          showLoginView();
+        }
+      }
     }
     return;
   }

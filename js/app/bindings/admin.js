@@ -1,7 +1,10 @@
 import {
+  CALENDAR_ID_KEY,
+  MODE_KEY,
   FAMILY_NAME_KEY
 } from '../../storage-keys.js';
 import { CalendarSync } from '../../calendar.js';
+import { AuthManager } from '../../auth.js';
 import { hashPassword } from '../../crypto.js';
 import { normalizePronouns } from '../../pronouns.js';
 import { RETURN_ADD_PARTNER_KEY, SELECT_HOME_KEY, ADD_PARTNER_DRAFT_KEY } from '../../storage-keys.js';
@@ -63,6 +66,32 @@ export function bindAdminEvents() {
 }
 
 export function bindLoginEvents() {
+  const btnConnect = document.getElementById('btn-connect-existing-household');
+  if (btnConnect) {
+    btnConnect.addEventListener('click', () => {
+      const clientId = document.getElementById('connect-client-id')?.value.trim();
+      const apiKey = document.getElementById('connect-api-key')?.value.trim();
+      const calendarId = document.getElementById('connect-calendar-id')?.value.trim() || 'primary';
+
+      if (!clientId || !apiKey) {
+        showToast('Enter Google Client ID and API Key (same as on your desktop Admin page).', 'warning');
+        return;
+      }
+
+      AuthManager.setCredentials(clientId, apiKey);
+      localStorage.setItem(CALENDAR_ID_KEY, calendarId);
+      localStorage.setItem(MODE_KEY, 'sync');
+      state.isOffline = false;
+
+      try {
+        AuthManager.login();
+        showToast('Complete Google sign-in to load your household.', 'info');
+      } catch (err) {
+        showToast(err.message || 'Could not start Google sign-in.', 'error');
+      }
+    });
+  }
+
   const btnSetup = document.getElementById('btn-setup-household');
   if (btnSetup) {
     btnSetup.addEventListener('click', () => {
@@ -72,7 +101,6 @@ export function bindLoginEvents() {
         password: document.getElementById('setup-password')?.value || ''
       });
     });
-    return;
   }
 
   const btnLogin = document.getElementById('btn-login');
