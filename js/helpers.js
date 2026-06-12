@@ -107,9 +107,6 @@ export function needsHouseholdSetup(config) {
   return !(config?.partners || []).some(canPartnerLogin);
 }
 
-/** @deprecated Use needsHouseholdSetup */
-export const needsInitialSetup = needsHouseholdSetup;
-
 /** Ensure household config has required top-level arrays. */
 export function normalizeHouseholdConfigShape(config) {
   if (!config || typeof config !== 'object') {

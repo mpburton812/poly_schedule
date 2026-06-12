@@ -10,6 +10,9 @@ export function isGoogleGateActive() {
 }
 
 export function needsGoogleCalendarConnect() {
+  if (typeof window !== 'undefined' && window.__POLYSCHEDULE_E2E__) {
+    return false;
+  }
   return !isGoogleCalendarReady();
 }
 

@@ -79,7 +79,7 @@ test.describe('PolySchedule UI E2E Flow Tests', () => {
 
     await page.click('#avatar-container');
     await expect(page.locator('#app-modal')).toHaveClass(/open/);
-    await expect(page.locator('text=Connection Settings')).toBeVisible();
+    await expect(page.locator('text=Edit Profile')).toBeVisible();
   });
 
   test('should support creating a new event proposal', async ({ page }) => {

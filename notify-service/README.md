@@ -10,7 +10,7 @@ npm install
 npm run generate-vapid
 ```
 
-Copy the generated keys into `.env` (see `.env.example`), set `NOTIFY_SECRET`, then:
+Copy the generated keys into `.env` (see `.env.example`), set `NOTIFY_SECRET` (or run `npm run generate:notify-secret`), then:
 
 ```bash
 npm start
@@ -36,6 +36,8 @@ node scripts/reset-partner-password.js kathompson 'Choose-A-New-Password'
 ```
 
 Then sign in to PolySchedule with the new password.
+
+See [docs/SECRET_ROTATION.md](./docs/SECRET_ROTATION.md) for rotating `NOTIFY_SECRET` after exposure.
 
 Each user enables push under **Settings → Mobile notifications**.
 

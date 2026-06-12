@@ -5,7 +5,7 @@ import {
 } from './storage-keys.js';
 /**
  * PolySchedule Google Calendar & State Manager
- * Synchronizes local state with Google Calendar events or provides offline localStorage mock sync.
+ * Synchronizes local state with Google Calendar events or local cache when sync is unavailable.
  */
 
 import { HouseholdStore } from './household-store.js';

@@ -8,7 +8,7 @@ module.exports = defineConfig({
   workers: process.env.CI ? 1 : undefined,
   reporter: 'list',
   use: {
-    baseURL: 'http://localhost:8080',
+    baseURL: 'http://127.0.0.1:8091',
     trace: 'on-first-retry',
   },
   projects: [
@@ -26,9 +26,9 @@ module.exports = defineConfig({
     },
   ],
   webServer: {
-    command: 'npm start',
-    url: 'http://localhost:8080',
-    reuseExistingServer: !process.env.CI,
+    command: 'node generate-version.js && npx http-server . -p 8091 -c-1',
+    url: 'http://127.0.0.1:8091',
+    reuseExistingServer: false,
     timeout: 120 * 1000,
   },
 });

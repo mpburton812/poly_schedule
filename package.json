@@ -12,7 +12,7 @@
     "emulator:desktop": "node scripts/web-emulator.js --preset=desktop",
     "test:unit": "vitest run",
     "generate:avatars": "node scripts/generate-avatar-icons.js",
-    "test:e2e": "playwright test",
+    "test:e2e": "npm run build && playwright test",
     "test": "npm run test:unit && npm run test:e2e",
     "build": "node scripts/vercel-build.js",
     "notify": "npm --prefix notify-service start",

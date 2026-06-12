@@ -9,3 +9,4 @@ public/
 notify-service/.env
 notify-service/node_modules/
 notify-service/data/*.json
+reset-body.json
