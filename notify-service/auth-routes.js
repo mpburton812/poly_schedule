@@ -1,7 +1,7 @@
 import { getHousehold } from './sync-store.js';
-import { isUsernameTaken, normalizeUsername } from './username-registry.js';
 import { verifyPartnerPassword } from './crypto.js';
 import { getFixedHouseholdId } from './fixed-household.js';
+import { resolvePartnerLoginContext, resetPartnerPassword } from './reset-partner-password.js';
 
 function sanitizeConfigForClient(config) {
   if (!config) return null;
@@ -32,44 +32,24 @@ function sanitizeNotifyService(config) {
   };
 }
 
-function findLoginPartner(config, normalizedUsername) {
-  return (config?.partners || []).find((partner) => {
-    if (partner?.passive || !partner?.username) return false;
-    return normalizeUsername(partner.username) === normalizedUsername;
-  }) || null;
-}
-
 function resolveLoginContext(username) {
-  const normalized = normalizeUsername(username);
-  const fixedHouseholdId = getFixedHouseholdId();
-
-  if (fixedHouseholdId) {
-    const household = getHousehold(fixedHouseholdId);
-    if (!household?.config) {
-      return {
-        error: {
-          status: 503,
-          body: {
-            error: 'Household data is not available yet. Ask an admin to open PolySchedule on a connected device first.',
-            code: 'HOUSEHOLD_UNAVAILABLE'
+  const ctx = resolvePartnerLoginContext(username);
+  if (!ctx) {
+    const fixedHouseholdId = getFixedHouseholdId();
+    if (fixedHouseholdId) {
+      const household = getHousehold(fixedHouseholdId);
+      if (!household?.config) {
+        return {
+          error: {
+            status: 503,
+            body: {
+              error: 'Household data is not available yet. Ask an admin to open PolySchedule on a connected device first.',
+              code: 'HOUSEHOLD_UNAVAILABLE'
+            }
           }
-        }
-      };
+        };
+      }
     }
-    const partner = findLoginPartner(household.config, normalized);
-    if (!partner) {
-      return {
-        error: {
-          status: 401,
-          body: { error: 'Invalid username or password.', code: 'INVALID_CREDENTIALS' }
-        }
-      };
-    }
-    return { householdId: fixedHouseholdId, household, partner };
-  }
-
-  const lookup = isUsernameTaken(username);
-  if (!lookup.taken || !lookup.householdId || !lookup.partnerId) {
     return {
       error: {
         status: 401,
@@ -77,35 +57,10 @@ function resolveLoginContext(username) {
       }
     };
   }
-
-  const household = getHousehold(lookup.householdId);
-  const config = household?.config;
-  if (!config) {
-    return {
-      error: {
-        status: 503,
-        body: {
-          error: 'Household data is not available yet. Ask an admin to open PolySchedule on a connected device first.',
-          code: 'HOUSEHOLD_UNAVAILABLE'
-        }
-      }
-    };
-  }
-
-  const partner = findLoginPartner(config, lookup.normalized || normalized);
-  if (!partner || partner.id !== lookup.partnerId) {
-    return {
-      error: {
-        status: 401,
-        body: { error: 'Invalid username or password.', code: 'INVALID_CREDENTIALS' }
-      }
-    };
-  }
-
-  return { householdId: lookup.householdId, household, partner };
+  return ctx;
 }
 
-export function mountAuthRoutes(app) {
+export function mountAuthRoutes(app, { requireSecret } = {}) {
   app.post('/v1/auth/login', async (req, res) => {
     const username = String(req.body?.username || '').trim();
     const password = String(req.body?.password || '');
@@ -149,4 +104,30 @@ export function mountAuthRoutes(app) {
       revision: household.revision ?? 0
     });
   });
+
+  if (requireSecret) {
+    app.post('/v1/auth/reset-password', requireSecret, async (req, res) => {
+      const username = String(req.body?.username || '').trim();
+      const password = String(req.body?.password || '');
+
+      if (!username || !password) {
+        res.status(400).json({ error: 'username and password are required', code: 'BAD_REQUEST' });
+        return;
+      }
+
+      const result = await resetPartnerPassword(username, password);
+      if (!result.ok) {
+        const status = result.code === 'NOT_FOUND' ? 404 : 400;
+        res.status(status).json({ error: result.message, code: result.code });
+        return;
+      }
+
+      res.json({
+        ok: true,
+        householdId: result.householdId,
+        partnerId: result.partnerId,
+        username: result.username
+      });
+    });
+  }
 }

@@ -18,6 +18,25 @@ npm start
 
 Configure the PolySchedule **Admin** page with notify URL and secret.
 
+### Lockout recovery (all admin passwords lost)
+
+If household sync wiped login hashes, reset a partner password with the notify secret:
+
+```bash
+curl -X POST "https://YOUR-NOTIFY.onrender.com/v1/auth/reset-password" \
+  -H "Content-Type: application/json" \
+  -H "X-Notify-Secret: YOUR_NOTIFY_SECRET" \
+  -d '{"username":"kathompson","password":"Choose-A-New-Password"}'
+```
+
+On Render shell (from `notify-service`):
+
+```bash
+node scripts/reset-partner-password.js kathompson 'Choose-A-New-Password'
+```
+
+Then sign in to PolySchedule with the new password.
+
 Each user enables push under **Settings → Mobile notifications**.
 
 ## Household sync hub (Phases 0–3)
@@ -27,6 +46,7 @@ Google Calendar stays the source of truth. The notify service coordinates near-r
 | Endpoint | Purpose |
 |----------|---------|
 | `POST /v1/auth/login` | Username/password login — returns config, events, `groupName`, `googleIntegration`, and `notifyService` |
+| `POST /v1/auth/reset-password` | **Lockout recovery** — set a partner password using `X-Notify-Secret` (same secret as Admin → Notify) |
 | `GET /v1/usernames/check` | Check global username availability |
 | `POST /v1/sync/register` | Register a device for a household |
 | `GET /v1/sync/status` | Current revision for polling fallback |

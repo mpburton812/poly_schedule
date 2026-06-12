@@ -112,7 +112,7 @@ app.post('/v1/events', requireSecret, async (req, res) => {
   res.json(result);
 });
 
-mountAuthRoutes(app);
+mountAuthRoutes(app, { requireSecret });
 mountSyncRoutes(app, { requireSecret });
 
 app.listen(PORT, () => {

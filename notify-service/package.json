@@ -7,7 +7,8 @@
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
-    "generate-vapid": "node scripts/generate-vapid.js"
+    "generate-vapid": "node scripts/generate-vapid.js",
+    "reset-password": "node scripts/reset-partner-password.js"
   },
   "dependencies": {
     "cors": "^2.8.5",
