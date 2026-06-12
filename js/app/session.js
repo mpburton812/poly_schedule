@@ -1,4 +1,5 @@
 import { state } from './state.js';
+import { router } from './router.js';
 import { AuthManager } from '../auth.js';
 import { PROPOSAL_DRAFT_KEY_PREFIX } from '../storage-keys.js';
 import { hashPassword } from '../crypto.js';
@@ -86,8 +87,6 @@ export function establishSession(partner) {
   updateAdminNavVisibility();
   refreshCurrentUserNotifications();
   syncPendingProposalAlertsForUser();
-  // After establishing session, check for duplicate accounts with admin role
-  maybeSwitchToAdminIfDuplicate();
   import('../push-notifications.js').then(({ syncPushSubscriptionIfEnabled }) => {
     syncPushSubscriptionIfEnabled(partner.id);
   });
@@ -140,8 +139,7 @@ export async function attemptLogin(username, password) {
   establishSession(authenticatedPartner);
   addLog(`${authenticatedPartner.name}: Logged in successfully.`, 'info');
   showToast(`Welcome back, ${authenticatedPartner.name.split(' ')[0]}!`, 'success');
-  window.location.hash = '#schedule';
-  import('./render-bus.js').then(({ requestRender }) => requestRender());
+  router();
   return true;
 }
 
@@ -177,8 +175,7 @@ export async function createFirstAdminPartner({ name, username, password }) {
     establishSession(duplicate);
     addLog(`${duplicate.name}: Upgraded to admin account.`, 'info');
     if (saveResult?.needsAuth) { showToast('Account upgraded. Click Sync Google in the top bar to back up to Google Calendar.', 'info'); const loginBtn = document.getElementById('btn-google-login'); if (loginBtn) loginBtn.style.display = 'inline-flex'; } else { showToast(`Welcome, ${duplicate.name.split(' ')[0]}!`, 'success'); }
-    window.location.hash = '#schedule';
-    import('./render-bus.js').then(({ requestRender }) => requestRender());
+    router();
     return true;
   }
 
@@ -243,27 +240,14 @@ export async function createFirstAdminPartner({ name, username, password }) {
     );
     const loginBtn = document.getElementById('btn-google-login');
     if (loginBtn) loginBtn.style.display = 'inline-flex';
-    window.location.hash = '#login';
+    router();
   } else {
     showToast(`Welcome, ${partner.name.split(' ')[0]}!`, 'success');
-    window.location.hash = '#schedule';
+    router();
   }
-  import('./render-bus.js').then(({ requestRender }) => requestRender());
   return true;
 }
 
-function maybeSwitchToAdminIfDuplicate() {
-  const currentName = state.currentUser?.name;
-  if (!currentName) return;
-  const candidates = state.config?.partners?.filter(p => p.name === currentName && p.id !== state.currentUser.id);
-  for (const p of candidates) {
-    if (p.role === 'Admin') {
-      establishSession(p);
-      showToast('Switched to admin account.', 'info');
-      break;
-    }
-  }
-}
 
 export function logoutUser() {
   const name = getCurrentUserName();

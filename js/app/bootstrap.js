@@ -17,6 +17,8 @@ import {
   openUserProfileModal
 } from './modals.js';
 import { router } from './router.js';
+import { toggleLoadingSpinner } from './spinner.js';
+import { applySyncedAdminSettingsFromConfig } from '../household-config-apply.js';
 
 // Global localStorage exception handling
 const originalSetItem = Storage.prototype.setItem;
@@ -91,6 +93,10 @@ export async function bootstrapData(mode) {
     state.events = CalendarSync.events;
     state.config = CalendarSync.config;
     state.isOffline = mode !== 'sync';
+    // Apply household-wide admin settings from synced config
+    const adminSettings = applySyncedAdminSettingsFromConfig(state.config);
+    addLog(`Admin settings applied: ${Object.keys(adminSettings).join(', ')}`);
+
     // Router will be invoked after bootstrap completes and initial view is determined.
     // Removed early router() call to avoid premature navigation before session checks.
 
@@ -245,8 +251,12 @@ export function init() {
       updateGoogleLoginButton(authState);
     });
 
-    // After bootstrap, decide which view to show based on config and saved session
+    // Show loading spinner while bootstrap and view determination run
+    toggleLoadingSpinner(true);
+    await bootstrapData(resolveSyncBootstrapMode());
     await determineInitialView();
+    // Hide spinner after UI is ready
+    toggleLoadingSpinner(false);
     // Set up auth state listener after view is decided
     AuthManager.onAuthStateChange = (authState) => handleGoogleAuthState(authState);
     };
