@@ -8,5 +8,15 @@
       "Fix sleeping event dates so the app schedule matches Google Calendar all-day nights",
       "Use local calendar dates for sleeping GCal sync (parse, write, and schedule grouping)"
     ]
+  },
+  "2216eba": {
+    "summary": "Resolved proposals tab, private conflict alerts, and sleeping night date sync fix",
+    "changes": [
+      "Merge Approved and Archived into a Resolved tab with per-proposal Approved/Archived badges",
+      "Keep users on the Resolved tab when archiving; Declined remains its own tab",
+      "Redact private appointment details in person schedule conflict warnings",
+      "Fix sleeping event dates so the app schedule matches Google Calendar all-day nights",
+      "Use local calendar dates for sleeping GCal sync (parse, write, and schedule grouping)"
+    ]
   }
 }
