@@ -1428,6 +1428,9 @@ body {
   display: flex;
   gap: var(--space-xs);
 }
+.console-line--user .system-log-message {
+  color: #8ecae6;
+}
 .console-time {
   color: rgba(255,255,255,0.4);
 }

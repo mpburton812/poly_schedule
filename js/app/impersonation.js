@@ -2,7 +2,7 @@ import { state, resetCreateFlowForUserSwitch } from './state.js';
 import { isPartnerPassive } from '../helpers.js';
 import { establishSession, isAdmin, isLoggedIn } from './session.js';
 import { showToast } from './toast.js';
-import { addLog } from './operation-log.js';
+import { logUserAction } from './operation-log.js';
 
 export function updateImpersonationBanner() {
   const banner = document.getElementById('impersonation-banner');
@@ -29,7 +29,7 @@ export function impersonatePartner(partnerId) {
   const actorName = state.currentUser?.name || 'Admin';
   resetCreateFlowForUserSwitch();
   establishSession(partner);
-  addLog(`${actorName}: Impersonating user "${partner.name}".`, 'warning');
+  logUserAction(`Impersonating user "${partner.name}".`, 'warning', actorName);
   showToast(`Viewing as ${partner.name.split(' ')[0]}`, 'info');
   
   import('./render-bus.js').then(({ requestRender }) => requestRender());

@@ -11,7 +11,7 @@ import { CalendarSync } from '../calendar.js';
 import { renderAvatarPickerHtml } from '../avatar.js';
 import { state } from './state.js';
 import { LOCAL_SESSION_KEY } from '../storage-keys.js';
-import { addLog, logOperationError, showToast, updateNotificationsBadge, logoutUser, getCurrentUserName, updatePartnerProfile, persistCurrentUserNotifications, pushAppNotification } from './context.js';
+import { logUserAction, logOperationError, showToast, updateNotificationsBadge, logoutUser, getCurrentUserName, updatePartnerProfile, persistCurrentUserNotifications, pushAppNotification } from './context.js';
 import { getCurrentUserPartner, formatAppDateTime } from '../helpers.js';
 import { renderPronounPickerHtml, bindPronounPicker } from '../pronouns.js';
 import { escapeHtml } from '../escape.js';
@@ -38,7 +38,7 @@ export function handleBookingDeletion(event, reason) {
   });
 
   showToast('Booking cancelled successfully.', 'success');
-  addLog(`Deleted event "${event.title}": ${reason || 'no reason'}`);
+  logUserAction(`Deleted event "${event.title}": ${reason || 'no reason'}`);
 }
 
 export function openNotificationsModal() {
@@ -262,7 +262,7 @@ export function openUserProfileModal() {
       const modalAvatarImg = box.querySelector('.profile-avatar img');
       if (modalAvatarImg) modalAvatarImg.src = selectedAvatar;
 
-      addLog(`Profile updated for "${dispName}".`, 'info');
+      logUserAction(`Profile updated for "${dispName}".`, 'info');
       showToast('Profile updated successfully.', 'success');
       modal.classList.remove('open');
     });
