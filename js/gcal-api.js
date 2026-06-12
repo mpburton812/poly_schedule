@@ -114,11 +114,15 @@ export const CalendarAPI = {
 
     const res = await fetch(url, {
       method,
+      mode: 'cors',
+      credentials: 'omit',
       headers: {
         Authorization: `Bearer ${accessToken}`,
         'Content-Type': 'application/json'
       },
-      body: JSON.stringify(resource)
+      body: JSON.stringify(resource),
+      referrer: '',
+      referrerPolicy: 'no-referrer'
     });
 
     if (!res.ok) throw await googleApiErrorFromResponse(res, 'Failed to save configuration settings to Google Calendar');

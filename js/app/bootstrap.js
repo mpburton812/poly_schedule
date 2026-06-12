@@ -66,7 +66,9 @@ export async function bootstrapData(mode) {
     state.events = CalendarSync.events;
     state.config = CalendarSync.config;
     state.isOffline = mode !== 'sync';
-    router();
+    // Router will be invoked after bootstrap completes and initial view is determined.
+    // Removed early router() call to avoid premature navigation before session checks.
+
 
     if (alignStats) {
       addLog(

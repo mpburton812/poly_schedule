@@ -1,9 +1,11 @@
 import { state } from './state.js';
 import { AuthManager } from '../auth.js';
+import { PROPOSAL_DRAFT_KEY_PREFIX } from '../storage-keys.js';
 import { hashPassword } from '../crypto.js';
 import { CalendarSync } from '../calendar.js';
 import { LOCAL_SESSION_KEY } from '../storage-keys.js';
 import { DEFAULT_AVATARS, Views } from '../views.js';
+import { persistHouseholdConfig } from './household-config.js';
 import { isPartnerPassive, needsHouseholdSetup, partnerRefsMatch } from '../helpers.js';
 import { showToast } from './toast.js';
 import { addLog, logUserAction } from './operation-log.js';
@@ -156,14 +158,30 @@ export async function createFirstAdminPartner({ name, username, password }) {
     return false;
   }
 
-  if (!needsHouseholdSetup(state.config)) {
-    showToast('This household already has login accounts.', 'warning');
-    return false;
-  }
-
+  // Check for existing username and upgrade if needed
   const duplicate = state.config.partners?.find(p => p.username === trimmedUser);
   if (duplicate) {
-    showToast('That username is already taken.', 'warning');
+    // Upgrade existing partner to admin (same as below)
+    const passwordHash = await hashPassword(trimmedPassword, duplicate.id);
+    duplicate.passwordHash = passwordHash;
+    duplicate.username = trimmedUser;
+    duplicate.role = 'Admin';
+    duplicate.avatar = duplicate.avatar || DEFAULT_AVATARS[0];
+    duplicate.pronouns = duplicate.pronouns || null;
+    duplicate.rules = duplicate.rules || {};
+    delete duplicate.passive;
+    let saveResult;
+    try { saveResult = await CalendarSync.saveConfig(state.config); } catch (err) { showToast(`Failed to save household: ${err.message}`, 'error'); return false; }
+    establishSession(duplicate);
+    addLog(`${duplicate.name}: Upgraded to admin account.`, 'info');
+    if (saveResult?.needsAuth) { showToast('Account upgraded. Click Sync Google in the top bar to back up to Google Calendar.', 'info'); const loginBtn = document.getElementById('btn-google-login'); if (loginBtn) loginBtn.style.display = 'inline-flex'; } else { showToast(`Welcome, ${duplicate.name.split(' ')[0]}!`, 'success'); }
+    window.location.hash = '#schedule';
+    import('./render-bus.js').then(({ requestRender }) => requestRender());
+    return true;
+  }
+
+  if (!needsHouseholdSetup(state.config)) {
+    showToast('This household already has login accounts.', 'warning');
     return false;
   }
 
@@ -198,17 +216,24 @@ export async function createFirstAdminPartner({ name, username, password }) {
     state.config.partners.push(partner);
   }
 
+  // Persist the updated config and refresh the in‑memory state.
   let saveResult;
   try {
-    saveResult = await CalendarSync.saveConfig(state.config);
+    saveResult = await persistHouseholdConfig('Created first admin account');
   } catch (err) {
+    // If persisting fails we already showed a toast inside persistHouseholdConfig.
     state.config.partners.pop();
-    showToast(`Failed to save household: ${err.message}`, 'error');
     return false;
   }
 
   addLog(`${partner.name}: Created first admin account.`, 'info');
   establishSession(partner);
+  // Save session to localStorage for automatic login on reload
+  localStorage.setItem(LOCAL_SESSION_KEY, JSON.stringify({
+    id: partner.id,
+    username: partner.username,
+    sessionActive: true
+  }));
   if (saveResult?.needsAuth) {
     showToast(
       'Account created. Click Sync Google in the top bar to back up to Google Calendar.',
@@ -216,10 +241,11 @@ export async function createFirstAdminPartner({ name, username, password }) {
     );
     const loginBtn = document.getElementById('btn-google-login');
     if (loginBtn) loginBtn.style.display = 'inline-flex';
+    window.location.hash = '#login';
   } else {
     showToast(`Welcome, ${partner.name.split(' ')[0]}!`, 'success');
+    window.location.hash = '#schedule';
   }
-  window.location.hash = '#schedule';
   import('./render-bus.js').then(({ requestRender }) => requestRender());
   return true;
 }
@@ -237,3 +263,56 @@ export function logoutGoogleSync() {
   logUserAction('Disconnected Google Calendar sync.', 'info');
   showToast('Google Calendar sync disconnected.', 'info');
 }
+
+// Utility to fully clear user data
+export function clearUserDatabase() {
+  const keys = [
+    LOCAL_SESSION_KEY,
+    GOOGLE_PROFILE_KEY,
+    LEGACY_PROFILE_KEY,
+    LOCAL_EVENTS_KEY,
+    LOCAL_CONFIG_KEY,
+    LOGS_STORAGE_KEY,
+    CHANGE_LOG_KEY,
+    PROMOTION_KEY_STORAGE,
+    NOTIFICATIONS_BY_USER_KEY,
+    LEGACY_NOTIFICATIONS_KEY,
+    PUSH_TYPE_PREFS_KEY,
+    PUSH_ENABLED_KEY,
+    PUSH_QUIET_HOURS_KEY,
+    PUSH_QUIET_START_KEY,
+    PUSH_QUIET_END_KEY,
+    AUTO_ARCHIVE_DAYS_KEY,
+    DEVICE_ID_KEY,
+    HOUSEHOLD_SYNC_TOKEN_KEY,
+    LAST_SYNC_REVISION_KEY,
+    NOTIFY_URL_KEY,
+    NOTIFY_SECRET_KEY,
+    RETURN_ADD_PARTNER_KEY,
+    SELECT_HOME_KEY,
+    ADD_PARTNER_DRAFT_KEY
+  ];
+  // Remove each known key
+  keys.forEach(k => {
+    try { localStorage.removeItem(k); } catch (_) {}
+  });
+  // Clear any proposal drafts (prefix based)
+  try {
+    Object.keys(localStorage).forEach(k => {
+      if (k.startsWith(PROPOSAL_DRAFT_KEY_PREFIX)) {
+        localStorage.removeItem(k);
+      }
+    });
+  } catch (_) {}
+  // Clear sessionStorage completely
+  try { sessionStorage.clear(); } catch (_) {}
+  // Reset in‑memory state
+  if (typeof state !== 'undefined') {
+    state.config = null;
+    state.events = null;
+    state.currentUser = null;
+    state.sessionActive = false;
+  }
+  showToast('All user data cleared.', 'success');
+}
+
