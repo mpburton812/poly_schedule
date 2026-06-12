@@ -18,6 +18,18 @@ npm start
 
 Configure the PolySchedule **Admin** page with notify URL and secret.
 
+### Server-managed Google Calendar credentials
+
+Set these on Render (or in `.env` for local notify) so household members never enter OAuth Client ID, API Key, or Calendar ID in Admin:
+
+| Variable | Purpose |
+|----------|---------|
+| `GOOGLE_CLIENT_ID` | OAuth 2.0 client ID (JavaScript origin restricted) |
+| `GOOGLE_API_KEY` | Browser API key (Calendar API only) |
+| `GOOGLE_CALENDAR_ID` | Shared calendar ID (defaults to `primary`) |
+
+When all required vars are set, `GET /v1/config` and `POST /v1/auth/login` include `googleIntegration` with `serverManaged: true`. Each device still completes Google sign-in once for OAuth access tokens.
+
 ### Lockout recovery (all admin passwords lost)
 
 If household sync wiped login hashes, reset a partner password with the notify secret:

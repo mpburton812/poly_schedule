@@ -1,7 +1,7 @@
 import { AuthManager } from '../auth.js';
 import { CalendarSync } from '../calendar.js';
 import { Views } from '../views.js';
-import { ensureGoogleCredentialsFromConfig } from '../google-integration.js';
+import { ensureGoogleCredentialsFromConfig, isGoogleIntegrationServerManaged } from '../google-integration.js';
 import { hasGoogleIntegrationCredentials, isGoogleCalendarReady, setCalendarStatus } from '../calendar-status.js';
 import { state, flowState } from './state.js';
 import { isAdmin } from './session.js';
@@ -37,7 +37,8 @@ export function showGoogleConnectGate() {
   const credentialsReady = prepareGoogleConnectGate();
   container.innerHTML = Views.googleConnectGate({
     credentialsReady,
-    isAdminUser: isAdmin()
+    isAdminUser: isAdmin(),
+    serverManagedGoogle: isGoogleIntegrationServerManaged()
   });
   bindGoogleConnectGateEvents();
 }
@@ -56,6 +57,14 @@ function bindGoogleConnectGateEvents() {
       setCalendarStatus('disconnected');
       showToast(err.message || 'Could not start Google sign-in.', 'error');
     }
+  });
+
+  document.getElementById('btn-retry-server-google-config')?.addEventListener('click', () => {
+    void (async () => {
+      const { bootstrapServerGoogleIntegration } = await import('../notify-public-config.js');
+      await bootstrapServerGoogleIntegration({ CalendarSync, force: true });
+      showGoogleConnectGate();
+    })();
   });
 
   document.getElementById('btn-open-admin-google-setup')?.addEventListener('click', () => {

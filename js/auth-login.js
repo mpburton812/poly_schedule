@@ -2,7 +2,7 @@ import { NOTIFY_URL_KEY, LOCAL_CONFIG_KEY, LOCAL_EVENTS_KEY, LAST_SYNC_REVISION_
 import { CalendarSync } from './calendar.js';
 import { HouseholdStore } from './household-store.js';
 import { applyHouseholdServicesFromConfig } from './household-services.js';
-import { applyGoogleIntegrationFromConfig } from './google-integration.js';
+import { applyGoogleIntegrationFromConfig, setGoogleIntegrationServerManaged } from './google-integration.js';
 import { normalizeHouseholdConfigShape } from './helpers.js';
 import { migrateFamilyNameToConfig } from './group-name.js';
 
@@ -65,6 +65,9 @@ export async function loginViaNotifyService(username, password, notifyUrl = null
     if (body.googleIntegration && !config.googleIntegration) {
       config.googleIntegration = body.googleIntegration;
     }
+    if (body.googleIntegration?.serverManaged) {
+      setGoogleIntegrationServerManaged(true);
+    }
     if (body.notifyService && !config.notifyService) {
       config.notifyService = body.notifyService;
     }
@@ -85,7 +88,7 @@ export async function loginViaNotifyService(username, password, notifyUrl = null
   }
 }
 
-export function applyRemoteLoginPayload({ config, events, revision }, state) {
+export function applyRemoteLoginPayload({ config, events, revision, googleIntegration }, state) {
   migrateFamilyNameToConfig(config);
   state.config = config;
   state.events = events;
@@ -96,6 +99,11 @@ export function applyRemoteLoginPayload({ config, events, revision }, state) {
   localStorage.setItem(LOCAL_EVENTS_KEY, JSON.stringify(events));
   if (revision != null) {
     localStorage.setItem(LAST_SYNC_REVISION_KEY, String(revision));
+  }
+  if (googleIntegration?.serverManaged) {
+    setGoogleIntegrationServerManaged(true);
+  } else if (googleIntegration) {
+    setGoogleIntegrationServerManaged(false);
   }
   applyGoogleIntegrationFromConfig(config, { CalendarSync });
   applyHouseholdServicesFromConfig(config);

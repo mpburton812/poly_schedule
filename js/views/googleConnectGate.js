@@ -1,4 +1,4 @@
-export function googleConnectGateView({ credentialsReady = false, isAdminUser = false } = {}) {
+export function googleConnectGateView({ credentialsReady = false, isAdminUser = false, serverManagedGoogle = false } = {}) {
   let bodyHtml = '';
   if (credentialsReady) {
     bodyHtml = `
@@ -8,6 +8,16 @@ export function googleConnectGateView({ credentialsReady = false, isAdminUser = 
       <button class="btn btn-filled" id="btn-google-connect-gate" style="width: 100%; margin-top: var(--space-lg);">
         <span class="material-symbols-outlined" style="font-size: 18px;">login</span>
         Connect Google Calendar
+      </button>
+    `;
+  } else if (serverManagedGoogle) {
+    bodyHtml = `
+      <p class="font-body-md" style="color: var(--on-surface-variant); margin-top: 4px;">
+        Google Calendar credentials could not be loaded from the notify service. ${isAdminUser ? 'Verify GOOGLE_CLIENT_ID and GOOGLE_API_KEY on Render, then retry.' : 'Try again in a moment or ask an admin to check the server configuration.'}
+      </p>
+      <button class="btn btn-filled" id="btn-retry-server-google-config" style="width: 100%; margin-top: var(--space-lg);">
+        <span class="material-symbols-outlined" style="font-size: 18px;">refresh</span>
+        Retry loading credentials
       </button>
     `;
   } else if (isAdminUser) {

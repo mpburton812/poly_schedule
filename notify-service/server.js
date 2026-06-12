@@ -11,6 +11,7 @@ import { sendPushToPartners } from './send.js';
 import { mountSyncRoutes } from './sync-routes.js';
 import { mountAuthRoutes } from './auth-routes.js';
 import { startWatchRenewalLoop } from './gcal-watch.js';
+import { getGoogleIntegrationFromEnv, isGoogleIntegrationEnvManaged } from './google-integration-env.js';
 
 dotenv.config();
 
@@ -60,7 +61,12 @@ app.get('/health', (_req, res) => {
 });
 
 app.get('/v1/config', (_req, res) => {
-  res.json({ publicKey: VAPID_PUBLIC_KEY });
+  const googleIntegration = getGoogleIntegrationFromEnv();
+  res.json({
+    publicKey: VAPID_PUBLIC_KEY,
+    googleIntegration,
+    googleIntegrationServerManaged: isGoogleIntegrationEnvManaged()
+  });
 });
 
 app.get('/v1/devices', requireSecret, (_req, res) => {

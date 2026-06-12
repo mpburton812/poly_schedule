@@ -1,10 +1,11 @@
 {
   "latest": {
-    "summary": "Google OAuth settings visible during Admin setup",
+    "summary": "Server-managed Google Calendar credentials",
     "changes": [
-      "Show Google Calendar Settings near the top of Admin when credentials are not configured",
-      "Scroll and highlight Google Calendar Settings when opened from the connect gate",
-      "Keep Google Calendar Settings in its normal position once credentials are saved"
+      "Load OAuth Client ID, API Key, and Calendar ID from notify service env vars on every device",
+      "Expose credentials via GET /v1/config and POST /v1/auth/login with serverManaged flag",
+      "Hide manual credential fields in Admin when the notify service manages Google setup",
+      "Retry loading server credentials from the connect gate when bootstrap fetch fails"
     ]
   },
   "00eec1c": {
