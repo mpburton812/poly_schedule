@@ -26,6 +26,11 @@ import {
   openUserProfileModal
 } from './modals.js';
 import { router } from './router.js';
+import {
+  bindUpdateBanner,
+  checkForAppUpdate,
+  markLoadedBuild
+} from './version-update.js';
 import { toggleLoadingSpinner } from './spinner.js';
 import { applySyncedAdminSettingsFromConfig } from '../household-config-apply.js';
 import {
@@ -109,7 +114,11 @@ export async function bootstrapData(mode) {
   if (!AuthManager.accessToken || !AuthManager.apiKey || !AuthManager.clientId) {
     const err = new Error('Google Calendar is not connected.');
     err.code = 'GOOGLE_CREDENTIALS_INCOMPLETE';
-    throw err;
+    setCalendarStatus('disconnected');
+    applyCacheSnapshot(loadCacheSnapshot(), { state, CalendarSync });
+    CalendarSync.mode = 'cache';
+    updateOfflineBanner();
+    return { ok: false, mode: 'cache', error: err };
   }
 
   const credentials = {
@@ -228,6 +237,22 @@ function migrateLegacySession() {
   }
 }
 
+function markBooted() {
+  document.documentElement.setAttribute('data-polyschedule-booted', '1');
+  if (typeof window.__polyscheduleMarkBooted === 'function') {
+    window.__polyscheduleMarkBooted();
+  }
+}
+
+function withTimeout(promise, ms, label) {
+  return Promise.race([
+    promise,
+    new Promise((_, reject) => {
+      setTimeout(() => reject(new Error(`${label} timed out after ${Math.round(ms / 1000)}s`)), ms);
+    })
+  ]);
+}
+
 export function init() {
   window.addEventListener('polyschedule:google-integration', () => {
     updateGoogleLoginButton();
@@ -244,6 +269,7 @@ export function init() {
   });
 
   const run = async () => {
+    markBooted();
     state.logs = loadPersistedLogs();
     initChangeLog();
     void syncPromotionChangeLog();
@@ -255,6 +281,8 @@ export function init() {
     }
 
     bindOfflineBanner();
+    bindUpdateBanner();
+    void checkForAppUpdate();
 
     const notifBtn = document.getElementById('btn-notifications');
     if (notifBtn) notifBtn.addEventListener('click', () => openNotificationsModal());
@@ -287,7 +315,7 @@ export function init() {
 
     toggleLoadingSpinner(true);
     try {
-      await bootstrapInitial();
+      await withTimeout(bootstrapInitial(), 30000, 'Calendar bootstrap');
       await determineInitialView();
     } catch (err) {
       console.error('[bootstrap] init failed', err);
@@ -295,6 +323,7 @@ export function init() {
       showLoginView();
     } finally {
       toggleLoadingSpinner(false);
+      void markLoadedBuild();
     }
 
     AuthManager.onAuthStateChange = (authState) => handleGoogleAuthState(authState);

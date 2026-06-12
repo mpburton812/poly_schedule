@@ -1501,6 +1501,36 @@ body {
   justify-content: center;
 }
 
+.update-banner {
+  position: sticky;
+  top: 22px;
+  z-index: 998;
+  min-height: 28px;
+  padding: 4px 12px;
+  background-color: var(--primary);
+  color: #fff;
+  font-family: var(--font-mono);
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.4px;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  text-align: center;
+}
+
+.update-banner:hover,
+.update-banner:focus-visible {
+  filter: brightness(1.08);
+  outline: 2px solid rgba(255, 255, 255, 0.35);
+  outline-offset: -2px;
+}
+
+body.has-update-banner .offline-banner {
+  top: 50px;
+}
+
 .offline-banner {
   position: sticky;
   top: 22px;

@@ -45,7 +45,6 @@ import {
   googleApiErrorFromResponse,
   parseGCalEventItem,
   formatGCalResource as buildGCalResource,
-  googleApiErrorFromResponse,
   isLocalEventId,
   shouldSyncEventToGCal,
   shouldRemoveEventFromGCal,

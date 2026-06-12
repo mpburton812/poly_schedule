@@ -23,6 +23,9 @@
   <div class="build-banner" id="build-banner">
     BUILD #loading • BRANCH …
   </div>
+  <div class="update-banner" id="update-banner" style="display: none;" role="button" tabindex="0" aria-label="App update available. Click to reload.">
+    UPDATE AVAILABLE — CLICK TO RELOAD
+  </div>
   <div class="offline-banner" id="offline-banner" style="display: none;" role="button" tabindex="0" aria-label="Calendar offline. Click to re-authenticate.">
     OFFLINE — CLICK HERE TO RE-AUTHENTICATE
   </div>
@@ -127,6 +130,67 @@
   </div>
 
   <!-- Load ES Module Application Scripts -->
+  <script>
+    (function () {
+      var BOOT_ATTR = 'data-polyschedule-booted';
+      var STUCK_MS = 12000;
+
+      function forceReloadInline() {
+        var done = function () { window.location.reload(); };
+        var clearCaches = ('caches' in window)
+          ? caches.keys().then(function (names) {
+            return Promise.all(names.map(function (name) { return caches.delete(name); }));
+          })
+          : Promise.resolve();
+        clearCaches.then(function () {
+          if (navigator.serviceWorker && navigator.serviceWorker.getRegistrations) {
+            return navigator.serviceWorker.getRegistrations().then(function (regs) {
+              return Promise.all(regs.map(function (reg) { return reg.unregister(); }));
+            });
+          }
+        }).then(done, done);
+      }
+
+      function showStuckBootUI() {
+        if (document.documentElement.getAttribute(BOOT_ATTR)) return;
+        var container = document.getElementById('app-view-container');
+        if (!container || container.textContent.indexOf('Loading PolySchedule') === -1) return;
+
+        var banner = document.getElementById('update-banner');
+        if (banner) {
+          banner.textContent = 'APP STUCK LOADING — CLICK TO RELOAD';
+          banner.style.display = 'flex';
+          document.body.classList.add('has-update-banner');
+          if (!banner.dataset.boundInline) {
+            banner.dataset.boundInline = '1';
+            banner.addEventListener('click', forceReloadInline);
+            banner.addEventListener('keydown', function (e) {
+              if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault();
+                forceReloadInline();
+              }
+            });
+          }
+        }
+
+        container.innerHTML = '<div style="display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:50vh;padding:24px;text-align:center;">'
+          + '<p class="font-title-lg text-primary">Still loading?</p>'
+          + '<p class="font-body-md" style="color:var(--on-surface-variant);margin-top:8px;max-width:420px;">'
+          + 'Your browser may be using an old cached copy. Click the blue banner above to force reload the latest version.'
+          + '</p>'
+          + '<button class="btn btn-filled" id="inline-boot-reload" style="margin-top:16px;">Reload now</button>'
+          + '</div>';
+        var btn = document.getElementById('inline-boot-reload');
+        if (btn) btn.addEventListener('click', forceReloadInline);
+      }
+
+      window.__polyscheduleMarkBooted = function () {
+        document.documentElement.setAttribute(BOOT_ATTR, '1');
+      };
+
+      window.setTimeout(showStuckBootUI, STUCK_MS);
+    }());
+  </script>
   <script type="module" src="js/app.js"></script>
 </body>
 </html>

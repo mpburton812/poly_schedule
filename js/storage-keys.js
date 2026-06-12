@@ -36,4 +36,5 @@ export const NOTIFY_SECRET_KEY = 'polyschedule_notify_secret';
 export const RETURN_ADD_PARTNER_KEY = 'polyschedule_return_add_partner';
 export const SELECT_HOME_KEY = 'polyschedule_select_home_id';
 export const ADD_PARTNER_DRAFT_KEY = 'polyschedule_add_partner_draft';
+export const LOADED_BUILD_KEY = 'polyschedule_loaded_build';
 export const PROPOSAL_DRAFT_KEY_PREFIX = 'polyschedule_draft_proposal_';

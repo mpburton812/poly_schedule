@@ -20,6 +20,7 @@ import {
 } from '../../household-services.js';
 import { NOTIFY_URL_KEY, NOTIFY_SECRET_KEY } from '../../storage-keys.js';
 import { enablePushOnThisDevice, disablePushOnThisDevice, sendTestPush, saveQuietHoursSettings, savePushTypePrefs, getPushTypePrefs, fetchRegisteredDevices } from '../../push-notifications.js';
+import { forceReloadApp } from '../version-update.js';
 
 export function bindLogisticsEvents(container = document) {
   const exportBtn = container.querySelector('#btn-export-logs');
@@ -144,23 +145,7 @@ export function bindSettingsEvents(container = document) {
   if (btnForceUpdate) {
     btnForceUpdate.addEventListener('click', () => {
       showToast('Clearing cache and updating software...', 'info');
-      if ('caches' in window) {
-        caches.keys().then(names => {
-          for (const name of names) {
-            caches.delete(name);
-          }
-        });
-      }
-      if (navigator.serviceWorker) {
-        navigator.serviceWorker.getRegistrations().then(registrations => {
-          for (const registration of registrations) {
-            registration.update();
-          }
-        });
-      }
-      setTimeout(() => {
-        window.location.reload(true);
-      }, 1000);
+      void forceReloadApp();
     });
   }
 
