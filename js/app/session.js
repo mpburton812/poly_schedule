@@ -4,7 +4,7 @@ import { hashPassword } from '../crypto.js';
 import { CalendarSync } from '../calendar.js';
 import { LOCAL_SESSION_KEY } from '../storage-keys.js';
 import { DEFAULT_AVATARS, Views } from '../views.js';
-import { isPartnerPassive, needsHouseholdSetup } from '../helpers.js';
+import { isPartnerPassive, needsHouseholdSetup, partnerRefsMatch } from '../helpers.js';
 import { showToast } from './toast.js';
 import { addLog, logUserAction } from './operation-log.js';
 import { updateImpersonationBanner } from './impersonation.js';
@@ -167,23 +167,36 @@ export async function createFirstAdminPartner({ name, username, password }) {
     return false;
   }
 
-  const newId = `p_${crypto.randomUUID?.() || Date.now()}`;
-  const passwordHash = await hashPassword(trimmedPassword, newId);
+  let partner = state.config.partners?.find(p => isPartnerPassive(p) && partnerRefsMatch(state.config, p.name, trimmedName));
+  
+  if (partner) {
+    const passwordHash = await hashPassword(trimmedPassword, partner.id);
+    partner.username = trimmedUser;
+    partner.passwordHash = passwordHash;
+    partner.role = 'Admin';
+    partner.avatar = partner.avatar || DEFAULT_AVATARS[0];
+    partner.pronouns = partner.pronouns || null;
+    partner.rules = partner.rules || {};
+    delete partner.passive;
+  } else {
+    const newId = `p_${crypto.randomUUID?.() || Date.now()}`;
+    const passwordHash = await hashPassword(trimmedPassword, newId);
 
-  const partner = {
-    id: newId,
-    name: trimmedName,
-    username: trimmedUser,
-    passwordHash,
-    role: 'Admin',
-    avatar: DEFAULT_AVATARS[0],
-    pronouns: null,
-    rules: {}
-  };
+    partner = {
+      id: newId,
+      name: trimmedName,
+      username: trimmedUser,
+      passwordHash,
+      role: 'Admin',
+      avatar: DEFAULT_AVATARS[0],
+      pronouns: null,
+      rules: {}
+    };
 
-  state.config.partners = state.config.partners || [];
-  state.config.residences = state.config.residences || [];
-  state.config.partners.push(partner);
+    state.config.partners = state.config.partners || [];
+    state.config.residences = state.config.residences || [];
+    state.config.partners.push(partner);
+  }
 
   let saveResult;
   try {

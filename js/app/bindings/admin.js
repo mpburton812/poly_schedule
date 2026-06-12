@@ -5,7 +5,7 @@ import { CalendarSync } from '../../calendar.js';
 import { hashPassword } from '../../crypto.js';
 import { normalizePronouns } from '../../pronouns.js';
 import { RETURN_ADD_PARTNER_KEY, SELECT_HOME_KEY, ADD_PARTNER_DRAFT_KEY } from '../../storage-keys.js';
-import { CREATE_NEW_HOME, isPartnerPassive, applyHomeAssociationDefaults } from '../../helpers.js';;
+import { CREATE_NEW_HOME, isPartnerPassive, applyHomeAssociationDefaults, partnerRefsMatch } from '../../helpers.js';
 import {
   setAutoArchiveDays,
   getAutoArchiveDays
@@ -192,17 +192,34 @@ export function bindAddPartnerEvents() {
         }
       }
 
-      const newId = `p${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
       const defaultPronouns = normalizePronouns(null);
-      let newPartner;
-      if (isPassive) {
-        newPartner = { id: newId, name, passive: true, defaultHome, avatar: selectedAvatar, pronouns: defaultPronouns, rules: {} };
+      let newPartner = state.config.partners.find(p => isPartnerPassive(p) && partnerRefsMatch(state.config, p.name, name));
+      
+      if (newPartner) {
+        if (isPassive) {
+          showToast('A passive partner with this name already exists.', 'warning');
+          return;
+        } else {
+          const passwordHash = await hashPassword(password, newPartner.id);
+          newPartner.username = username;
+          newPartner.passwordHash = passwordHash;
+          newPartner.role = role;
+          newPartner.defaultHome = defaultHome || newPartner.defaultHome;
+          newPartner.avatar = selectedAvatar || newPartner.avatar;
+          newPartner.pronouns = newPartner.pronouns || defaultPronouns;
+          newPartner.rules = rules;
+          delete newPartner.passive;
+        }
       } else {
-        const passwordHash = await hashPassword(password, newId);
-        newPartner = { id: newId, name, username, passwordHash, role, defaultHome, avatar: selectedAvatar, pronouns: defaultPronouns, rules };
+        const newId = `p${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
+        if (isPassive) {
+          newPartner = { id: newId, name, passive: true, defaultHome, avatar: selectedAvatar, pronouns: defaultPronouns, rules: {} };
+        } else {
+          const passwordHash = await hashPassword(password, newId);
+          newPartner = { id: newId, name, username, passwordHash, role, defaultHome, avatar: selectedAvatar, pronouns: defaultPronouns, rules };
+        }
+        state.config.partners.push(newPartner);
       }
-
-      state.config.partners.push(newPartner);
       void persistHouseholdConfig(`${isPassive ? 'Added passive partner' : 'Added partner'}: ${name}`)
         .then(() => {
           showToast(`Partner "${name}" added successfully!`, 'success');
