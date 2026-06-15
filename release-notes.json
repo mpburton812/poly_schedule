@@ -9,6 +9,16 @@
       "Share household Google Calendar when adding or activating partners with a Gmail address"
     ]
   },
+  "5aa0ca3": {
+    "summary": "OAuth refresh, batch night fixes, and calendar sharing on partner setup",
+    "changes": [
+      "Refresh Google access tokens silently instead of forcing consent on every reconnect",
+      "Remove non-functional close button from proposal rules warning banner",
+      "Fix batch sleeping room conflicts using local calendar dates (no more off-by-one day errors)",
+      "Allow clearing and retyping Number of Nights on batch proposals",
+      "Share household Google Calendar when adding or activating partners with a Gmail address"
+    ]
+  },
   "aa33347": {
     "summary": "Server-managed Google Calendar credentials",
     "changes": [
