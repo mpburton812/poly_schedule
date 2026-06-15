@@ -67,7 +67,7 @@ describe('partner message helpers', () => {
       partners: [{ id: 'p1', name: 'Sam', pronouns: { preset: 'they/them' } }]
     };
     const msg = partnerSoloNightsMessage(soloConfig, 'Sam', 1, 2);
-    expect(msg).toContain('Sam are sleeping alone');
+    expect(msg).toContain('Sam is sleeping alone');
     expect(msg).toContain('their preferred minimum');
   });
 });

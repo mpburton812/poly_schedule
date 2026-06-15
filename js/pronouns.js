@@ -81,7 +81,7 @@ export function partnerFirstName(config, partnerRef) {
 export function partnerSleepingWithMessage(config, pA, pB, nightsTogether, limit, kind) {
   const firstA = partnerFirstName(config, pA);
   const firstB = partnerFirstName(config, pB);
-  const verb = partnerVerbBe(config, pA);
+  const verb = 'is';
   const objB = partnerObject(config, pB);
   const posA = partnerPossessive(config, pA);
   if (kind === 'max') {
@@ -92,7 +92,7 @@ export function partnerSleepingWithMessage(config, pA, pB, nightsTogether, limit
 
 export function partnerSoloNightsMessage(config, pA, soloNights, minSoloNights) {
   const firstA = partnerFirstName(config, pA);
-  const verb = partnerVerbBe(config, pA);
+  const verb = 'is';
   const posA = partnerPossessive(config, pA);
   return `${firstA} ${verb} sleeping alone for ${soloNights} nights, which is below ${posA} preferred minimum of ${minSoloNights} solo nights/week.`;
 }
