@@ -12,6 +12,7 @@ import {
   notifyProposalWithdrawn
 } from '../context.js';
 import { getWorkflowState, WORKFLOW } from '../../proposal-workflow.js';
+import { isRecurrenceInstance, askRecurrenceScope } from '../../recurrence.js';
 import { parseHashParams } from '../../helpers.js';
 import { renderView } from '../router.js';
 import { loadDraftIntoForm } from './create.js';
@@ -243,6 +244,42 @@ function bindProposalActionHandlers() {
           proposalTitle: proposal.title
         });
         showToast('Failed to archive proposal.', 'error');
+      }
+    });
+  });
+
+  document.querySelectorAll('.redraft-proposal-btn').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      const id = btn.dataset.id;
+      const proposal = state.events.find(ev => ev.id === id);
+      if (!proposal) return;
+      if (!confirm(`Move "${proposal.title}" back to draft for editing and re-submission?`)) return;
+
+      let redraftOptions = {};
+      if (isRecurrenceInstance(proposal)) {
+        const scope = askRecurrenceScope('redraft');
+        if (!scope) return;
+        redraftOptions = { scope };
+      }
+
+      try {
+        const draft = await CalendarSync.redraftApprovedEvent(id, getCurrentUserName(), redraftOptions);
+        state.events = CalendarSync.events;
+        logUserAction(`Re-drafted proposal: "${proposal.title}"`, 'info');
+        showToast('Moved to draft.', 'success');
+        if (draft?.id) {
+          loadDraftIntoForm(draft.id);
+          window.location.hash = `#create?draft=${draft.id}`;
+        } else {
+          flowState.activeProposalsTab = 'drafts';
+          renderView();
+        }
+      } catch (err) {
+        logOperationError('Proposal re-draft', err, {
+          proposalId: id,
+          proposalTitle: proposal.title
+        });
+        showToast(err?.message || 'Failed to re-draft.', 'error');
       }
     });
   });

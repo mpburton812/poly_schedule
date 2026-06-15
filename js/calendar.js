@@ -60,6 +60,12 @@ import {
   collectOrphanGCalIds,
   findMatchingSleepingEvent
 } from './gcal-align.js';
+import {
+  isRecurringProposal,
+  isRecurrenceInstance,
+  expandRecurringToEvents,
+  getFutureRecurrenceInstances
+} from './recurrence.js';
 
 import { flowState } from './app/state.js';
 
@@ -253,12 +259,37 @@ export const CalendarSync = {
     reconcileBatchExpandedIds(this.events);
   },
 
+  async materializeApprovedRecurringChildren(stats = null) {
+    for (const parent of this.events.filter(e => isRecurringProposal(e) && !isRecurrenceInstance(e) && getWorkflowState(e) === WORKFLOW.APPROVED)) {
+      if ((parent.expandedEventIds || []).length > 0) continue;
+
+      const expanded = expandRecurringToEvents(parent);
+      expanded.forEach(e => {
+        e.status = 'confirmed';
+        e.workflowState = WORKFLOW.APPROVED;
+      });
+      parent.status = 'confirmed';
+      parent.expandedEventIds = [];
+
+      for (const child of expanded) {
+        if (this.mode === 'sync') {
+          const created = await this.createGCalEvent(child);
+          child.id = created.id;
+        }
+        parent.expandedEventIds.push(child.id);
+        this.events.push(child);
+        if (stats) stats.materialized += 1;
+      }
+    }
+  },
+
   async alignGoogleCalendarOnce() {
     const stats = { deleted: 0, upserted: 0, materialized: 0 };
 
     try {
       const rawItems = await this.fetchGCalEventItems({ daysBack: 180, daysForward: 365 });
       await this.materializeApprovedBatchChildren(stats);
+      await this.materializeApprovedRecurringChildren(stats);
 
       const keepMap = collectEventsToSync(this.events);
       const keepIds = new Set(keepMap.keys());
@@ -421,6 +452,10 @@ export const CalendarSync = {
     return ProposalManager.reopenDeclinedProposal(this, eventId);
   },
 
+  async redraftApprovedEvent(eventId, redraftedByRef, options = {}) {
+    return ProposalManager.redraftApprovedEvent(this, eventId, redraftedByRef, options);
+  },
+
   async archiveProposal(eventId) {
     return ProposalManager.archiveProposal(this, eventId);
   },
@@ -529,6 +564,53 @@ export const CalendarSync = {
       }
     }
 
+    if (
+      getWorkflowState(updated) === WORKFLOW.APPROVED
+      && isRecurringProposal(updated)
+      && !isRecurrenceInstance(updated)
+    ) {
+      const priorExpanded = this.events[idx].expandedEventIds || [];
+      if (priorExpanded.length > 0) {
+        updated.expandedEventIds = priorExpanded;
+      } else {
+        const expanded = expandRecurringToEvents(updated);
+        expanded.forEach(e => {
+          e.status = 'confirmed';
+          e.workflowState = WORKFLOW.APPROVED;
+        });
+        updated.status = 'confirmed';
+        updated.expandedEventIds = [];
+
+        if (this.mode === 'sync') {
+          try {
+            if (!isLocalEventId(eventId)) {
+              this.markLocalGCalMutation(eventId);
+              await this.deleteGCalEvent(eventId);
+            }
+            for (const child of expanded) {
+              const created = await this.createGCalEvent(child);
+              this.markLocalGCalMutation(created.id);
+              child.id = created.id;
+              updated.expandedEventIds.push(created.id);
+              this.events.push(child);
+            }
+            this.events[idx] = updated;
+          } catch (e) {
+            console.error('Failed to sync recurring expansion to Google Calendar', e);
+            throw e;
+          }
+        } else {
+          updated.expandedEventIds = expanded.map(e => e.id);
+          this.events[idx] = updated;
+          this.events.push(...expanded);
+          this.persistEvents();
+        }
+
+        if (this.onStateUpdate) this.onStateUpdate();
+        return { parent: updated, expanded };
+      }
+    }
+
     if (isCacheMode(this.mode)) {
       this.events[idx] = updated;
       localStorage.setItem(LOCAL_EVENTS_KEY, JSON.stringify(this.events));
@@ -576,24 +658,43 @@ export const CalendarSync = {
     return this.updateEvent(eventId, { comments: event.comments }, { skipWorkflow: true });
   },
 
-  async deleteEvent(eventId) {
+  async deleteEvent(eventId, options = {}) {
     const idx = this.events.findIndex(e => e.id === eventId);
     if (idx === -1) {
       throw new Error('Event not found');
     }
 
     const event = this.events[idx];
-    const childIds = new Set(event.expandedEventIds || []);
-    const idsToRemove = new Set([eventId, ...childIds]);
+    const targets = options.scope === 'future' && isRecurrenceInstance(event)
+      ? getFutureRecurrenceInstances(this.events, event)
+      : [event];
+
+    const idsToRemove = new Set();
     const gcalIdsToDelete = [];
 
-    if (event.type === 'batch_sleeping') {
-      for (const childId of childIds) {
-        if (shouldAttemptGCalDelete(childId)) gcalIdsToDelete.push(childId);
+    for (const target of targets) {
+      const childIds = new Set(target.expandedEventIds || []);
+      idsToRemove.add(target.id);
+      childIds.forEach(id => idsToRemove.add(id));
+
+      if (target.type === 'batch_sleeping') {
+        for (const childId of childIds) {
+          if (shouldAttemptGCalDelete(childId)) gcalIdsToDelete.push(childId);
+        }
+        if (shouldAttemptGCalDelete(target.id)) gcalIdsToDelete.push(target.id);
+      } else if (shouldAttemptGCalDelete(target.id) && (shouldSyncEventToGCal(target) || shouldRemoveEventFromGCal(target))) {
+        gcalIdsToDelete.push(target.id);
       }
-      if (shouldAttemptGCalDelete(eventId)) gcalIdsToDelete.push(eventId);
-    } else if (shouldAttemptGCalDelete(eventId) && (shouldSyncEventToGCal(event) || shouldRemoveEventFromGCal(event))) {
-      gcalIdsToDelete.push(eventId);
+    }
+
+    if (options.scope === 'future' && isRecurrenceInstance(event)) {
+      const parentIdx = this.events.findIndex(e => e.id === event.recurrenceSeriesId);
+      if (parentIdx !== -1 && this.events[parentIdx].expandedEventIds?.length) {
+        const removedIds = new Set(targets.map(t => t.id));
+        this.events[parentIdx].expandedEventIds = this.events[parentIdx].expandedEventIds.filter(
+          id => !removedIds.has(id)
+        );
+      }
     }
 
     if (this.mode === 'sync' && gcalIdsToDelete.length) {

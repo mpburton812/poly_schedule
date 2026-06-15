@@ -83,7 +83,10 @@ export const newProposalState = {
   batchStartDate: new Date().toISOString().split('T')[0],
   draftTitle: '',
   draftNotes: '',
-  draftVisibility: 'standard'
+  draftVisibility: 'standard',
+  recurrenceEnabled: false,
+  recurrenceFrequency: 'weekly',
+  recurrenceCount: 12
 };
 
 export function resetNewProposalFormState() {
@@ -97,6 +100,9 @@ export function resetNewProposalFormState() {
   newProposalState.batchStartDate = new Date().toISOString().split('T')[0];
   newProposalState.draftNotes = '';
   newProposalState.draftVisibility = 'standard';
+  newProposalState.recurrenceEnabled = false;
+  newProposalState.recurrenceFrequency = 'weekly';
+  newProposalState.recurrenceCount = 12;
 }
 
 export function resetCreateFlowForNavigation() {

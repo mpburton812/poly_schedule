@@ -18,6 +18,7 @@ import {
   resolvePersonConflictMessage
 } from '../../helpers.js';
 import { pastScheduleWarning } from '../../gcal-sync.js';
+import { normalizeRecurrence } from '../../recurrence.js';
 import {
   WORKFLOW,
   getWorkflowState,
@@ -305,6 +306,7 @@ export function preserveCreateFormDraft() {
   if (notesEl) newProposalState.draftNotes = notesEl.value;
   const visibilityEl = document.getElementById('prop-visibility');
   if (visibilityEl) newProposalState.draftVisibility = visibilityEl.value || 'standard';
+  syncRecurrenceStateFromDom();
 }
 
 export function loadDraftIntoForm(draftId) {
@@ -333,6 +335,15 @@ export function loadDraftIntoForm(draftId) {
   newProposalState.batchStartDate = draft.start
     ? new Date(draft.start).toISOString().split('T')[0]
     : new Date().toISOString().split('T')[0];
+  if (draft.recurrence?.frequency) {
+    newProposalState.recurrenceEnabled = true;
+    newProposalState.recurrenceFrequency = draft.recurrence.frequency;
+    newProposalState.recurrenceCount = draft.recurrence.count || 12;
+  } else {
+    newProposalState.recurrenceEnabled = false;
+    newProposalState.recurrenceFrequency = 'weekly';
+    newProposalState.recurrenceCount = 12;
+  }
   return true;
 }
 
@@ -349,6 +360,64 @@ export function syncParticipantRolesFromParticipants() {
 
 function readProposalVisibility() {
   return document.getElementById('prop-visibility')?.value || newProposalState.draftVisibility || 'standard';
+}
+
+function syncRecurrenceStateFromDom() {
+  const enabledEl = document.getElementById('prop-recurrence-enabled');
+  if (!enabledEl) return;
+  newProposalState.recurrenceEnabled = enabledEl.checked;
+  newProposalState.recurrenceFrequency = document.getElementById('prop-recurrence-frequency')?.value
+    || newProposalState.recurrenceFrequency
+    || 'weekly';
+  const countVal = parseInt(document.getElementById('prop-recurrence-count')?.value, 10);
+  newProposalState.recurrenceCount = Number.isFinite(countVal) ? countVal : newProposalState.recurrenceCount;
+}
+
+function readRecurrenceFromForm() {
+  if (flowState.soloEventMode) return null;
+  const enabled = document.getElementById('prop-recurrence-enabled')?.checked;
+  if (!enabled) return null;
+  syncRecurrenceStateFromDom();
+  return normalizeRecurrence({
+    frequency: newProposalState.recurrenceFrequency,
+    count: newProposalState.recurrenceCount
+  });
+}
+
+function bindRecurrenceControls() {
+  const enabledEl = document.getElementById('prop-recurrence-enabled');
+  const optionsEl = document.getElementById('recurrence-options');
+  if (!enabledEl) return;
+
+  enabledEl.addEventListener('change', () => {
+    newProposalState.recurrenceEnabled = enabledEl.checked;
+    if (optionsEl) optionsEl.style.display = enabledEl.checked ? '' : 'none';
+    scheduleDraftSave();
+    renderView();
+  });
+
+  document.querySelectorAll('[data-recurrence-freq]').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      const freq = btn.dataset.recurrenceFreq || 'weekly';
+      newProposalState.recurrenceFrequency = freq;
+      const hidden = document.getElementById('prop-recurrence-frequency');
+      if (hidden) hidden.value = freq;
+      document.querySelectorAll('[data-recurrence-freq]').forEach((b) => {
+        b.classList.toggle('active', b.dataset.recurrenceFreq === freq);
+      });
+      scheduleDraftSave();
+      renderView();
+    });
+  });
+
+  const countEl = document.getElementById('prop-recurrence-count');
+  if (countEl) {
+    countEl.addEventListener('change', () => {
+      syncRecurrenceStateFromDom();
+      scheduleDraftSave();
+      renderView();
+    });
+  }
 }
 
 const PRIVACY_HINTS = {
@@ -458,6 +527,10 @@ export function collectProposalFormData() {
   } else if (flowState.currentCreateType === 'event') {
     data.location = document.getElementById('event-location')?.value || 'The Loft at Main St';
   }
+
+  const recurrence = readRecurrenceFromForm();
+  if (recurrence) data.recurrence = recurrence;
+
   return data;
 }
 
@@ -902,6 +975,7 @@ export function bindCreateEvents() {
   }
 
   bindVisibilityTabs();
+  bindRecurrenceControls();
 
   const startDateInput = document.getElementById('prop-start-date');
   const durationInput = document.getElementById('prop-duration');

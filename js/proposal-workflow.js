@@ -39,6 +39,7 @@ export function getWorkflowState(event) {
 export function isCalendarEvent(event) {
   if (!event) return false;
   if (event.type === 'batch_sleeping') return false;
+  if (event.recurrence?.frequency && !event.recurrenceSeriesId) return false;
   const ws = getWorkflowState(event);
   if (ws === WORKFLOW.APPROVED) return true;
   if (!ws && event.status === 'confirmed') return true;
@@ -253,6 +254,31 @@ export function filterProposalsForTab(events, tab, userName, config) {
     if (tab === 'archived') return ws === WORKFLOW.ARCHIVED;
     return false;
   });
+}
+
+/** True when the user accepted (or is) the proposer on an approved/archived proposal. */
+export function isProposalApprover(proposal, userRef, config) {
+  if (!proposal || !userRef) return false;
+  if (partnerRefsMatch(config, proposal.proposer, userRef)) return true;
+  const responses = proposal.responses || {};
+  for (const [name, resp] of Object.entries(responses)) {
+    if (resp?.status === 'accept' && partnerRefsMatch(config, name, userRef)) {
+      return true;
+    }
+  }
+  return false;
+}
+
+export function canUserRedraftEvent(event, userRef, config) {
+  const ws = getWorkflowState(event);
+  if (ws !== WORKFLOW.APPROVED && ws !== WORKFLOW.ARCHIVED) return false;
+  if (!isProposalType(event.type) || event.type === 'batch_sleeping') return false;
+  return isProposalApprover(event, userRef, config);
+}
+
+export function resolveRedrafterName(config, userRef) {
+  const partner = findPartnerByRef(config, userRef);
+  return partner?.name || (typeof userRef === 'string' ? userRef : '');
 }
 
 export function cloneProposalAsDraft(source, config) {

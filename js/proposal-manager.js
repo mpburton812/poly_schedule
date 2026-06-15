@@ -10,7 +10,11 @@ import {
   getAutoArchiveDays,
   resolveParticipantRoleName
 } from './proposal-workflow.js';
-import { findPartnerByRef } from './helpers.js';
+import { findPartnerByRef, partnerRefsMatch } from './helpers.js';
+import {
+  isRecurrenceInstance,
+  getFutureRecurrenceInstances
+} from './recurrence.js';
 
 export const ProposalManager = {
   async createDraft(context, proposalData) {
@@ -108,6 +112,59 @@ export const ProposalManager = {
     const draft = cloneProposalAsDraft(event, context.config);
     await context.deleteEvent(eventId);
     return context.createEvent(draft);
+  },
+
+  async redraftApprovedEvent(context, eventId, redraftedByRef, options = {}) {
+    const event = context.events.find(e => e.id === eventId);
+    if (!event) throw new Error('Event not found');
+
+    const ws = getWorkflowState(event);
+    if (ws !== WORKFLOW.APPROVED && ws !== WORKFLOW.ARCHIVED) {
+      throw new Error('Only approved or archived events can be re-drafted');
+    }
+
+    const targets = options.scope === 'future' && isRecurrenceInstance(event)
+      ? getFutureRecurrenceInstances(context.events, event)
+      : [event];
+
+    let lastDraft = null;
+    for (const target of targets) {
+      const updates = {
+        workflowState: WORKFLOW.DRAFT,
+        status: 'draft',
+        responses: {},
+        submittedAt: null,
+        submittedBy: null,
+        approvedAt: null,
+        archivedAt: null,
+        autoArchiveAt: null,
+        declinedBy: null,
+        declinedAt: null,
+        recurrenceSeriesId: null,
+        recurrenceInstanceIndex: null,
+        recurrenceInstanceDate: null
+      };
+
+      const redrafterName = typeof redraftedByRef === 'string' && !String(redraftedByRef).startsWith('p')
+        ? redraftedByRef
+        : findPartnerByRef(context.config, redraftedByRef)?.name;
+      if (redrafterName && !partnerRefsMatch(context.config, target.proposer, redrafterName)) {
+        updates.proposer = redrafterName;
+      }
+
+      lastDraft = await context.updateEvent(target.id, updates, { skipWorkflow: true });
+    }
+
+    if (options.scope === 'future' && isRecurrenceInstance(event)) {
+      const parent = context.events.find(e => e.id === event.recurrenceSeriesId);
+      if (parent?.expandedEventIds?.length) {
+        const removedIds = new Set(targets.map(t => t.id));
+        const remaining = parent.expandedEventIds.filter(id => !removedIds.has(id));
+        await context.updateEvent(parent.id, { expandedEventIds: remaining }, { skipWorkflow: true });
+      }
+    }
+
+    return lastDraft;
   },
 
   async archiveProposal(context, eventId) {

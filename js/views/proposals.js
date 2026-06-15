@@ -19,7 +19,7 @@ import {
 } from '../helpers.js';
 import { isPastScheduledEvent } from '../gcal-sync.js';
 import { normalizeEventComments } from '../event-comments.js';
-import { VISIBILITY } from '../event-privacy.js';
+import { VISIBILITY, getEventDisplayPolicy } from '../event-privacy.js';
 import {
   WORKFLOW,
   filterProposalsForTab,
@@ -28,7 +28,8 @@ import {
   isPassivePerson,
   getAutoArchiveDays,
   getResponseForParticipant,
-  resolveParticipantRoleName
+  resolveParticipantRoleName,
+  canUserRedraftEvent
 } from '../proposal-workflow.js';
 
 
@@ -62,6 +63,19 @@ export function proposalsView(state, activeTab = 'proposed') {
         const userResponse = getResponseForParticipant(p, responseKey, state.config);
         const userVote = userResponse?.status || 'pending';
         const canVote = ws === WORKFLOW.PROPOSED && isReceiver && userVote === 'pending' && !!userResponse;
+        const usePrivacyRedaction = activeTab === 'resolved' || activeTab === 'archived';
+        const display = usePrivacyRedaction
+          ? getEventDisplayPolicy(p, userRef, state.config)
+          : {
+            redacted: false,
+            title: p.title,
+            showSleepingArrangement: true,
+            showParticipants: true,
+            showLocation: true,
+            showNotes: true,
+            showComments: true
+          };
+        const cardTitle = display.redacted ? display.title : p.title;
 
         const dateStr = new Date(p.start).toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' });
         const timeOpts = { hour: 'numeric', minute: '2-digit', hour12: true };
@@ -129,12 +143,21 @@ export function proposalsView(state, activeTab = 'proposed') {
               </div>
             `;
           }
-        } else if (ws === WORKFLOW.APPROVED && (isProposer || isAdmin)) {
-          actionsHtml = `
-            <div style="display: flex; gap: var(--space-base); margin-top: var(--space-md);">
-              <button class="btn btn-outline archive-proposal-btn" data-id="${p.id}" style="flex: 1;">Archive</button>
-            </div>
-          `;
+        } else if (ws === WORKFLOW.APPROVED || ws === WORKFLOW.ARCHIVED) {
+          const actionButtons = [];
+          if (ws === WORKFLOW.APPROVED && (isProposer || isAdmin)) {
+            actionButtons.push(`<button class="btn btn-outline archive-proposal-btn" data-id="${p.id}" style="flex: 1;">Archive</button>`);
+          }
+          if (canUserRedraftEvent(p, userRef, state.config)) {
+            actionButtons.push(`<button class="btn btn-outline redraft-proposal-btn" data-id="${p.id}" style="flex: 1;">Re-Draft</button>`);
+          }
+          if (actionButtons.length) {
+            actionsHtml = `
+              <div style="display: flex; gap: var(--space-base); margin-top: var(--space-md); flex-wrap: wrap;">
+                ${actionButtons.join('')}
+              </div>
+            `;
+          }
         } else if (ws === WORKFLOW.DECLINED && isProposer) {
           actionsHtml = `
             <div style="display: flex; gap: var(--space-base); margin-top: var(--space-md); flex-wrap: wrap;">
@@ -181,16 +204,18 @@ export function proposalsView(state, activeTab = 'proposed') {
             </div>
           `
           : '';
-        const notesHtml = p.notes?.trim()
+        const notesHtml = display.showNotes && p.notes?.trim()
           ? `
             <div class="proposal-notes-block">
               <span class="font-label-sm" style="color: var(--on-surface-variant); display: block; margin-bottom: 4px;">NOTES</span>
               <p class="proposal-notes-text">${escapeHtml(p.notes.trim())}</p>
             </div>
           `
-          : '';
+          : display.redacted
+            ? `<p class="font-label-sm" style="color: var(--on-surface-variant); margin-top: var(--space-xs);">Details are private for this event.</p>`
+            : '';
         const commentItems = normalizeEventComments(p.comments);
-        const commentsHtml = commentItems.length
+        const commentsHtml = display.showComments && commentItems.length
           ? `
             <div class="proposal-notes-block">
               <span class="font-label-sm" style="color: var(--on-surface-variant); display: block; margin-bottom: 4px;">COMMENTS</span>
@@ -217,7 +242,7 @@ export function proposalsView(state, activeTab = 'proposed') {
             <div class="proposal-header">
               <div>
                 <span class="proposal-badge ${p.type === 'batch_sleeping' ? 'batch' : p.type}">${p.type === 'batch_sleeping' ? 'BATCH SLEEPING' : p.type.toUpperCase()} PROPOSAL</span>
-                <h3 class="font-title-lg" style="margin-top: 4px; font-weight: 700; color: var(--on-surface);">${escapeHtml(p.title)}${statusBadge}${privacyBadge}</h3>
+                <h3 class="font-title-lg" style="margin-top: 4px; font-weight: 700; color: var(--on-surface);">${escapeHtml(cardTitle)}${statusBadge}${privacyBadge}</h3>
               </div>
               <div style="text-align: right;">
                 <span class="font-label-sm" style="color: var(--on-surface-variant); display: block;">PROPOSED BY</span>
@@ -233,9 +258,17 @@ export function proposalsView(state, activeTab = 'proposed') {
                 </div>
                 <div class="proposal-meta-item">
                   <span class="material-symbols-outlined" style="font-size: 18px;">${p.type === 'sleeping' || p.type === 'batch_sleeping' ? 'bed' : 'location_on'}</span>
-                  <span>${p.type === 'batch_sleeping'
-                    ? `${(p.batchNights || []).length} nights · ${new Date(p.start).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })} – ${new Date(p.end).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}`
-                    : p.type === 'sleeping' ? `${escapeHtml(p.homeName || 'Home')}: ${escapeHtml(p.roomName || 'Room')}` : escapeHtml(p.location || 'No location set')}</span>
+                  <span>${display.redacted
+                    ? 'Details hidden'
+                    : p.type === 'batch_sleeping'
+                      ? `${(p.batchNights || []).length} nights · ${new Date(p.start).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })} – ${new Date(p.end).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}`
+                      : p.type === 'sleeping'
+                        ? (display.showSleepingArrangement
+                          ? `${escapeHtml(p.homeName || 'Home')}: ${escapeHtml(p.roomName || 'Room')}`
+                          : 'Details hidden')
+                        : (display.showLocation
+                          ? escapeHtml(p.location || 'No location set')
+                          : 'Details hidden')}</span>
                 </div>
               </div>
             </div>

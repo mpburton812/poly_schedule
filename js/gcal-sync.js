@@ -134,6 +134,10 @@ export function serializeEventMeta(event) {
     visibility: event.visibility || 'standard',
     comments: normalizeEventComments(event.comments)
   };
+  if (event.recurrence) meta.recurrence = event.recurrence;
+  if (event.recurrenceSeriesId) meta.recurrenceSeriesId = event.recurrenceSeriesId;
+  if (event.recurrenceInstanceIndex != null) meta.recurrenceInstanceIndex = event.recurrenceInstanceIndex;
+  if (event.recurrenceInstanceDate) meta.recurrenceInstanceDate = event.recurrenceInstanceDate;
   if (event.batchNights?.length) meta.batchNights = event.batchNights;
   if (event.personConflicts?.length) meta.personConflicts = event.personConflicts;
   return meta;
@@ -191,6 +195,10 @@ export function parseGCalEventItem(item) {
   let personConflicts;
   let visibility;
   let comments;
+  let recurrence;
+  let recurrenceSeriesId;
+  let recurrenceInstanceIndex;
+  let recurrenceInstanceDate;
 
   const rawTitle = item.summary || 'Untitled Event';
 
@@ -227,6 +235,10 @@ export function parseGCalEventItem(item) {
     notes = meta.notes || notes;
     visibility = meta.visibility;
     comments = meta.comments;
+    recurrence = meta.recurrence;
+    recurrenceSeriesId = meta.recurrenceSeriesId;
+    recurrenceInstanceIndex = meta.recurrenceInstanceIndex;
+    recurrenceInstanceDate = meta.recurrenceInstanceDate;
   } else if (item.description?.trim() && !item.description.trim().startsWith('{')) {
     notes = item.description.trim();
   }
@@ -287,6 +299,10 @@ export function parseGCalEventItem(item) {
   if (notes) event.notes = notes;
   if (visibility) event.visibility = visibility;
   if (comments?.length) event.comments = normalizeEventComments(comments);
+  if (recurrence) event.recurrence = recurrence;
+  if (recurrenceSeriesId) event.recurrenceSeriesId = recurrenceSeriesId;
+  if (recurrenceInstanceIndex != null) event.recurrenceInstanceIndex = recurrenceInstanceIndex;
+  if (recurrenceInstanceDate) event.recurrenceInstanceDate = recurrenceInstanceDate;
 
   return event;
 }
@@ -327,6 +343,7 @@ export function shouldAttemptGCalDelete(eventId) {
 /** Whether an event should be written to Google Calendar (proposed tentative or approved). */
 export function shouldSyncEventToGCal(event) {
   if (!event || event.type === 'batch_sleeping') return false;
+  if (event.recurrence?.frequency && !event.recurrenceSeriesId) return false;
   const ws = getWorkflowState(event);
   if (ws === WORKFLOW.PROPOSED || ws === WORKFLOW.APPROVED) return true;
   if (!ws && event.status === 'confirmed') return true;

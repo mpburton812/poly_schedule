@@ -24,6 +24,7 @@ import {
   getAutoArchiveDays,
   isCalendarEvent
 } from '../proposal-workflow.js';
+import { buildRecurrenceInstanceDates, DEFAULT_RECURRENCE_COUNT } from '../recurrence.js';
 
 
 export function createProposalView(state, type = 'event', formState = {}) {
@@ -211,14 +212,25 @@ export function createProposalView(state, type = 'event', formState = {}) {
     const contextStart = new Date(contextStartStr + 'T12:00:00');
     const contextWeekStart = new Date(contextStart);
     contextWeekStart.setDate(contextStart.getDate() - contextStart.getDay());
-    const contextNightCount = type === 'batch_sleeping'
+    let contextNightCount = type === 'batch_sleeping'
       ? (formState.batchNightCount || 3)
-      : (type === 'sleeping' ? 1 : 1);
+      : 1;
     const proposedDateKeys = new Set();
-    for (let n = 0; n < contextNightCount; n++) {
-      const d = new Date(contextStart);
-      d.setDate(contextStart.getDate() + n);
-      proposedDateKeys.add(d.toDateString());
+    if ((type === 'event' || type === 'sleeping') && formState.recurrenceEnabled) {
+      const recurrence = {
+        frequency: formState.recurrenceFrequency || 'weekly',
+        count: formState.recurrenceCount || DEFAULT_RECURRENCE_COUNT
+      };
+      buildRecurrenceInstanceDates(contextStart, recurrence).forEach((d) => {
+        proposedDateKeys.add(d.toDateString());
+      });
+      contextNightCount = proposedDateKeys.size;
+    } else {
+      for (let n = 0; n < contextNightCount; n++) {
+        const d = new Date(contextStart);
+        d.setDate(contextStart.getDate() + n);
+        proposedDateKeys.add(d.toDateString());
+      }
     }
     let microCalCellsHtml = '';
     for (let i = 0; i < 7; i++) {
@@ -242,14 +254,20 @@ export function createProposalView(state, type = 'event', formState = {}) {
         <button type="button" class="btn btn-filled" id="btn-submit-proposal">Send Proposal</button>
       </div>
 
-      <!-- Toggle Switch Event/Sleep/Batch -->
-      <div class="switch-selector" style="flex-wrap: wrap;">
-        <button class="switch-btn ${type === 'event' ? 'active' : ''}" id="btn-toggle-event">Event</button>
+      <!-- Proposal type: events on row 1, sleeping on row 2 -->
+      <div style="display: flex; flex-direction: column; gap: var(--space-sm); margin-bottom: var(--space-md);">
+        <div class="switch-selector proposal-type-row">
+          <button class="switch-btn ${type === 'event' ? 'active' : ''}" id="btn-toggle-event">Event</button>
+        </div>
         ${canUseSleepingProposals ? `
-          <button class="switch-btn ${type === 'sleeping' ? 'active' : ''}" id="btn-toggle-sleeping">Sleeping Arrangement</button>
-          <button class="switch-btn ${type === 'batch_sleeping' ? 'active' : ''}" id="btn-toggle-batch-sleeping">Batch Sleeping</button>
+          <div class="switch-selector proposal-type-row">
+            <button class="switch-btn ${type === 'sleeping' ? 'active' : ''}" id="btn-toggle-sleeping">Sleeping Arrangement</button>
+            <button class="switch-btn ${type === 'batch_sleeping' ? 'active' : ''}" id="btn-toggle-batch-sleeping">Batch Sleeping</button>
+          </div>
         ` : `
-          <button class="switch-btn" disabled style="opacity: 0.4; cursor: not-allowed; background-color: var(--surface-container-highest);" title="No sleeping connections configured for your profile.">Sleeping (Disabled)</button>
+          <div class="switch-selector proposal-type-row">
+            <button class="switch-btn" disabled style="opacity: 0.4; cursor: not-allowed; background-color: var(--surface-container-highest);" title="No sleeping connections configured for your profile.">Sleeping (Disabled)</button>
+          </div>
         `}
       </div>
 
@@ -326,6 +344,31 @@ export function createProposalView(state, type = 'event', formState = {}) {
           </div>
           ` : ''}
         </div>
+
+        ${(type === 'event' || type === 'sleeping') ? `
+        <div class="form-group" id="recurrence-section" style="margin-bottom: var(--space-md);">
+          <label class="solo-event-toggle" style="display: flex; align-items: flex-start; gap: var(--space-sm); cursor: pointer; padding: var(--space-sm); background: var(--surface-container-high); border-radius: var(--radius-default);">
+            <input type="checkbox" id="prop-recurrence-enabled" ${formState.recurrenceEnabled ? 'checked' : ''} style="accent-color: var(--primary); margin-top: 2px;"/>
+            <span>
+              <strong class="font-label-md" style="display: block;">Recurring ${type === 'sleeping' ? 'sleeping arrangement' : 'event'}</strong>
+              <span class="font-label-sm" style="color: var(--on-surface-variant);">Repeat daily, weekly, monthly, or yearly for multiple occurrences.</span>
+            </span>
+          </label>
+          <div id="recurrence-options" style="margin-top: var(--space-sm);${formState.recurrenceEnabled ? '' : ' display: none;'}">
+            <label class="form-label" style="margin-bottom: var(--space-xs);">Repeat</label>
+            <div class="switch-selector" id="prop-recurrence-freq-tabs" role="group" aria-label="Recurrence frequency">
+              ${['daily', 'weekly', 'monthly', 'yearly'].map(freq => `
+                <button type="button" class="switch-btn ${(formState.recurrenceFrequency || 'weekly') === freq ? 'active' : ''}" data-recurrence-freq="${freq}">${freq.charAt(0).toUpperCase() + freq.slice(1)}</button>
+              `).join('')}
+            </div>
+            <div class="form-group" style="margin-top: var(--space-sm); margin-bottom: 0;">
+              <label class="form-label" for="prop-recurrence-count">Number of occurrences</label>
+              <input class="form-input" id="prop-recurrence-count" type="number" min="2" max="52" value="${formState.recurrenceCount || DEFAULT_RECURRENCE_COUNT}" style="max-width: 120px;"/>
+            </div>
+            <input type="hidden" id="prop-recurrence-frequency" value="${formState.recurrenceFrequency || 'weekly'}"/>
+          </div>
+        </div>
+        ` : ''}
 
         <!-- Dynamic Location block -->
         ${locationHtml}

@@ -9,7 +9,7 @@ import {
 import { AuthManager } from '../auth.js';
 import { CalendarSync } from '../calendar.js';
 import { renderAvatarPickerHtml } from '../avatar.js';
-import { state } from './state.js';
+import { state, flowState } from './state.js';
 import { LOCAL_SESSION_KEY } from '../storage-keys.js';
 import { logUserAction, logOperationError, showToast, updateNotificationsBadge, logoutUser, getCurrentUserName, updatePartnerProfile, persistCurrentUserNotifications, pushAppNotification } from './context.js';
 import { getCurrentUserPartner, formatAppDateTime } from '../helpers.js';
@@ -17,6 +17,8 @@ import { renderPronounPickerHtml, bindPronounPicker } from '../pronouns.js';
 import { escapeHtml } from '../escape.js';
 import { getEventDisplayPolicy } from '../event-privacy.js';
 import { normalizeEventComments } from '../event-comments.js';
+import { getWorkflowState, WORKFLOW, canUserRedraftEvent } from '../proposal-workflow.js';
+import { isRecurrenceInstance, askRecurrenceScope } from '../recurrence.js';
 
 function openModalOverlay(box, ariaLabel) {
   const modal = document.getElementById('app-modal');
@@ -347,6 +349,15 @@ export function openEventDetailsModal(event) {
     ? ''
     : `<button class="btn btn-error" id="modal-delete-btn" style="width: 100%;">Cancel / Delete Booking</button>`;
 
+  const userRef = state.currentUser?.id || state.currentUser?.name;
+  const ws = getWorkflowState(event);
+  const canRedraft = !display.redacted
+    && (ws === WORKFLOW.APPROVED || ws === WORKFLOW.ARCHIVED)
+    && canUserRedraftEvent(event, userRef, state.config);
+  const redraftHtml = canRedraft
+    ? `<button class="btn btn-outline" id="modal-redraft-btn" style="width: 100%; margin-bottom: var(--space-sm);">Re-Draft</button>`
+    : '';
+
   box.innerHTML = `
     <div style="display: flex; justify-content: space-between; align-items: start; margin-bottom: var(--space-md);">
       <div>
@@ -372,6 +383,7 @@ export function openEventDetailsModal(event) {
     ${commentsHtml}
     ${commentFormHtml}
     ${participantsHtml}
+    ${redraftHtml}
     ${deleteHtml}
   `;
 
@@ -408,8 +420,16 @@ export function openEventDetailsModal(event) {
       if (confirm(`Are you sure you want to delete "${event.title}"?`)) {
         const reason = prompt('Optional: Enter a reason for cancelling this booking:');
         if (reason === null) return;
+
+        let deleteOptions = {};
+        if (isRecurrenceInstance(event)) {
+          const scope = askRecurrenceScope('delete');
+          if (!scope) return;
+          deleteOptions = { scope };
+        }
+
         try {
-          await CalendarSync.deleteEvent(event.id);
+          await CalendarSync.deleteEvent(event.id, deleteOptions);
           state.events = CalendarSync.events;
           modal.classList.remove('open');
           handleBookingDeletion(event, reason);
@@ -421,6 +441,42 @@ export function openEventDetailsModal(event) {
           });
           showToast('Failed to delete booking.', 'error');
         }
+      }
+    });
+  }
+
+  const btnRedraft = document.getElementById('modal-redraft-btn');
+  if (btnRedraft) {
+    btnRedraft.addEventListener('click', async () => {
+      if (!confirm('Move this booking back to draft so it can be edited and re-submitted?')) return;
+
+      let redraftOptions = {};
+      if (isRecurrenceInstance(event)) {
+        const scope = askRecurrenceScope('redraft');
+        if (!scope) return;
+        redraftOptions = { scope };
+      }
+
+      try {
+        const draft = await CalendarSync.redraftApprovedEvent(
+          event.id,
+          getCurrentUserName(),
+          redraftOptions
+        );
+        state.events = CalendarSync.events;
+        modal.classList.remove('open');
+        showToast('Moved to draft. Continue editing from Proposals → Drafts.', 'success');
+        logUserAction(`Re-drafted "${event.title}"`);
+        if (draft?.id) {
+          window.location.hash = `#create?draft=${draft.id}`;
+        } else {
+          flowState.activeProposalsTab = 'drafts';
+          window.location.hash = '#proposals';
+        }
+        import('./router.js').then(({ renderView }) => renderView());
+      } catch (err) {
+        logOperationError('Re-draft', err, { eventId: event.id });
+        showToast(err?.message || 'Failed to re-draft.', 'error');
       }
     });
   }
