@@ -5,7 +5,8 @@ import {
   PUSH_ENABLED_KEY,
   PUSH_QUIET_HOURS_KEY,
   PUSH_QUIET_START_KEY,
-  PUSH_QUIET_END_KEY
+  PUSH_QUIET_END_KEY,
+  LOCAL_CONFIG_KEY
 } from './storage-keys.js';
 /**
  * Web Push registration and dispatch for PolySchedule.
@@ -267,7 +268,7 @@ async function registerSubscriptionWithServer(partnerId, subscription) {
   const { url, secret } = getPushConfig();
   let householdId = null;
   try {
-    const config = JSON.parse(localStorage.getItem('polyschedule_local_config') || 'null');
+    const config = JSON.parse(localStorage.getItem(LOCAL_CONFIG_KEY) || 'null');
     householdId = config?.householdId || null;
   } catch {
     householdId = null;
@@ -290,11 +291,13 @@ async function registerSubscriptionWithServer(partnerId, subscription) {
 }
 
 export async function dispatchPushEvent(payload) {
-  if (!payload?.recipientIds?.length) return { skipped: 'no recipients' };
+  const recipientIds = (payload?.recipientIds || []).filter(Boolean);
+  if (!recipientIds.length) return { skipped: 'no recipients' };
   if (!shouldDispatchPush(payload.type)) {
     if (!isPushConfigured()) return { skipped: 'not configured' };
     if (isWithinQuietHours()) return { skipped: 'quiet hours' };
     if (!isPushTypeEnabled(payload.type)) return { skipped: 'type disabled' };
+    return { skipped: 'push blocked' };
   }
 
   const { url, secret } = getPushConfig();
@@ -305,7 +308,7 @@ export async function dispatchPushEvent(payload) {
         'Content-Type': 'application/json',
         'X-Notify-Secret': secret
       },
-      body: JSON.stringify(payload)
+      body: JSON.stringify({ ...payload, recipientIds })
     });
     if (!res.ok) throw new Error('Notify service rejected the event');
     return res.json();
@@ -313,6 +316,40 @@ export async function dispatchPushEvent(payload) {
     console.warn('[push] Failed to dispatch push event', err);
     return { error: err?.message || 'dispatch failed' };
   }
+}
+
+function formatPushDispatchFailure(result) {
+  if (result?.skipped) {
+    if (result.skipped === 'quiet hours') {
+      return 'Test skipped during quiet hours. Disable quiet hours or try again later.';
+    }
+    return `Test skipped (${result.skipped}).`;
+  }
+  if (result?.error) return result.error;
+
+  const sent = Number(result?.sent || 0);
+  if (sent > 0) return null;
+
+  const serverError = result?.errors?.[0]?.message;
+  if (serverError) {
+    return `Notify service could not reach this device (${serverError}). Try Disable, then Enable push again.`;
+  }
+  return 'Notify service did not deliver to any registered device. Try Disable, then Enable push again. If this persists, check Admin → Registered push devices.';
+}
+
+export async function showLocalTestNotification() {
+  if (typeof Notification === 'undefined' || Notification.permission !== 'granted') {
+    return false;
+  }
+  const registration = await navigator.serviceWorker.ready;
+  await registration.showNotification('Test notification', {
+    body: 'Push notifications are working on this device.',
+    icon: 'icons/icon-192.png',
+    badge: 'icons/icon-192.png',
+    tag: 'polyschedule-test',
+    data: { url: './index.html#settings' }
+  });
+  return true;
 }
 
 export async function enablePushOnThisDevice(partnerId) {
@@ -468,8 +505,12 @@ export async function dispatchEventCommentPush(event, config, options = {}) {
 }
 
 export async function sendTestPush(partnerId) {
+  if (!partnerId) throw new Error('You must be logged in to test push notifications.');
   if (!isPushConfigured()) throw new Error('Notify service is not configured');
+
   await enablePushOnThisDevice(partnerId);
+  await showLocalTestNotification();
+
   const result = await dispatchPushEvent({
     type: 'test',
     proposalId: 'test',
@@ -479,7 +520,10 @@ export async function sendTestPush(partnerId) {
     dedupeKey: `test_${partnerId}_${Date.now()}`,
     recipientIds: [partnerId]
   });
-  if (result?.error) throw new Error('Test notification failed');
+
+  const failure = formatPushDispatchFailure(result);
+  if (failure) throw new Error(failure);
+
   return result;
 }
 

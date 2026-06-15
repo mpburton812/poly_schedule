@@ -118,6 +118,9 @@ export function settingsView(state) {
               <p class="font-label-sm" style="color: var(--on-surface-variant); margin-top: var(--space-xs);">
                 iPhone users: open Safari → Share → Add to Home Screen, then return here to enable notifications.
               </p>
+              <p class="font-label-sm" style="color: var(--on-surface-variant); margin-top: var(--space-xs);">
+                Test shows a banner immediately on this device. Server push may only appear when PolySchedule is in the background — switch to your home screen to verify delivery.
+              </p>
               <div style="margin-top: var(--space-md); padding-top: var(--space-md); border-top: 1px solid var(--outline-variant);">
                 <label style="display: flex; align-items: flex-start; gap: var(--space-sm); cursor: pointer;">
                   <input type="checkbox" id="push-quiet-hours" ${quietHours ? 'checked' : ''} style="accent-color: var(--primary); margin-top: 2px;"/>

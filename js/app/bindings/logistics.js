@@ -305,11 +305,14 @@ export function bindPushSettingsEvents(container = document) {
 
   if (btnTest) {
     btnTest.addEventListener('click', async () => {
+      btnTest.disabled = true;
       try {
         await sendTestPush(partnerId);
-        showToast('Test notification sent.', 'success');
+        showToast('Test sent — check for a banner now, or switch apps to see server push.', 'success');
       } catch (err) {
         showToast(err?.message || 'Test notification failed.', 'error');
+      } finally {
+        btnTest.disabled = false;
       }
     });
   }
