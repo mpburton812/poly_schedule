@@ -272,48 +272,104 @@ export function bindNotifyCredentialsEvents(container = document) {
 }
 
 export function bindPushSettingsEvents(container = document) {
-  const partnerId = getCurrentUserId();
   const btnEnable = container.querySelector('#btn-enable-push');
   const btnDisable = container.querySelector('#btn-disable-push');
   const btnTest = container.querySelector('#btn-test-push');
+  const statusEl = container.querySelector('#push-action-status');
+
+  const setPushStatus = (message, type = 'info') => {
+    if (statusEl) {
+      statusEl.textContent = message || '';
+      statusEl.style.color = type === 'error'
+        ? 'var(--error)'
+        : type === 'success'
+          ? 'var(--secondary)'
+          : 'var(--on-surface-variant)';
+    }
+  };
+
+  const runPushAction = async (button, action) => {
+    const partnerId = getCurrentUserId();
+    if (!partnerId) {
+      const message = 'You must be logged in to manage push notifications.';
+      setPushStatus(message, 'error');
+      showToast(message, 'error');
+      return;
+    }
+    if (button?.disabled) return;
+
+    const buttons = [btnEnable, btnDisable, btnTest].filter(Boolean);
+    buttons.forEach((btn) => { btn.disabled = true; });
+    setPushStatus('Working…');
+
+    try {
+      await action(partnerId);
+    } finally {
+      buttons.forEach((btn) => { btn.disabled = false; });
+    }
+  };
 
   if (btnEnable) {
-    btnEnable.addEventListener('click', async () => {
-      try {
-        await enablePushOnThisDevice(partnerId);
-        showToast('Push notifications enabled on this device.', 'success');
-        logUserAction('Enabled push notifications on this device.', 'info');
-        import('../router.js').then(({ router }) => router());
-      } catch (err) {
-        showToast(err?.message || 'Could not enable push notifications.', 'error');
-      }
+    btnEnable.addEventListener('click', () => {
+      void runPushAction(btnEnable, async (partnerId) => {
+        try {
+          await enablePushOnThisDevice(partnerId);
+          setPushStatus('Push enabled on this device.', 'success');
+          showToast('Push notifications enabled on this device.', 'success');
+          logUserAction('Enabled push notifications on this device.', 'info');
+          import('../router.js').then(({ router }) => router());
+        } catch (err) {
+          const message = err?.message || 'Could not enable push notifications.';
+          setPushStatus(message, 'error');
+          showToast(message, 'error');
+        }
+      });
     });
   }
 
   if (btnDisable) {
-    btnDisable.addEventListener('click', async () => {
-      try {
-        await disablePushOnThisDevice(partnerId);
-        showToast('Push notifications disabled on this device.', 'success');
-        logUserAction('Disabled push notifications on this device.', 'info');
-        import('../router.js').then(({ router }) => router());
-      } catch (err) {
-        showToast(err?.message || 'Could not disable push notifications.', 'error');
+    btnDisable.addEventListener('click', () => {
+      if (btnDisable.disabled) {
+        const message = 'Push is not enabled on this device yet.';
+        setPushStatus(message, 'warning');
+        showToast(message, 'warning');
+        return;
       }
+      void runPushAction(btnDisable, async (partnerId) => {
+        try {
+          await disablePushOnThisDevice(partnerId);
+          setPushStatus('Push disabled on this device.', 'success');
+          showToast('Push notifications disabled on this device.', 'success');
+          logUserAction('Disabled push notifications on this device.', 'info');
+          import('../router.js').then(({ router }) => router());
+        } catch (err) {
+          const message = err?.message || 'Could not disable push notifications.';
+          setPushStatus(message, 'error');
+          showToast(message, 'error');
+        }
+      });
     });
   }
 
   if (btnTest) {
-    btnTest.addEventListener('click', async () => {
-      btnTest.disabled = true;
-      try {
-        await sendTestPush(partnerId);
-        showToast('Test sent — check for a banner now, or switch apps to see server push.', 'success');
-      } catch (err) {
-        showToast(err?.message || 'Test notification failed.', 'error');
-      } finally {
-        btnTest.disabled = false;
+    btnTest.addEventListener('click', () => {
+      if (btnTest.disabled) {
+        const message = 'Enable push on this device first, then try again.';
+        setPushStatus(message, 'warning');
+        showToast(message, 'warning');
+        return;
       }
+      void runPushAction(btnTest, async (partnerId) => {
+        try {
+          await sendTestPush(partnerId);
+          setPushStatus('Test sent — check for a banner now, or switch apps for server push.', 'success');
+          showToast('Test sent — check for a banner now, or switch apps to see server push.', 'success');
+        } catch (err) {
+          const message = err?.message || 'Test notification failed.';
+          setPushStatus(message, 'error');
+          showToast(message, 'error');
+        }
+      });
     });
   }
 

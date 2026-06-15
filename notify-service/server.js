@@ -84,7 +84,11 @@ app.post('/v1/subscriptions', requireSecret, (req, res) => {
     res.status(400).json({ error: 'partnerId and subscription are required' });
     return;
   }
-  upsertSubscription(partnerId, subscription, req.get('user-agent') || '', { householdId, deviceId });
+  const row = upsertSubscription(partnerId, subscription, req.get('user-agent') || '', { householdId, deviceId });
+  if (!row) {
+    res.status(400).json({ error: 'Invalid subscription payload' });
+    return;
+  }
   const meta = getStoreDiagnostics();
   console.log(`[notify] subscription registered for ${partnerId} (${meta.subscriptionCount} total)`);
   res.json({ ok: true, meta });

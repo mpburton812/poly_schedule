@@ -52,21 +52,33 @@ async function boot() {
     markBooted();
     init();
 
-    if ('serviceWorker' in navigator) {
-      window.addEventListener('load', () => {
-        navigator.serviceWorker.register('./sw.js')
-          .then((reg) => {
-            console.log('PolySchedule Service Worker registered with scope: ', reg.scope);
-            versionMod.watchServiceWorkerUpdates(reg);
-            setInterval(() => reg.update(), 60 * 60 * 1000);
-          })
-          .catch((err) => {
-            console.error('PolySchedule Service Worker registration failed: ', err);
-          });
-      });
-    }
+    registerPolyScheduleServiceWorker();
   } catch (err) {
     showBootFailure(err);
+  }
+}
+
+function registerPolyScheduleServiceWorker() {
+  if (!('serviceWorker' in navigator)) return;
+
+  const run = () => {
+    import('./app/version-update.js').then((versionMod) => {
+      navigator.serviceWorker.register('./sw.js')
+        .then((reg) => {
+          console.log('PolySchedule Service Worker registered with scope: ', reg.scope);
+          versionMod.watchServiceWorkerUpdates(reg);
+          setInterval(() => reg.update(), 60 * 60 * 1000);
+        })
+        .catch((err) => {
+          console.error('PolySchedule Service Worker registration failed: ', err);
+        });
+    });
+  };
+
+  if (document.readyState === 'complete') {
+    run();
+  } else {
+    window.addEventListener('load', run, { once: true });
   }
 }
 

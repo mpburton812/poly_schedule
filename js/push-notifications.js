@@ -102,6 +102,36 @@ export function isStandalonePwa() {
     || window.navigator.standalone === true;
 }
 
+const SERVICE_WORKER_READY_TIMEOUT_MS = 20000;
+
+export async function waitForServiceWorkerReady(timeoutMs = SERVICE_WORKER_READY_TIMEOUT_MS) {
+  if (!('serviceWorker' in navigator)) {
+    throw new Error('Service worker is not supported in this browser.');
+  }
+
+  const existing = await navigator.serviceWorker.getRegistration();
+  if (!existing && !navigator.serviceWorker.controller) {
+    throw new Error(
+      'Service worker is not running. Reload PolySchedule from your Home Screen icon, or use Profile → Force Update Software.'
+    );
+  }
+
+  const registration = await Promise.race([
+    navigator.serviceWorker.ready,
+    new Promise((_, reject) => {
+      setTimeout(() => reject(new Error(
+        'Timed out waiting for the service worker. Reload from your Home Screen icon, then try Enable again.'
+      )), timeoutMs);
+    })
+  ]);
+
+  if (!registration?.pushManager) {
+    throw new Error('Push is not available in this browser.');
+  }
+
+  return registration;
+}
+
 export function isPushConfigured() {
   const { url, secret } = getPushConfig();
   return !!(url && secret);
@@ -345,7 +375,7 @@ export async function showLocalTestNotification() {
   if (typeof Notification === 'undefined' || Notification.permission !== 'granted') {
     return false;
   }
-  const registration = await navigator.serviceWorker.ready;
+  const registration = await waitForServiceWorkerReady();
   await registration.showNotification('Test notification', {
     body: 'Push notifications are working on this device.',
     icon: 'icons/icon-192.png',
@@ -357,6 +387,7 @@ export async function showLocalTestNotification() {
 }
 
 export async function enablePushOnThisDevice(partnerId) {
+  if (!partnerId) throw new Error('You must be logged in to enable push notifications.');
   if (!isPushSupported()) throw new Error('Push notifications are not supported here');
   if (!isPushConfigured()) throw new Error('Notify service is not configured yet');
   if (isIosDevice() && !isStandalonePwa()) {
@@ -367,7 +398,7 @@ export async function enablePushOnThisDevice(partnerId) {
   if (permission !== 'granted') throw new Error('Notification permission was not granted');
 
   const { url } = getPushConfig();
-  const registration = await navigator.serviceWorker.ready;
+  const registration = await waitForServiceWorkerReady();
   const publicKey = await fetchNotifyPublicKey(url);
 
   let subscription = await registration.pushManager.getSubscription();
@@ -385,7 +416,15 @@ export async function enablePushOnThisDevice(partnerId) {
 
 export async function disablePushOnThisDevice(partnerId) {
   localStorage.setItem(PUSH_ENABLED_KEY, '0');
-  const registration = await navigator.serviceWorker.ready;
+  if (!('serviceWorker' in navigator)) return;
+
+  let registration;
+  try {
+    registration = await waitForServiceWorkerReady();
+  } catch {
+    return;
+  }
+
   const subscription = await registration.pushManager.getSubscription();
   if (!subscription) return;
 

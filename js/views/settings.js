@@ -115,6 +115,7 @@ export function settingsView(state) {
               <p class="font-label-sm" id="push-status-label" style="color: var(--on-surface-variant); margin-top: var(--space-md);">
                 Permission: ${pushPermission}${pushEnabled ? ' · device registration on' : ''}
               </p>
+              <p class="font-label-sm" id="push-action-status" style="color: var(--on-surface-variant); margin-top: var(--space-xs); min-height: 1.25rem;" aria-live="polite"></p>
               <p class="font-label-sm" style="color: var(--on-surface-variant); margin-top: var(--space-xs);">
                 iPhone users: open Safari → Share → Add to Home Screen, then return here to enable notifications.
               </p>
