@@ -1,12 +1,24 @@
 {
   "latest": {
-    "summary": "OAuth refresh, batch night fixes, and calendar sharing on partner setup",
+    "summary": "Re-draft, recurring proposals, and private event redaction",
     "changes": [
-      "Refresh Google access tokens silently instead of forcing consent on every reconnect",
-      "Remove non-functional close button from proposal rules warning banner",
-      "Fix batch sleeping room conflicts using local calendar dates (no more off-by-one day errors)",
-      "Allow clearing and retyping Number of Nights on batch proposals",
-      "Share household Google Calendar when adding or activating partners with a Gmail address"
+      "Re-Draft approved or archived events from the schedule or proposals (proposers and approvers)",
+      "Re-drafting updates proposer when someone other than the original submits the edit",
+      "Recurring events and sleeping arrangements: daily, weekly, monthly, or yearly (2–52 occurrences)",
+      "Delete or re-draft a recurring instance with this occurrence vs all future scope",
+      "Hide private and super private details in Resolved and Archived proposal tabs for non-invitees",
+      "Split create proposal type picker: Event on one row, sleeping options on the next"
+    ]
+  },
+  "f79e8f7": {
+    "summary": "Re-draft, recurring proposals, and private event redaction",
+    "changes": [
+      "Re-Draft approved or archived events from the schedule or proposals (proposers and approvers)",
+      "Re-drafting updates proposer when someone other than the original submits the edit",
+      "Recurring events and sleeping arrangements: daily, weekly, monthly, or yearly (2–52 occurrences)",
+      "Delete or re-draft a recurring instance with this occurrence vs all future scope",
+      "Hide private and super private details in Resolved and Archived proposal tabs for non-invitees",
+      "Split create proposal type picker: Event on one row, sleeping options on the next"
     ]
   },
   "5aa0ca3": {
