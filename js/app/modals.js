@@ -21,6 +21,7 @@ import { normalizeEventComments } from '../event-comments.js';
 import { getWorkflowState, WORKFLOW, canUserRedraftEvent } from '../proposal-workflow.js';
 import { isRecurrenceInstance, askRecurrenceScope } from '../recurrence.js';
 import { formatCalendarDisplayLabel, shouldShowCalendarIdDetail } from '../google-integration.js';
+import { loadDraftIntoForm } from './bindings/create.js';
 
 function openModalOverlay(box, ariaLabel) {
   const modal = document.getElementById('app-modal');
@@ -200,7 +201,10 @@ export function openUserProfileModal() {
             : 'Ask an administrator to configure Google Calendar credentials on the Admin page.'}
         </p>
 
-        <div style="display: flex; gap: var(--space-sm); margin-top: var(--space-xs);">
+        <div style="display: flex; gap: var(--space-sm); margin-top: var(--space-xs); flex-wrap: wrap;">
+          <a href="#settings" class="btn btn-filled" id="modal-link-device-settings" style="padding: 6px 16px; font-size: 0.8rem; flex: 1; text-align: center; text-decoration: none;">
+            <span class="material-symbols-outlined" style="font-size: 16px; vertical-align: middle; margin-right: 4px;">notifications_active</span> Mobile Notifications
+          </a>
           <button class="btn btn-outline" id="btn-force-update" style="border-color: var(--primary); color: var(--primary); padding: 6px 16px; font-size: 0.8rem; flex: 1;">
             <span class="material-symbols-outlined" style="font-size: 16px; vertical-align: middle; margin-right: 4px;">system_update_alt</span> Force Update Software
           </button>
@@ -213,6 +217,14 @@ export function openUserProfileModal() {
 
   document.getElementById('modal-close-btn').addEventListener('click', () => {
     modal.classList.remove('open');
+  });
+
+  box.querySelector('#modal-link-device-settings')?.addEventListener('click', () => {
+    modal.classList.remove('open');
+    import('./router.js').then(({ router }) => {
+      window.location.hash = '#settings';
+      router();
+    });
   });
 
   document.getElementById('modal-btn-logout').addEventListener('click', () => {
@@ -477,15 +489,15 @@ export function openEventDetailsModal(event) {
         );
         state.events = CalendarSync.events;
         modal.classList.remove('open');
-        showToast('Moved to draft. Continue editing from Proposals → Drafts.', 'success');
+        showToast('Moved to draft.', 'success');
         logUserAction(`Re-drafted "${event.title}"`);
         if (draft?.id) {
+          loadDraftIntoForm(draft.id);
           window.location.hash = `#create?draft=${draft.id}`;
         } else {
           flowState.activeProposalsTab = 'drafts';
           window.location.hash = '#proposals';
         }
-        import('./router.js').then(({ renderView }) => renderView());
       } catch (err) {
         logOperationError('Re-draft', err, { eventId: event.id });
         showToast(err?.message || 'Failed to re-draft.', 'error');

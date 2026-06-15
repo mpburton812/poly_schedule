@@ -21,6 +21,7 @@ import {
 import { NOTIFY_URL_KEY, NOTIFY_SECRET_KEY } from '../../storage-keys.js';
 import { enablePushOnThisDevice, disablePushOnThisDevice, sendTestPush, saveQuietHoursSettings, savePushTypePrefs, getPushTypePrefs, fetchRegisteredDevices } from '../../push-notifications.js';
 import { forceReloadApp } from '../version-update.js';
+import { renderView } from '../router.js';
 
 export function bindLogisticsEvents(container = document) {
   const exportBtn = container.querySelector('#btn-export-logs');
@@ -255,13 +256,16 @@ export function bindNotifyCredentialsEvents(container = document) {
           try {
             await CalendarSync.saveConfig(state.config);
           } catch (err) {
-            showToast(`Saved locally but failed to sync notify settings: ${err.message}`, 'warning');
+            showToast(`Saved on this device but failed to sync to cloud: ${err.message}`, 'warning');
+            logUserAction(`Notify settings saved locally; cloud sync failed: ${err.message}`, 'warning');
+            renderView();
             return;
           }
         }
 
         showToast('Notify service settings saved and synced to household.', 'success');
         logUserAction('Mobile notify service settings updated and synced to household.', 'info');
+        renderView();
       })();
     });
   }

@@ -218,7 +218,7 @@ export function adminView(state) {
             <span class="material-symbols-outlined text-primary">notifications_active</span> Mobile Push Notifications
           </h3>
           <p class="font-body-md" style="color: var(--on-surface-variant); margin-bottom: var(--space-md);">
-            One-time setup for the notify service that delivers Web Push alerts to Android and iPhone PWAs when proposals need review. URL and secret sync to all household devices; each person still enables push under Settings.
+            One-time setup for the notify service that delivers Web Push alerts to Android and iPhone PWAs when proposals need review. URL and secret sync to all household devices; each person still enables push under <a href="#settings">Settings</a> (or profile → Mobile Notifications).
           </p>
           ${notifyUrl && notifySecret
             ? '<p class="font-label-sm" style="color: var(--secondary); margin-bottom: var(--space-md);">Notify service is configured.</p>'

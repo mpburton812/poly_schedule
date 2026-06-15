@@ -21,6 +21,7 @@ export function needsGoogleCalendarConnect() {
 }
 
 export function canBypassGoogleConnectGate(view) {
+  if (view === 'settings') return true;
   return view === 'admin' && isAdmin();
 }
 
