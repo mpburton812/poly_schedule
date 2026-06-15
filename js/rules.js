@@ -3,7 +3,7 @@
  * Evaluates scheduling proposals against capacity constraints and partner sleeping limits.
  */
 
-import { findPartnerByRef, batchProposalToSleepingEvents } from './helpers.js';
+import { findPartnerByRef, batchProposalToSleepingEvents, parseLocalDateString } from './helpers.js';
 import { buildPersonConflictMessage, getEventVisibility } from './event-privacy.js';
 import {
   partnerSleepingWithMessage,
@@ -63,6 +63,13 @@ const collectEventPeople = (proposal) => {
   (proposal.participants || []).forEach(name => people.add(name));
   return Array.from(people);
 };
+
+const formatNightDateLabel = (dateStr) => {
+  const day = parseLocalDateString(dateStr, 12, 0, 0, 0);
+  return day.toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' });
+};
+
+const localDayFromDateStr = (dateStr) => parseLocalDateString(dateStr, 0, 0, 0, 0);
 
 const getWeekStartsInRange = (startDate, endDate) => {
   const weekKeys = new Set();
@@ -400,7 +407,7 @@ export const RulesEngine = {
             type: 'CAPACITY_CONFLICT',
             nightIndex,
             assignIndex,
-            message: `Duplicate assignment: ${assign.roomName || assign.roomId} at ${assign.homeName || assign.homeId} on ${new Date(night.date).toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' })}.`
+            message: `Duplicate assignment: ${assign.roomName || assign.roomId} at ${assign.homeName || assign.homeId} on ${formatNightDateLabel(night.date)}.`
           });
         }
         roomKeys.add(key);
@@ -418,8 +425,7 @@ export const RulesEngine = {
         })[0];
         if (!synthetic) continue;
 
-        const nightDate = new Date(night.date);
-        nightDate.setHours(0, 0, 0, 0);
+        const nightDate = localDayFromDateStr(night.date);
 
         const conflict = eventsToCheck.find(e => {
           if (e.id === synthetic.id) return false;
@@ -435,7 +441,7 @@ export const RulesEngine = {
             type: 'CAPACITY_CONFLICT',
             nightIndex: nightIdx,
             assignIndex: assignIdx,
-            message: `Room conflict: ${synthetic.roomName || synthetic.roomId} at ${synthetic.homeName || synthetic.homeId} is already booked on ${nightDate.toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' })}.`
+            message: `Room conflict: ${synthetic.roomName || synthetic.roomId} at ${synthetic.homeName || synthetic.homeId} is already booked on ${formatNightDateLabel(night.date)}.`
           });
         }
         assignIdx++;
@@ -448,8 +454,8 @@ export const RulesEngine = {
     syntheticEvents.forEach(e => (e.participants || []).forEach(p => allParticipants.add(p)));
     const proposalParticipants = Array.from(allParticipants);
 
-    const rangeStart = new Date(batchProposal.batchNights[0].date);
-    const rangeEnd = new Date(batchProposal.batchNights[batchProposal.batchNights.length - 1].date);
+    const rangeStart = localDayFromDateStr(batchProposal.batchNights[0].date);
+    const rangeEnd = localDayFromDateStr(batchProposal.batchNights[batchProposal.batchNights.length - 1].date);
     const weekStarts = getWeekStartsInRange(rangeStart, rangeEnd);
 
     for (const weekStart of weekStarts) {

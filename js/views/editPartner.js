@@ -111,8 +111,9 @@ export function editPartnerView(state, partnerId) {
             <p class="font-label-sm" style="color: var(--on-surface-variant); margin-top: var(--space-xs);">Email backup when push is unavailable.</p>
           </div>
           <div class="form-group">
-            <label class="form-label" for="edit-partner-google-email">Google Calendar account email (optional)</label>
+            <label class="form-label" for="edit-partner-google-email">Google Calendar account email</label>
             <input class="form-input" id="edit-partner-google-email" type="email" placeholder="partner@gmail.com" value="${escapeHtml(partner.googleEmail || '')}"/>
+            <p class="font-label-sm" style="color: var(--on-surface-variant); margin-top: var(--space-xs);">Saving updates household config and invites this Google account to the shared calendar when connected.</p>
             <p class="font-label-sm" style="color: var(--on-surface-variant); margin-top: var(--space-xs);">Matches this partner when they change events directly in Google Calendar.</p>
           </div>
           ${activeFields}

@@ -74,6 +74,13 @@ export function activatePartnerView(state) {
             <label class="form-label" for="activate-role">Role</label>
             <select class="form-input" id="activate-role"><option value="User">User</option><option value="Admin">Admin</option></select>
           </div>
+          <div class="form-group" style="margin-top: var(--space-md);">
+            <label class="form-label" for="activate-google-email">Google account email</label>
+            <input class="form-input" id="activate-google-email" placeholder="partner@gmail.com" type="email" autocomplete="email"/>
+            <p class="font-label-sm" style="color: var(--on-surface-variant); margin-top: var(--space-xs);">
+              Invites this Google account to the household calendar when activation is saved.
+            </p>
+          </div>
         </div>
         <div class="bento-card" style="padding: var(--space-lg);">
           <h3 class="font-title-lg" style="font-weight: 700; margin-bottom: var(--space-md);">Sleeping Partner Connections</h3>

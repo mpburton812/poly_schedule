@@ -9,7 +9,7 @@ import { hashPassword } from '../../crypto.js';
 import { normalizePronouns } from '../../pronouns.js';
 import { RETURN_ADD_PARTNER_KEY, SELECT_HOME_KEY, ADD_PARTNER_DRAFT_KEY } from '../../storage-keys.js';
 import { assertUsernameAvailable, claimUsernameGlobally } from '../../username-registry.js';
-import { CREATE_NEW_HOME, isPartnerPassive, applyHomeAssociationDefaults, partnerRefsMatch } from '../../helpers.js';
+import { CREATE_NEW_HOME, isPartnerPassive, applyHomeAssociationDefaults, partnerRefsMatch, normalizeEmail } from '../../helpers.js';
 import {
   setAutoArchiveDays,
   getAutoArchiveDays
@@ -30,10 +30,35 @@ import {
   selectNewHomeAfterReturn,
   bindAvatarPicker,
   bindSleepingPartnerCheckboxes,
-  updatePartnerProfile
+  updatePartnerProfile,
+  grantPartnerCalendarAccess
 } from '../context.js';
 import { renderView } from '../router.js';
 import { bindLogisticsEvents, bindGoogleCredentialsEvents, bindHouseholdSyncEvents, bindNotifyCredentialsEvents, bindAdminDevicesEvents } from './logistics.js';
+
+async function notifyPartnerCalendarShare(partnerName, googleEmail, { action = 'added' } = {}) {
+  if (!googleEmail) {
+    showToast(
+      action === 'activated'
+        ? `"${partnerName}" is now an active user!`
+        : `Partner "${partnerName}" added successfully!`,
+      'success'
+    );
+    return;
+  }
+
+  const share = await grantPartnerCalendarAccess(googleEmail);
+  if (!share.ok) {
+    showToast(`Partner "${partnerName}" saved, but calendar sharing failed: ${share.message}`, 'warning');
+    return;
+  }
+
+  if (share.alreadyShared) {
+    showToast(`Partner "${partnerName}" saved. ${googleEmail} already has calendar access.`, 'success');
+  } else {
+    showToast(`Partner "${partnerName}" saved and calendar shared with ${googleEmail}.`, 'success');
+  }
+}
 
 export function bindAdminEvents() {
   const btnSave = document.getElementById('btn-save-group-name');
@@ -162,11 +187,12 @@ export function bindAddPartnerEvents() {
         return;
       }
 
-      let username, password, role;
+      let username, password, role, googleEmail;
       if (!isPassive) {
         username = document.getElementById('new-partner-username').value.trim();
         password = document.getElementById('new-partner-password').value.trim();
         role = document.getElementById('new-partner-role').value;
+        googleEmail = normalizeEmail(document.getElementById('new-partner-google-email')?.value);
         if (!username || !password) {
           showToast('Username and password are required for active users.', 'warning');
           return;
@@ -233,6 +259,7 @@ export function bindAddPartnerEvents() {
           newPartner.avatar = selectedAvatar || newPartner.avatar;
           newPartner.pronouns = newPartner.pronouns || defaultPronouns;
           newPartner.rules = rules;
+          if (googleEmail) newPartner.googleEmail = googleEmail;
           delete newPartner.passive;
         }
       } else {
@@ -242,6 +269,7 @@ export function bindAddPartnerEvents() {
         } else {
           const passwordHash = await hashPassword(password, newId);
           newPartner = { id: newId, name, username, passwordHash, role, defaultHome, avatar: selectedAvatar, pronouns: defaultPronouns, rules };
+          if (googleEmail) newPartner.googleEmail = googleEmail;
         }
         state.config.partners.push(newPartner);
         pushedNewPartner = true;
@@ -259,8 +287,12 @@ export function bindAddPartnerEvents() {
       }
 
       void persistHouseholdConfig(`${isPassive ? 'Added passive partner' : 'Added partner'}: ${name}`)
-        .then(() => {
-          showToast(`Partner "${name}" added successfully!`, 'success');
+        .then(async () => {
+          if (!isPassive) {
+            await notifyPartnerCalendarShare(name, googleEmail);
+          } else {
+            showToast(`Partner "${name}" added successfully!`, 'success');
+          }
           window.location.hash = '#logistics';
         })
         .catch(() => {
@@ -559,6 +591,7 @@ export function bindActivatePartnerEvents() {
     const username = document.getElementById('activate-username').value.trim();
     const password = document.getElementById('activate-password').value.trim();
     const role = document.getElementById('activate-role').value;
+    const googleEmail = normalizeEmail(document.getElementById('activate-google-email')?.value);
 
     if (!username || !password) {
       showToast('Username and password are required.', 'warning');
@@ -590,6 +623,7 @@ export function bindActivatePartnerEvents() {
     partner.passwordHash = await hashPassword(password, partnerId);
     delete partner.password;
     partner.role = role;
+    if (googleEmail) partner.googleEmail = googleEmail;
     delete partner.passive;
 
     const rules = {};
@@ -612,8 +646,8 @@ export function bindActivatePartnerEvents() {
     partner.rules = rules;
 
     void persistHouseholdConfig(`Activated partner: ${partner.name}`)
-      .then(() => {
-        showToast(`"${partner.name}" is now an active user!`, 'success');
+      .then(async () => {
+        await notifyPartnerCalendarShare(partner.name, googleEmail, { action: 'activated' });
         window.location.hash = '#logistics';
       })
       .catch(() => {});

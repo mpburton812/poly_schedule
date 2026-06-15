@@ -271,9 +271,6 @@ export function createProposalView(state, type = 'event', formState = {}) {
           <p class="banner-alert-title" id="banner-warning-title"></p>
           <div class="banner-alert-desc" id="banner-warning-desc"></div>
         </div>
-        <button class="btn-icon-only" id="banner-warning-close" style="width: 28px; height: 28px; color: inherit;">
-          <span class="material-symbols-outlined" style="font-size: 18px;">close</span>
-        </button>
       </div>
 
       <!-- Form Inputs -->
@@ -320,7 +317,7 @@ export function createProposalView(state, type = 'event', formState = {}) {
           ${type === 'batch_sleeping' ? `
           <div class="form-group" style="margin-bottom: 0;">
             <label class="form-label" for="prop-duration">Number of Nights</label>
-            <input class="form-input" id="prop-duration" placeholder="e.g. 2" type="number" min="1" max="14" value="${formState.batchNightCount || 3}"/>
+            <input class="form-input" id="prop-duration" placeholder="e.g. 2" type="text" inputmode="numeric" autocomplete="off" maxlength="2" value="${formState.batchNightCount || 3}"/>
           </div>
           ` : type === 'event' ? `
           <div style="display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-md);">

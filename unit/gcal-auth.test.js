@@ -22,24 +22,26 @@ describe('prepareCalendarSyncForWrite', () => {
     localStorage.clear();
     AuthManager.accessToken = '';
     AuthManager.apiKey = '';
+    AuthManager.accessTokenExpiry = 0;
   });
 
-  it('throws when no access token is available', () => {
+  it('throws when no access token is available', async () => {
     localStorage.setItem('polyschedule_client_id', 'client');
     localStorage.setItem('polyschedule_api_key', 'key');
     const calendarSync = { mode: 'sync', accessToken: '', apiKey: '', calendarId: 'primary' };
 
-    expect(() => prepareCalendarSyncForWrite(calendarSync)).toThrow(/not connected/i);
+    await expect(prepareCalendarSyncForWrite(calendarSync)).rejects.toThrow(/not connected/i);
   });
 
-  it('copies AuthManager credentials onto CalendarSync', () => {
+  it('copies AuthManager credentials onto CalendarSync', async () => {
     localStorage.setItem('polyschedule_client_id', 'client');
     localStorage.setItem('polyschedule_api_key', 'key');
     localStorage.setItem('polyschedule_access_token', 'token');
+    localStorage.setItem('polyschedule_access_token_expiry', String(Date.now() + 3600000));
     AuthManager.reloadFromStorage();
     const calendarSync = { mode: 'cache', accessToken: '', apiKey: '', calendarId: 'primary' };
 
-    prepareCalendarSyncForWrite(calendarSync);
+    await prepareCalendarSyncForWrite(calendarSync);
     expect(calendarSync.accessToken).toBe('token');
     expect(calendarSync.apiKey).toBe('key');
     expect(calendarSync.mode).toBe('sync');

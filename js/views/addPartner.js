@@ -70,6 +70,14 @@ export function addPartnerView(state, partnerType = 'active', selectedHomeId = '
                 <option value="Admin">Admin</option>
               </select>
             </div>
+
+            <div class="form-group" style="margin-top: var(--space-sm);">
+              <label class="form-label" for="new-partner-google-email">Google account email</label>
+              <input class="form-input" id="new-partner-google-email" placeholder="partner@gmail.com" type="email" autocomplete="email"/>
+              <p class="font-label-sm" style="color: var(--on-surface-variant); margin-top: var(--space-xs);">
+                Used for Google Calendar sign-in on their device. When saved, this account is invited to the household calendar automatically.
+              </p>
+            </div>
     `;
 
     const sleepingSectionHtml = isPassive ? '' : `

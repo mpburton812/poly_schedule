@@ -1,6 +1,5 @@
-import {
-  ACCESS_TOKEN_KEY
-} from '../storage-keys.js';
+import { CALENDAR_ID_KEY, ACCESS_TOKEN_KEY } from '../storage-keys.js';
+import { isGoogleIntegrationServerManaged } from '../google-integration.js';
 import { LOCAL_CONFIG_KEY } from '../storage-keys.js';
 import { AuthManager } from '../auth.js';
 import { CalendarSync } from '../calendar.js';
@@ -109,9 +108,14 @@ export async function bootstrapInitial() {
 }
 
 /** @returns {Promise<{ ok: boolean, mode: string, error?: Error }>} */
-export async function bootstrapData(mode) {
+export async function bootstrapData(mode, { allowAuthRetry = true } = {}) {
   addLog(`Sync: Initializing cloud calendar (${mode}).`);
 
+  try {
+    await AuthManager.ensureAccessToken({ interactive: false });
+  } catch {
+    // Continue with any cached token; sync may still succeed.
+  }
   AuthManager.reloadFromStorage();
   if (!AuthManager.accessToken || !AuthManager.apiKey || !AuthManager.clientId) {
     const err = new Error('Google Calendar is not connected.');
@@ -162,12 +166,27 @@ export async function bootstrapData(mode) {
     logOperationError('Google Calendar sync init', err);
 
     if (err?.code === 'GOOGLE_AUTH_EXPIRED') {
-      AuthManager.accessToken = '';
-      localStorage.removeItem(ACCESS_TOKEN_KEY);
+      if (allowAuthRetry) {
+        try {
+          await AuthManager.ensureAccessToken({ interactive: false });
+          return bootstrapData(mode, { allowAuthRetry: false });
+        } catch {
+          AuthManager.clearStoredToken();
+        }
+      } else {
+        AuthManager.clearStoredToken();
+      }
     }
 
     if (err?.code === 'GOOGLE_NOT_FOUND') {
-      showToast('Calendar not found. Check Calendar ID on the Admin page.', 'error');
+      const calendarId = CalendarSync.calendarId || localStorage.getItem(CALENDAR_ID_KEY) || 'primary';
+      const serverManaged = isGoogleIntegrationServerManaged();
+      showToast(
+        serverManaged
+          ? `Calendar "${calendarId}" was not found for this Google account. Ask an admin to verify GOOGLE_CALENDAR_ID on Render and share that calendar with you in Google Calendar.`
+          : `Calendar "${calendarId}" was not found for this Google account. Check the Calendar ID in Admin, or share that calendar with this Google account.`,
+        'error'
+      );
     } else if (err?.code === 'GOOGLE_FORBIDDEN') {
       showToast(`Google Calendar access denied: ${err.message}`, 'error');
     } else if (err?.code === 'GOOGLE_CREDENTIALS_INCOMPLETE') {

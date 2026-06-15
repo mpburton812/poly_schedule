@@ -919,16 +919,40 @@ export function bindCreateEvents() {
     });
   }
   if (durationInput) {
+    const applyBatchNightCount = (force = false) => {
+      preserveCreateFormDraft();
+      syncBatchAssignmentsFromDom();
+      const raw = durationInput.value.trim();
+      if (!force && raw === '') return;
+      const parsed = parseInt(raw, 10);
+      ensureBatchAssignments(Number.isNaN(parsed) ? newProposalState.batchNightCount || 1 : parsed);
+      scheduleDraftSave();
+      renderView();
+    };
+
     durationInput.addEventListener('input', () => {
       if (flowState.currentCreateType === 'batch_sleeping') {
-        preserveCreateFormDraft();
-        syncBatchAssignmentsFromDom();
-        ensureBatchAssignments(parseInt(durationInput.value, 10) || 1);
-        scheduleDraftSave();
-        renderView();
+        const raw = durationInput.value.trim();
+        if (raw === '') return;
+        const parsed = parseInt(raw, 10);
+        if (Number.isNaN(parsed)) return;
+        applyBatchNightCount();
       } else {
         runRulesChecks();
         scheduleDraftSave();
+      }
+    });
+
+    durationInput.addEventListener('change', () => {
+      if (flowState.currentCreateType === 'batch_sleeping') {
+        applyBatchNightCount(true);
+      }
+    });
+
+    durationInput.addEventListener('blur', () => {
+      if (flowState.currentCreateType !== 'batch_sleeping') return;
+      if (durationInput.value.trim() === '') {
+        applyBatchNightCount(true);
       }
     });
   }

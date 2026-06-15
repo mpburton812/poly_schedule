@@ -1,11 +1,12 @@
 {
   "latest": {
-    "summary": "Server-managed Google Calendar credentials",
+    "summary": "OAuth refresh, batch night fixes, and calendar sharing on partner setup",
     "changes": [
-      "Load OAuth Client ID, API Key, and Calendar ID from notify service env vars on every device",
-      "Expose credentials via GET /v1/config and POST /v1/auth/login with serverManaged flag",
-      "Hide manual credential fields in Admin when the notify service manages Google setup",
-      "Retry loading server credentials from the connect gate when bootstrap fetch fails"
+      "Refresh Google access tokens silently instead of forcing consent on every reconnect",
+      "Remove non-functional close button from proposal rules warning banner",
+      "Fix batch sleeping room conflicts using local calendar dates (no more off-by-one day errors)",
+      "Allow clearing and retyping Number of Nights on batch proposals",
+      "Share household Google Calendar when adding or activating partners with a Gmail address"
     ]
   },
   "aa33347": {

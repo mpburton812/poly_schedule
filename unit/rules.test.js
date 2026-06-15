@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { RulesEngine } from '../js/rules.js';
+import { nightAssignmentToSleepingEvent } from '../js/helpers.js';
 
 const partners = [
   {
@@ -53,6 +54,85 @@ describe('RulesEngine partner resolution', () => {
       partners
     );
     expect(Array.isArray(warnings)).toBe(true);
+  });
+});
+
+describe('RulesEngine.evaluateBatchSleepingProposal dates', () => {
+  it('reports room conflicts on the same local calendar day as the batch night', () => {
+    const existingEvents = [{
+      ...nightAssignmentToSleepingEvent('2026-06-14', {
+        homeId: 'h2',
+        roomId: 'r1',
+        homeName: "Katie's Place",
+        roomName: "Katie's Bedroom",
+        participants: ['Zachery']
+      }, 'sleep_existing'),
+      status: 'confirmed'
+    }];
+
+    const batchProposal = {
+      id: 'batch_new',
+      type: 'batch_sleeping',
+      batchNights: [{
+        date: '2026-06-14',
+        assignments: [{
+          homeId: 'h2',
+          roomId: 'r1',
+          homeName: "Katie's Place",
+          roomName: "Katie's Bedroom",
+          participants: ['Katie Thompson', 'Michael Burton']
+        }]
+      }]
+    };
+
+    const warnings = RulesEngine.evaluateBatchSleepingProposal(
+      batchProposal,
+      existingEvents,
+      { residences: [{ id: 'h2', name: "Katie's Place", bedrooms: 1 }] },
+      []
+    );
+
+    expect(warnings.some(w => w.type === 'CAPACITY_CONFLICT')).toBe(true);
+    const conflict = warnings.find(w => w.type === 'CAPACITY_CONFLICT');
+    expect(conflict.message).toContain('Jun 14');
+    expect(conflict.message).not.toContain('Jun 13');
+  });
+
+  it('does not flag a batch night when the existing booking is on a different local day', () => {
+    const existingEvents = [{
+      ...nightAssignmentToSleepingEvent('2026-06-13', {
+        homeId: 'h2',
+        roomId: 'r1',
+        homeName: "Katie's Place",
+        roomName: "Katie's Bedroom",
+        participants: ['Zachery']
+      }, 'sleep_existing'),
+      status: 'confirmed'
+    }];
+
+    const batchProposal = {
+      id: 'batch_new',
+      type: 'batch_sleeping',
+      batchNights: [{
+        date: '2026-06-14',
+        assignments: [{
+          homeId: 'h2',
+          roomId: 'r1',
+          homeName: "Katie's Place",
+          roomName: "Katie's Bedroom",
+          participants: ['Katie Thompson', 'Michael Burton']
+        }]
+      }]
+    };
+
+    const warnings = RulesEngine.evaluateBatchSleepingProposal(
+      batchProposal,
+      existingEvents,
+      { residences: [{ id: 'h2', name: "Katie's Place", bedrooms: 1 }] },
+      []
+    );
+
+    expect(warnings.some(w => w.type === 'CAPACITY_CONFLICT')).toBe(false);
   });
 });
 

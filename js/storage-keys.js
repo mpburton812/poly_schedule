@@ -2,6 +2,7 @@ export const CALENDAR_ID_KEY = 'polyschedule_calendar_id';
 export const CLIENT_ID_KEY = 'polyschedule_client_id';
 export const API_KEY_KEY = 'polyschedule_api_key';
 export const ACCESS_TOKEN_KEY = 'polyschedule_access_token';
+export const ACCESS_TOKEN_EXPIRY_KEY = 'polyschedule_access_token_expiry';
 export const FAMILY_NAME_KEY = 'polyschedule_poly_family_name';
 
 export const LOCAL_SESSION_KEY = 'polyschedule_local_session';

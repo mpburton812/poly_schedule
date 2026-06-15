@@ -19,7 +19,8 @@ export function saveAddPartnerDraft() {
     name: document.getElementById('new-partner-name')?.value || '',
     username: document.getElementById('new-partner-username')?.value || '',
     password: document.getElementById('new-partner-password')?.value || '',
-    role: document.getElementById('new-partner-role')?.value || 'User'
+    role: document.getElementById('new-partner-role')?.value || 'User',
+    googleEmail: document.getElementById('new-partner-google-email')?.value || ''
   };
   sessionStorage.setItem(ADD_PARTNER_DRAFT_KEY, JSON.stringify(draft));
 }
@@ -35,10 +36,12 @@ export function restoreAddPartnerDraft() {
     const userEl = document.getElementById('new-partner-username');
     const pwdEl = document.getElementById('new-partner-password');
     const roleEl = document.getElementById('new-partner-role');
+    const googleEl = document.getElementById('new-partner-google-email');
     if (nameEl && draft.name) nameEl.value = draft.name;
     if (userEl && draft.username) userEl.value = draft.username;
     if (pwdEl && draft.password) pwdEl.value = draft.password;
     if (roleEl && draft.role) roleEl.value = draft.role;
+    if (googleEl && draft.googleEmail) googleEl.value = draft.googleEmail;
   } catch { /* ignore corrupt draft */ }
 }
 

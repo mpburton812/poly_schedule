@@ -1,5 +1,5 @@
 import { AuthManager } from './auth.js';
-import { ACCESS_TOKEN_KEY, API_KEY_KEY, CALENDAR_ID_KEY } from './storage-keys.js';
+import { API_KEY_KEY, CALENDAR_ID_KEY } from './storage-keys.js';
 import { canWriteToGoogleCalendar } from './gcal-sync.js';
 import { setCalendarStatus } from './calendar-status.js';
 
@@ -12,7 +12,12 @@ export function syncCalendarSyncFromAuth(calendarSync) {
 }
 
 /** Ensure CalendarSync has a live token before calling the Calendar API. */
-export function prepareCalendarSyncForWrite(calendarSync) {
+export async function prepareCalendarSyncForWrite(calendarSync) {
+  try {
+    await AuthManager.ensureAccessToken({ interactive: false });
+  } catch {
+    // Fall through — may still have a usable cached token.
+  }
   syncCalendarSyncFromAuth(calendarSync);
   if (calendarSync.accessToken && calendarSync.apiKey && calendarSync.mode !== 'sync') {
     calendarSync.mode = 'sync';
@@ -28,27 +33,40 @@ export function prepareCalendarSyncForWrite(calendarSync) {
 export function handleGCalAuthFailure(err, calendarSync) {
   if (err?.code !== 'GOOGLE_AUTH_EXPIRED' && err?.status !== 401) return false;
 
-  AuthManager.accessToken = '';
+  AuthManager.clearStoredToken();
   calendarSync.accessToken = '';
-  localStorage.removeItem(ACCESS_TOKEN_KEY);
   calendarSync.mode = 'cache';
   setCalendarStatus('disconnected');
   return true;
 }
 
+function isAuthFailure(err) {
+  return err?.code === 'GOOGLE_AUTH_EXPIRED' || err?.status === 401;
+}
+
 /** Run a Calendar API action with fresh credentials and auth-expiry handling. */
 export async function withGCalAuth(calendarSync, action) {
-  prepareCalendarSyncForWrite(calendarSync);
+  await prepareCalendarSyncForWrite(calendarSync);
   try {
     return await action();
   } catch (err) {
-    if (handleGCalAuthFailure(err, calendarSync)) {
-      const wrapped = new Error(
-        'Google Calendar session expired. Click the OFFLINE banner at the top to sign in again.'
-      );
-      wrapped.code = 'GOOGLE_AUTH_EXPIRED';
-      wrapped.cause = err;
-      throw wrapped;
+    if (isAuthFailure(err)) {
+      try {
+        await AuthManager.ensureAccessToken({ interactive: false });
+        syncCalendarSyncFromAuth(calendarSync);
+        await prepareCalendarSyncForWrite(calendarSync);
+        return await action();
+      } catch (refreshErr) {
+        if (handleGCalAuthFailure(refreshErr, calendarSync) || handleGCalAuthFailure(err, calendarSync)) {
+          const wrapped = new Error(
+            'Google Calendar session expired. Click the OFFLINE banner at the top to sign in again.'
+          );
+          wrapped.code = 'GOOGLE_AUTH_EXPIRED';
+          wrapped.cause = refreshErr;
+          throw wrapped;
+        }
+        throw refreshErr;
+      }
     }
     throw err;
   }

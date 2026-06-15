@@ -11,6 +11,21 @@ import { normalizeEmail } from '../helpers.js';
 
 import { assertCalendarConnectedForWrite } from '../calendar-status.js';
 
+/** Share the household Google Calendar with a partner's Google account email. */
+export async function grantPartnerCalendarAccess(email) {
+  const { shareHouseholdCalendarWithEmail } = await import('../gcal-share.js');
+  const result = await shareHouseholdCalendarWithEmail(email);
+  if (result.ok) {
+    logUserAction(
+      result.alreadyShared
+        ? `Calendar access already granted to ${result.email}.`
+        : `Shared household calendar with ${result.email}.`,
+      'info'
+    );
+  }
+  return result;
+}
+
 export async function persistHouseholdConfig(logMessage) {
   if (!assertCalendarConnectedForWrite()) {
     throw new Error('Calendar sync is offline');
@@ -76,6 +91,13 @@ export async function updatePartnerProfile(partnerId, updates) {
 
   await persistHouseholdConfig(`Updated profile for ${partner.name}`);
 
+  if (updates.googleEmail !== undefined && partner.googleEmail) {
+    const share = await grantPartnerCalendarAccess(partner.googleEmail);
+    if (!share.ok) {
+      showToast(`Profile saved, but calendar sharing failed: ${share.message}`, 'warning');
+    }
+  }
+
   if (state.currentUser?.id === partnerId) {
     establishSession(partner);
   }
@@ -96,5 +118,9 @@ export async function syncPartnerGoogleEmailFromAuth(partnerId, email) {
 
   partner.googleEmail = next;
   await persistHouseholdConfig(`Linked Google account for ${partner.name}`);
+  const share = await grantPartnerCalendarAccess(next);
+  if (!share.ok && share.code !== 'NOT_CONNECTED') {
+    showToast(`Google account linked, but calendar sharing failed: ${share.message}`, 'warning');
+  }
   return true;
 }
