@@ -1,14 +1,20 @@
 {
   "latest": {
-    "summary": "Proposal UX polish, schedule previews, and sleeping limit clarity",
+    "summary": "No filler defaults, comment notifications, readable calendar labels",
     "changes": [
-      "Deleting a draft removes it from the list immediately",
-      "Proposed batch sleeping nights appear on the schedule in yellow (proposed styling)",
-      "Create proposal: Event / Recurring Event row; Single Night / Recurring / Batch Proposal row",
-      "Preference alerts use first names then pronouns (e.g. Katie is sleeping with Michael… her limit… with them)",
-      "Sticky tabs on Proposals and sticky week/filters on Schedule while scrolling",
-      "Renamed Logistics & Configuration to People and Places; Sleeping Rules to Sleeping Partners",
-      "Partner max nights counted Sunday–Saturday; warns but still allows over-limit scheduling"
+      "Blank event location and sleeping home/room no longer save with placeholder names",
+      "Comments on proposed or approved events notify all involved participants (in-app and push)",
+      "Post comments from the Proposals page on proposed and approved cards",
+      "Google Calendar connection shows human-readable labels with wrapped technical ids"
+    ]
+  },
+  "d1c02b3": {
+    "summary": "No filler defaults, comment notifications, readable calendar labels",
+    "changes": [
+      "Blank event location and sleeping home/room no longer save with placeholder names",
+      "Comments on proposed or approved events notify all involved participants (in-app and push)",
+      "Post comments from the Proposals page on proposed and approved cards",
+      "Google Calendar connection shows human-readable labels with wrapped technical ids"
     ]
   },
   "1e3bb4b": {
