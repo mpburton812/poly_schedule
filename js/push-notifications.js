@@ -287,7 +287,11 @@ async function registerSubscriptionWithServer(partnerId, subscription) {
       deviceId: getDeviceId()
     })
   });
-  if (!res.ok) throw new Error('Failed to register push subscription');
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}));
+    const detail = body?.error || `HTTP ${res.status}`;
+    throw new Error(`Failed to register push subscription (${detail})`);
+  }
 }
 
 export async function dispatchPushEvent(payload) {

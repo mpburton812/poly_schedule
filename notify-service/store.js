@@ -7,6 +7,16 @@ const DATA_DIR = process.env.DATA_DIR || path.join(__dirname, 'data');
 const STORE_PATH = path.join(DATA_DIR, 'subscriptions.json');
 const DEDUPE_PATH = path.join(DATA_DIR, 'dedupe.json');
 
+export function getStoreDiagnostics() {
+  const data = loadSubscriptions();
+  return {
+    dataDir: DATA_DIR,
+    subscriptionsPath: STORE_PATH,
+    subscriptionCount: data.subscriptions?.length || 0,
+    storeFileExists: fs.existsSync(STORE_PATH)
+  };
+}
+
 function readJson(filePath, fallback) {
   try {
     if (!fs.existsSync(filePath)) return fallback;

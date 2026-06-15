@@ -355,8 +355,17 @@ export function bindAdminDevicesEvents(container = document) {
     try {
       const data = await fetchRegisteredDevices();
       const rows = data.devices || [];
+      const meta = data.meta || null;
       if (!rows.length) {
-        panel.textContent = 'No devices registered yet.';
+        const metaLine = meta
+          ? `Server storage: ${meta.subscriptionCount ?? 0} subscription(s) at ${meta.subscriptionsPath || meta.dataDir || 'unknown'}.`
+          : '';
+        panel.innerHTML = `
+          <p style="margin: 0 0 var(--space-sm);">No devices registered yet.</p>
+          ${metaLine ? `<p class="font-label-sm" style="margin: 0 0 var(--space-sm); color: var(--on-surface-variant);">${escapeHtml(metaLine)}</p>` : ''}
+          <p class="font-label-sm" style="margin: 0; color: var(--on-surface-variant);">
+            On each phone: Settings → Disable push → Enable on this device. If the count stays 0, check Render <code>DATA_DIR</code> matches your persistent disk mount path.
+          </p>`;
         return;
       }
       panel.innerHTML = rows.map(row => {

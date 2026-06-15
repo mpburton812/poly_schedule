@@ -5,7 +5,8 @@ import webpush from 'web-push';
 import {
   upsertSubscription,
   removeSubscription,
-  listRegisteredDevices
+  listRegisteredDevices,
+  getStoreDiagnostics
 } from './store.js';
 import { sendPushToPartners } from './send.js';
 import { mountSyncRoutes } from './sync-routes.js';
@@ -43,7 +44,8 @@ app.use(cors({
       return;
     }
     callback(new Error('Not allowed by CORS'));
-  }
+  },
+  allowedHeaders: ['Content-Type', 'X-Notify-Secret']
 }));
 app.use(express.json({ limit: '32kb' }));
 
@@ -70,7 +72,10 @@ app.get('/v1/config', (_req, res) => {
 });
 
 app.get('/v1/devices', requireSecret, (_req, res) => {
-  res.json({ devices: listRegisteredDevices() });
+  res.json({
+    devices: listRegisteredDevices(),
+    meta: getStoreDiagnostics()
+  });
 });
 
 app.post('/v1/subscriptions', requireSecret, (req, res) => {
@@ -80,7 +85,9 @@ app.post('/v1/subscriptions', requireSecret, (req, res) => {
     return;
   }
   upsertSubscription(partnerId, subscription, req.get('user-agent') || '', { householdId, deviceId });
-  res.json({ ok: true });
+  const meta = getStoreDiagnostics();
+  console.log(`[notify] subscription registered for ${partnerId} (${meta.subscriptionCount} total)`);
+  res.json({ ok: true, meta });
 });
 
 app.delete('/v1/subscriptions', requireSecret, (req, res) => {
@@ -122,6 +129,8 @@ mountAuthRoutes(app, { requireSecret });
 mountSyncRoutes(app, { requireSecret });
 
 app.listen(PORT, () => {
+  const meta = getStoreDiagnostics();
   console.log(`[notify] listening on http://127.0.0.1:${PORT}`);
+  console.log(`[notify] data dir: ${meta.dataDir} (${meta.subscriptionCount} subscription(s), file ${meta.storeFileExists ? 'exists' : 'missing'})`);
   startWatchRenewalLoop(async () => null);
 });

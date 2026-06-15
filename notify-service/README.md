@@ -98,7 +98,20 @@ Users must **Add to Home Screen** (iOS 16.4+) for Web Push to work.
 
 ## Deploy (Render)
 
-Create a Web Service pointing at `notify-service`, set env vars, and attach a persistent disk at `/opt/render/project/src/notify-service/data` if you want subscription storage to survive restarts (or use Postgres in a later phase).
+Create a Web Service pointing at `notify-service`, set env vars, and attach a persistent disk.
+
+**Persistent disk (important):** subscriptions are stored in `subscriptions.json` under `DATA_DIR`. The disk mount path and `DATA_DIR` must match exactly.
+
+Example Render setup:
+
+| Setting | Value |
+|---------|--------|
+| Disk mount path | `/var/data` |
+| Env `DATA_DIR` | `/var/data` |
+
+If you mount the disk at `/opt/render/project/src/notify-service/data` instead, either leave `DATA_DIR` unset (default writes to `./data` next to the service) **or** set `DATA_DIR` to that same absolute path. A disk that is mounted somewhere else while the app writes to `./data` will look empty in Admin forever.
+
+Also set stable `VAPID_PUBLIC_KEY` and `VAPID_PRIVATE_KEY` in env (from `npm run generate-vapid`). Without them, keys regenerate on each deploy and existing push endpoints stop working.
 
 ### CORS for Vercel (Path A)
 
