@@ -1,13 +1,26 @@
 {
   "latest": {
-    "summary": "Re-draft, recurring proposals, and private event redaction",
+    "summary": "Proposal UX polish, schedule previews, and sleeping limit clarity",
     "changes": [
-      "Re-Draft approved or archived events from the schedule or proposals (proposers and approvers)",
-      "Re-drafting updates proposer when someone other than the original submits the edit",
-      "Recurring events and sleeping arrangements: daily, weekly, monthly, or yearly (2–52 occurrences)",
-      "Delete or re-draft a recurring instance with this occurrence vs all future scope",
-      "Hide private and super private details in Resolved and Archived proposal tabs for non-invitees",
-      "Split create proposal type picker: Event on one row, sleeping options on the next"
+      "Deleting a draft removes it from the list immediately",
+      "Proposed batch sleeping nights appear on the schedule in yellow (proposed styling)",
+      "Create proposal: Event / Recurring Event row; Single Night / Recurring / Batch Proposal row",
+      "Preference alerts use first names then pronouns (e.g. Katie is sleeping with Michael… her limit… with them)",
+      "Sticky tabs on Proposals and sticky week/filters on Schedule while scrolling",
+      "Renamed Logistics & Configuration to People and Places; Sleeping Rules to Sleeping Partners",
+      "Partner max nights counted Sunday–Saturday; warns but still allows over-limit scheduling"
+    ]
+  },
+  "1e3bb4b": {
+    "summary": "Proposal UX polish, schedule previews, and sleeping limit clarity",
+    "changes": [
+      "Deleting a draft removes it from the list immediately",
+      "Proposed batch sleeping nights appear on the schedule in yellow (proposed styling)",
+      "Create proposal: Event / Recurring Event row; Single Night / Recurring / Batch Proposal row",
+      "Preference alerts use first names then pronouns (e.g. Katie is sleeping with Michael… her limit… with them)",
+      "Sticky tabs on Proposals and sticky week/filters on Schedule while scrolling",
+      "Renamed Logistics & Configuration to People and Places; Sleeping Rules to Sleeping Partners",
+      "Partner max nights counted Sunday–Saturday; warns but still allows over-limit scheduling"
     ]
   },
   "f79e8f7": {
