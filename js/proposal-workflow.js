@@ -276,6 +276,20 @@ export function canUserRedraftEvent(event, userRef, config) {
   return isProposalApprover(event, userRef, config);
 }
 
+export function getProposalApprovedNotificationText(proposal) {
+  if (proposal?.type === 'partner_connection') {
+    return 'Sleeping partner connection approved.';
+  }
+  return `"${proposal.title}" was approved and added to the calendar.`;
+}
+
+export function getProposalApprovedToastText(proposal) {
+  if (proposal?.type === 'partner_connection') {
+    return 'Sleeping partner connection approved!';
+  }
+  return 'Proposal approved!';
+}
+
 export function resolveRedrafterName(config, userRef) {
   const partner = findPartnerByRef(config, userRef);
   return partner?.name || (typeof userRef === 'string' ? userRef : '');

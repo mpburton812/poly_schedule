@@ -11,7 +11,7 @@ import {
   notifyProposalOutcome,
   notifyProposalWithdrawn
 } from '../context.js';
-import { getWorkflowState, WORKFLOW } from '../../proposal-workflow.js';
+import { getWorkflowState, WORKFLOW, getProposalApprovedToastText } from '../../proposal-workflow.js';
 import { isRecurrenceInstance, askRecurrenceScope } from '../../recurrence.js';
 import { parseHashParams } from '../../helpers.js';
 import { renderView } from '../router.js';
@@ -103,7 +103,7 @@ function bindProposalActionHandlers() {
 
         if (finalEvent && afterWs === WORKFLOW.APPROVED) {
           flowState.activeProposalsTab = 'resolved';
-          showToast('Proposal approved!', 'success');
+          showToast(getProposalApprovedToastText(finalEvent), 'success');
         } else {
           showToast('Vote submitted successfully!', 'success');
         }

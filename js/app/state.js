@@ -8,6 +8,8 @@ import {
 export const state = {
   currentView: 'schedule',
   currentUser: null,
+  /** Admin partner id when an admin is impersonating another user. */
+  impersonatorId: null,
   calendarStatus: 'unknown',
   events: [],
   config: null,

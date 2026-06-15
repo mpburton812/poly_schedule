@@ -20,11 +20,14 @@ import {
   resolvePartnerLimitEntry,
   isPendingPartnerConnection,
   isApprovedPartnerConnection,
+  isActivePartnerConnection,
   findPartnerConnectionProposal,
   clearPartnerConnectionEntry,
-  createAndSubmitPartnerConnectionProposal
+  createAndSubmitPartnerConnectionProposal,
+  removeBidirectionalApprovedConnection,
+  applyPassivePartnerConnection
 } from '../../partner-connection.js';
-import { getCurrentUserName } from '../session.js';
+import { getCurrentUserName, hasAdminSessionAccess } from '../session.js';
 import {
   state,
   flowState
@@ -428,6 +431,22 @@ function bindEditPartnerSleepingConnections(editPartner) {
             return;
           }
 
+          if (isPartnerPassive(targetPartner)) {
+            cb.disabled = true;
+            try {
+              await applyPassivePartnerConnection(state.config, editPartner, targetPartner);
+              CalendarSync.config = state.config;
+              showToast('Sleeping partner request is auto-approved with passive partners.', 'success');
+              renderView();
+            } catch (err) {
+              cb.checked = false;
+              showToast(err?.message || 'Failed to connect passive partner.', 'error');
+            } finally {
+              cb.disabled = false;
+            }
+            return;
+          }
+
           const ok = window.confirm(
             `${targetPartner.name} will receive a sleeping partner connection request and must approve before you can schedule together. Continue?`
           );
@@ -459,8 +478,19 @@ function bindEditPartnerSleepingConnections(editPartner) {
 
         const existing = resolvePartnerLimitEntry(editPartner, targetName);
         if (isApprovedPartnerConnection(existing)) {
-          cb.checked = true;
-          showToast('Approved sleeping partner connections cannot be removed here.', 'warning');
+          cb.disabled = true;
+          try {
+            removeBidirectionalApprovedConnection(state.config, editPartner, targetPartner);
+            CalendarSync.config = state.config;
+            await persistHouseholdConfig(`Removed sleeping partner connection with ${targetName}`);
+            showToast('Sleeping partner connection removed.', 'info');
+            renderView();
+          } catch (err) {
+            cb.checked = true;
+            showToast(err?.message || 'Failed to remove connection.', 'error');
+          } finally {
+            cb.disabled = false;
+          }
           return;
         }
 
@@ -532,9 +562,11 @@ export function bindEditPartnerEvents() {
     };
 
     if (!isPartnerPassive(partner)) {
-      profileUpdates.username = document.getElementById('edit-partner-username').value.trim();
-      profileUpdates.password = document.getElementById('edit-partner-password').value.trim();
-      partner.role = document.getElementById('edit-partner-role').value;
+      profileUpdates.username = document.getElementById('edit-partner-username')?.value.trim();
+      profileUpdates.password = document.getElementById('edit-partner-password')?.value.trim();
+      if (hasAdminSessionAccess()) {
+        partner.role = document.getElementById('edit-partner-role')?.value;
+      }
       partner.rules = partner.rules || {};
       partner.rules.minSoloNights = parseInt(document.getElementById('edit-partner-solo-nights')?.value, 10) || 2;
       delete partner.rules.maxSoloNights;

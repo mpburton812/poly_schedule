@@ -1,6 +1,12 @@
 import { state, resetCreateFlowForUserSwitch } from './state.js';
 import { isPartnerPassive } from '../helpers.js';
-import { establishSession, isAdmin, isLoggedIn } from './session.js';
+import {
+  establishSession,
+  hasAdminSessionAccess,
+  isAdmin,
+  isLoggedIn,
+  restoreImpersonatorFromSession
+} from './session.js';
 import { showToast } from './toast.js';
 import { logUserAction } from './operation-log.js';
 
@@ -9,7 +15,7 @@ export function updateImpersonationBanner() {
   const select = document.getElementById('impersonation-select');
   if (!banner || !select) return;
 
-  if (!isLoggedIn() || !isAdmin()) {
+  if (!isLoggedIn() || !hasAdminSessionAccess()) {
     banner.style.display = 'none';
     return;
   }
@@ -24,14 +30,24 @@ export function updateImpersonationBanner() {
 export function impersonatePartner(partnerId) {
   const partner = state.config?.partners?.find(p => p.id === partnerId && !isPartnerPassive(p));
   if (!partner) return;
-  if (partner.id === state.currentUser?.id) return;
 
   const actorName = state.currentUser?.name || 'Admin';
+  const returningToImpersonator = state.impersonatorId && partner.id === state.impersonatorId;
+  const stayingAsSelf = !state.impersonatorId && partner.id === state.currentUser?.id;
+
+  if (stayingAsSelf) return;
+
+  if (returningToImpersonator) {
+    state.impersonatorId = null;
+  } else if (isAdmin() && !state.impersonatorId) {
+    state.impersonatorId = state.currentUser.id;
+  }
+
   resetCreateFlowForUserSwitch();
   establishSession(partner);
   logUserAction(`Impersonating user "${partner.name}".`, 'warning', actorName);
   showToast(`Viewing as ${partner.name.split(' ')[0]}`, 'info');
-  
+
   import('./render-bus.js').then(({ requestRender }) => requestRender());
 }
 

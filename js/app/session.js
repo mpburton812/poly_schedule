@@ -54,12 +54,52 @@ export function isAdmin() {
   return partner?.role === 'Admin';
 }
 
+export function getImpersonatorPartner() {
+  if (!state.impersonatorId || !state.config?.partners) return null;
+  return state.config.partners.find(p => p.id === state.impersonatorId) || null;
+}
+
+/** True when the signed-in user or their impersonating admin has Admin role. */
+export function hasAdminSessionAccess() {
+  if (isAdmin()) return true;
+  return getImpersonatorPartner()?.role === 'Admin';
+}
+
+export function canEditPartnerProfile(partnerId) {
+  if (!state.currentUser || !partnerId) return false;
+  if (hasAdminSessionAccess()) return true;
+  return state.currentUser.id === partnerId;
+}
+
+function readStoredSession() {
+  try {
+    return JSON.parse(localStorage.getItem(LOCAL_SESSION_KEY) || 'null');
+  } catch {
+    return null;
+  }
+}
+
+export function persistSessionRecord(partner) {
+  const payload = {
+    id: partner.id,
+    username: partner.username,
+    sessionActive: true
+  };
+  if (state.impersonatorId) payload.impersonatorId = state.impersonatorId;
+  localStorage.setItem(LOCAL_SESSION_KEY, JSON.stringify(payload));
+}
+
+export function restoreImpersonatorFromSession() {
+  const stored = readStoredSession();
+  state.impersonatorId = stored?.impersonatorId || null;
+}
+
 export function isLoggedIn() {
   return !!(state.currentUser && state.currentUser.sessionActive);
 }
 
 export function updateAdminNavVisibility() {
-  const showAdmin = isAdmin();
+  const showAdmin = hasAdminSessionAccess();
   const sideNavAdmin = document.getElementById('side-nav-admin');
   const mobileNavAdmin = document.getElementById('mobile-nav-admin');
   if (sideNavAdmin) sideNavAdmin.style.display = showAdmin ? 'flex' : 'none';
@@ -172,11 +212,7 @@ export function establishSession(partner) {
     role: partner.role,
     sessionActive: true
   };
-  localStorage.setItem(LOCAL_SESSION_KEY, JSON.stringify({
-    id: partner.id,
-    username: partner.username,
-    sessionActive: true
-  }));
+  persistSessionRecord(partner);
   const avatarImg = document.getElementById('user-avatar-img');
   if (avatarImg) avatarImg.src = state.currentUser.picture;
   updateUIForAuthState(true);
@@ -200,6 +236,7 @@ export function establishSession(partner) {
 export function logoutUser() {
   const name = getCurrentUserName();
   state.currentUser = null;
+  state.impersonatorId = null;
   localStorage.removeItem(LOCAL_SESSION_KEY);
   logUserAction('Logged out.', 'info', name);
   showLoginView();

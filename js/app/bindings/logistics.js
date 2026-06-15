@@ -6,7 +6,7 @@ import { CalendarSync } from '../../calendar.js';
 import { probeGoogleCalendarConnection } from '../../gcal-sync.js';
 import { escapeHtml } from '../../escape.js';
 import { state } from '../state.js';
-import { logUserAction, showToast, logoutGoogleSync, getCurrentUserId } from '../context.js';
+import { logUserAction, showToast, logoutGoogleSync, getCurrentUserId, hasAdminSessionAccess, canEditPartnerProfile } from '../context.js';
 import {
   generateHouseholdSyncToken,
   registerGCalWatchOnServer,
@@ -42,6 +42,15 @@ export function bindLogisticsEvents(container = document) {
     btn.addEventListener('click', (e) => {
       e.stopPropagation();
       window.location.hash = `#edit-partner?p=${btn.dataset.partnerId}`;
+    });
+  });
+
+  container.querySelectorAll('.partner-card-editable').forEach(card => {
+    card.addEventListener('click', (e) => {
+      if (e.target.closest('.btn-edit-partner')) return;
+      const partnerId = card.dataset.partnerId;
+      if (!canEditPartnerProfile(partnerId)) return;
+      window.location.hash = `#edit-partner?p=${partnerId}`;
     });
   });
 

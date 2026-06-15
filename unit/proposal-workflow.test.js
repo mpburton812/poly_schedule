@@ -217,3 +217,15 @@ describe('filterProposalsForTab', () => {
     expect(filterProposalsForTab(events, 'archived', 'Alex Rivera', config).map((e) => e.id)).toEqual(['4']);
   });
 });
+
+describe('proposal approval messaging', () => {
+  it('uses calendar wording for calendar proposals only', async () => {
+    const { getProposalApprovedNotificationText, getProposalApprovedToastText } = await import('../js/proposal-workflow.js');
+    const sleeping = { type: 'sleeping', title: 'SLEEP: Room: Alex & Jordan' };
+    const connection = { type: 'partner_connection', title: 'Sleeping partner: Alex ↔ Jordan' };
+
+    expect(getProposalApprovedNotificationText(sleeping)).toContain('added to the calendar');
+    expect(getProposalApprovedNotificationText(connection)).toBe('Sleeping partner connection approved.');
+    expect(getProposalApprovedToastText(connection)).toBe('Sleeping partner connection approved!');
+  });
+});

@@ -4,7 +4,7 @@ import { Views } from '../views.js';
 import { ensureGoogleCredentialsFromConfig, isGoogleIntegrationServerManaged } from '../google-integration.js';
 import { hasGoogleIntegrationCredentials, isGoogleCalendarReady, setCalendarStatus } from '../calendar-status.js';
 import { state, flowState } from './state.js';
-import { isAdmin } from './session.js';
+import { isAdmin, hasAdminSessionAccess } from './session.js';
 import { showToast } from './toast.js';
 
 let gateActive = false;
@@ -22,7 +22,7 @@ export function needsGoogleCalendarConnect() {
 
 export function canBypassGoogleConnectGate(view) {
   if (view === 'settings') return true;
-  return view === 'admin' && isAdmin();
+  return view === 'admin' && hasAdminSessionAccess();
 }
 
 export function prepareGoogleConnectGate() {
@@ -38,7 +38,7 @@ export function showGoogleConnectGate() {
   const credentialsReady = prepareGoogleConnectGate();
   container.innerHTML = Views.googleConnectGate({
     credentialsReady,
-    isAdminUser: isAdmin(),
+    isAdminUser: hasAdminSessionAccess(),
     serverManagedGoogle: isGoogleIntegrationServerManaged()
   });
   bindGoogleConnectGateEvents();

@@ -5,12 +5,6 @@ import {
   isPartnerPassive,
   renderHomeSelectOptions,
   renderAvatarPickerHtml,
-  render12HourTimePicker,
-  responseStatusLabel,
-  defaultBatchAssignment,
-  defaultBatchNight,
-  normalizeBatchNight,
-  getBedroomOptionsForHome,
   getCurrentUserPartner,
   hasSleepingPartnerConnections
 } from '../helpers.js';
@@ -20,12 +14,15 @@ import {
   isApprovedPartnerConnection,
   isActivePartnerConnection
 } from '../partner-connection.js';
+import { hasAdminSessionAccess } from '../app/session.js';
 
 
 export function editPartnerView(state, partnerId) {
     const partner = state.config.partners.find(p => p.id === partnerId);
     if (!partner) return '<p>Partner not found.</p>';
     const passive = isPartnerPassive(partner);
+    const isSelf = state.currentUser?.id === partnerId;
+    const showAdminFields = hasAdminSessionAccess();
 
     let sleepingHtml = '';
     if (!passive) {
@@ -76,6 +73,7 @@ export function editPartnerView(state, partnerId) {
           <input class="form-input" id="edit-partner-password" type="password" value="" placeholder="Leave blank to keep unchanged"/>
         </div>
       </div>
+      ${showAdminFields && !isSelf ? `
       <div class="form-group">
         <label class="form-label" for="edit-partner-role">Role</label>
         <select class="form-input" id="edit-partner-role">
@@ -83,16 +81,21 @@ export function editPartnerView(state, partnerId) {
           <option value="Admin" ${partner.role === 'Admin' ? 'selected' : ''}>Admin</option>
         </select>
       </div>
+      ` : ''}
     `;
+
+    const deleteBtn = showAdminFields && !isSelf
+      ? `<button class="btn btn-outline" id="btn-delete-edit-partner" style="color: var(--error); border-color: var(--error);">Delete Partner</button>`
+      : '';
 
     return `
       <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: var(--space-lg);">
         <div style="display: flex; align-items: center; gap: var(--space-base);">
           <button class="btn-icon-only" id="btn-edit-partner-back"><span class="material-symbols-outlined">arrow_back</span></button>
-          <h2 class="font-title-lg">Edit Partner: ${escapeHtml(partner.name)}</h2>
+          <h2 class="font-title-lg">${isSelf ? 'My Profile' : `Edit Partner: ${escapeHtml(partner.name)}`}</h2>
         </div>
         <div style="display: flex; gap: var(--space-sm);">
-          <button class="btn btn-outline" id="btn-delete-edit-partner" style="color: var(--error); border-color: var(--error);">Delete Partner</button>
+          ${deleteBtn}
           <button class="btn btn-filled" id="btn-save-edit-partner">Save Changes</button>
         </div>
       </div>

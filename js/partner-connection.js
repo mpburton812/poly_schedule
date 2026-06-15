@@ -71,6 +71,20 @@ export function clearPartnerConnectionEntry(config, initiatorId, targetName) {
   return true;
 }
 
+export function removeBidirectionalApprovedConnection(config, partnerA, partnerB) {
+  if (!config || !partnerA || !partnerB) return false;
+  const clearedA = clearPartnerConnectionEntry(config, partnerA.id, partnerB.name);
+  const clearedB = clearPartnerConnectionEntry(config, partnerB.id, partnerA.name);
+  return clearedA || clearedB;
+}
+
+export async function applyPassivePartnerConnection(config, initiator, target) {
+  if (!config || !initiator || !target) return false;
+  syncBidirectionalApprovedConnection(config, initiator, target);
+  await persistHouseholdConfig(`Sleeping partner connected (passive): ${initiator.name} ↔ ${target.name}`);
+  return true;
+}
+
 export function syncBidirectionalApprovedConnection(config, partnerA, partnerB) {
   if (!config || !partnerA || !partnerB) return;
   ensurePartnerRules(partnerA);

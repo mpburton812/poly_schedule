@@ -22,18 +22,18 @@ import {
   getAutoArchiveDays,
   isCalendarEvent
 } from '../proposal-workflow.js';
+import { hasAdminSessionAccess, canEditPartnerProfile } from '../app/session.js';
 
 
 export function logisticsView(state) {
     const partners = state.config?.partners || [];
     const residences = state.config?.residences || [];
-    const showAdmin = state.currentUser
-      ? (partners.find(p => p.id === state.currentUser.id)?.role === 'Admin')
-      : false;
+    const showAdminControls = hasAdminSessionAccess();
 
     let profilesHtml = '';
     partners.forEach(partner => {
       const passive = isPartnerPassive(partner);
+      const canEditThis = canEditPartnerProfile(partner.id);
       let badge = '';
       if (passive) {
         badge = `<span class="font-label-sm" style="background-color: var(--surface-container-highest); color: var(--on-surface-variant); padding: 2px 8px; border-radius: var(--radius-sm); font-size: 9px; font-weight: bold;">PASSIVE</span>`;
@@ -42,14 +42,14 @@ export function logisticsView(state) {
       }
       const defaultHomeObj = residences.find(r => r.id === partner.defaultHome);
       const homeName = defaultHomeObj ? defaultHomeObj.name : 'None';
-      const editBtn = showAdmin ? `
+      const editBtn = canEditThis ? `
         <button class="btn btn-outline btn-edit-partner" data-partner-id="${partner.id}" style="padding: 4px 12px; font-size: 0.75rem; flex-shrink: 0;">
           <span class="material-symbols-outlined" style="font-size: 16px;">edit</span>
         </button>
       ` : '';
 
       profilesHtml += `
-        <div class="bento-card partner-card" data-partner-id="${partner.id}" style="flex-direction: row; gap: var(--space-md); align-items: center; border: 1px solid var(--outline-variant); padding: var(--space-md);">
+        <div class="bento-card partner-card${canEditThis ? ' partner-card-editable' : ''}" data-partner-id="${partner.id}" style="flex-direction: row; gap: var(--space-md); align-items: center; border: 1px solid var(--outline-variant); padding: var(--space-md);${canEditThis ? ' cursor: pointer;' : ''}">
           <div class="profile-avatar" style="width: 56px; height: 56px; border-radius: var(--radius-full); overflow: hidden; flex-shrink: 0;">
             <img src="${partner.avatar || DEFAULT_AVATARS[0]}" alt="${partner.name}"/>
           </div>
@@ -94,7 +94,7 @@ export function logisticsView(state) {
       }
 
       homesHtml += `
-        <div class="bento-card home-card ${showAdmin ? 'home-card-editable' : ''}" data-home-id="${home.id}" style="padding: var(--space-md); background-color: var(--surface-container-high); border: none; ${showAdmin ? 'cursor: pointer;' : ''} transition: border 0.2s;">
+        <div class="bento-card home-card ${showAdminControls ? 'home-card-editable' : ''}" data-home-id="${home.id}" style="padding: var(--space-md); background-color: var(--surface-container-high); border: none; ${showAdminControls ? 'cursor: pointer;' : ''} transition: border 0.2s;">
           <div style="display: flex; justify-content: space-between; align-items: start;">
             <div style="display: flex; gap: var(--space-md); flex-grow: 1;">
               <div style="width: 44px; height: 44px; background-color: var(--primary-fixed); color: var(--on-primary-fixed); border-radius: var(--radius-default); display: flex; align-items: center; justify-content: center; flex-shrink: 0;">
@@ -114,7 +114,7 @@ export function logisticsView(state) {
                 <span style="width: 6px; height: 6px; border-radius: var(--radius-full); background-color: var(--secondary); display: inline-block;"></span>
                 ${home.bedrooms} Bedrooms
               </span>
-              ${showAdmin ? `<button class="btn btn-outline btn-edit-home" data-home-id="${home.id}" style="padding: 4px 10px; font-size: 0.75rem;"><span class="material-symbols-outlined" style="font-size: 14px;">edit</span> Edit</button>` : ''}
+              ${showAdminControls ? `<button class="btn btn-outline btn-edit-home" data-home-id="${home.id}" style="padding: 4px 10px; font-size: 0.75rem;"><span class="material-symbols-outlined" style="font-size: 14px;">edit</span> Edit</button>` : ''}
             </div>
           </div>
         </div>
@@ -137,12 +137,14 @@ export function logisticsView(state) {
               <span class="material-symbols-outlined text-primary">group</span> Collective Profiles
             </h3>
             <div style="display: flex; gap: var(--space-sm); flex-wrap: wrap;">
+              ${showAdminControls ? `
               <a href="#activate-partner" class="btn btn-outline" id="btn-activate-partner" style="padding: var(--space-xs) var(--space-md); font-size: 0.85rem; text-decoration: none;">
                 <span class="material-symbols-outlined" style="font-size: 16px;">person_check</span> Activate Passive Partner
               </a>
               <a href="#add-partner" class="btn btn-filled" id="btn-add-partner" style="padding: var(--space-xs) var(--space-md); font-size: 0.85rem; text-decoration: none;">
                 <span class="material-symbols-outlined" style="font-size: 16px;">person_add</span> Add Partner
               </a>
+              ` : ''}
             </div>
           </div>
           <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: var(--space-md);">
@@ -156,7 +158,7 @@ export function logisticsView(state) {
             <h3 class="font-title-lg" style="display: flex; align-items: center; gap: var(--space-base); font-weight: 700;">
               <span class="material-symbols-outlined text-primary">home_work</span> Homes & Spaces
             </h3>
-            <a href="#add-home" class="btn btn-outline" id="btn-add-home" style="padding: var(--space-xs) var(--space-md); font-size: 0.85rem; border-color: var(--primary); color: var(--primary); text-decoration: none;">
+            <a href="#add-home" class="btn btn-outline" id="btn-add-home" style="padding: var(--space-xs) var(--space-md); font-size: 0.85rem; border-color: var(--primary); color: var(--primary); text-decoration: none;${showAdminControls ? '' : ' display: none;'}">
               <span class="material-symbols-outlined" style="font-size: 16px;">add_home</span> Add Home
             </a>
           </div>

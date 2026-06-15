@@ -12,7 +12,9 @@ import {
   isAdmin,
   isLoggedIn,
   showLoginView,
-  syncPendingProposalAlertsForUser
+  syncPendingProposalAlertsForUser,
+  hasAdminSessionAccess,
+  canEditPartnerProfile
 } from './context.js';
 import { needsGoogleCalendarConnect, isGoogleGateActive, showGoogleConnectGate, canBypassGoogleConnectGate } from './google-connect-gate.js';
 import { bindScheduleEvents } from './bindings/schedule.js';
@@ -55,12 +57,21 @@ export function router() {
 
   const params = parseHashParams();
 
-  if (view === 'admin' && !isAdmin()) {
+  if (view === 'admin' && !hasAdminSessionAccess()) {
     window.location.hash = '#schedule';
     return;
   }
 
-  if ((view === 'edit-partner' || view === 'edit-home') && !isAdmin()) {
+  const editPartnerId = params.p;
+  if (view === 'edit-partner' && !canEditPartnerProfile(editPartnerId)) {
+    window.location.hash = '#logistics';
+    return;
+  }
+  if (view === 'edit-home' && !hasAdminSessionAccess()) {
+    window.location.hash = '#logistics';
+    return;
+  }
+  if ((view === 'add-partner' || view === 'add-home' || view === 'activate-partner') && !hasAdminSessionAccess()) {
     window.location.hash = '#logistics';
     return;
   }
@@ -138,7 +149,7 @@ export function renderView() {
       bindSettingsEvents();
     },
     'admin': () => {
-      if (!isAdmin()) { window.location.hash = '#schedule'; return; }
+      if (!hasAdminSessionAccess()) { window.location.hash = '#schedule'; return; }
       container.innerHTML = Views.admin(state);
       bindAdminEvents();
     },

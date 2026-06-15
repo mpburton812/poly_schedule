@@ -65,6 +65,7 @@ function determineInitialView() {
   if (savedProfile?.sessionActive) {
     const partner = state.config?.partners?.find(p => p.id === savedProfile.id && !isPartnerPassive(p));
     if (partner && partner.username === savedProfile.username) {
+      state.impersonatorId = savedProfile.impersonatorId || null;
       establishSession(partner);
       void routeAfterAuth();
       return;

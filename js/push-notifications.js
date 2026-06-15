@@ -23,7 +23,8 @@ import {
   WORKFLOW,
   getWorkflowState,
   getRequiredVoters,
-  getResponseForParticipant
+  getResponseForParticipant,
+  getProposalApprovedNotificationText
 } from './proposal-workflow.js';
 
 
@@ -253,7 +254,7 @@ export function buildProposalApprovedPushPayload(proposal, config) {
     type: 'proposal-approved',
     proposalId: proposal.id,
     title: 'Proposal approved',
-    body: `"${proposal.title}" was approved and added to the calendar.`,
+    body: getProposalApprovedNotificationText(proposal),
     url: proposalsUrl(proposal.id),
     dedupeKey: `approved_${proposal.id}`,
     recipientIds: [proposer.id]

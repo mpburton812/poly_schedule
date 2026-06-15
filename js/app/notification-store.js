@@ -15,7 +15,7 @@ import {
   buildProposalReviewRecipients
 } from '../push-notifications.js';
 import { eventLabel, allHouseholdPartnerIds, collectEventStakeholderIds } from '../gcal-change-alerts.js';
-import { getWorkflowState, getRequiredVoters, getResponseForParticipant, userNeedsProposalVote, WORKFLOW, isProposalType } from '../proposal-workflow.js';
+import { getWorkflowState, getRequiredVoters, getResponseForParticipant, userNeedsProposalVote, WORKFLOW, isProposalType, getProposalApprovedNotificationText } from '../proposal-workflow.js';
 import { canUserSeeEventDetails } from '../event-privacy.js';
 
 export function loadNotificationsStore() {
@@ -141,7 +141,7 @@ export function notifyProposalOutcome(proposal, config, { outcome, declinedBy = 
   if (outcome === 'approved') {
     pushAppNotification({
       title: 'Proposal approved',
-      description: `"${proposal.title}" was approved and added to the calendar.`,
+      description: getProposalApprovedNotificationText(proposal),
       dedupeKey: `approved_${proposal.id}`,
       recipientId: proposer.id
     });

@@ -1152,7 +1152,13 @@ export function bindCreateEvents() {
   });
 
   if (flowState.currentCreateType === 'sleeping') {
+    const participantCountBefore = newProposalState.participants.length;
     ensureCurrentUserSelectedForSleeping();
+    if (newProposalState.participants.length !== participantCountBefore) {
+      scheduleDraftSave();
+      renderView();
+      return;
+    }
     updateSleepingArrangementTitle();
     runRulesChecks();
   } else if (flowState.currentCreateType === 'batch_sleeping') {

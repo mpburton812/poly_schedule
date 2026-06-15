@@ -21,8 +21,10 @@ import {
   syncBidirectionalApprovedConnection,
   buildPartnerConnectionProposalPayload,
   releasePartnerConnectionProposal,
-  formatPartnerConnectionProposalSummary
+  formatPartnerConnectionProposalSummary,
+  removeBidirectionalApprovedConnection
 } from '../js/partner-connection.js';
+import { getProposalApprovedNotificationText, getProposalApprovedToastText } from '../js/proposal-workflow.js';
 import { WORKFLOW } from '../js/proposal-workflow.js';
 
 describe('partner-connection', () => {
@@ -76,5 +78,15 @@ describe('partner-connection', () => {
     const summary = formatPartnerConnectionProposalSummary(proposal, config);
     expect(summary).toContain('Alex');
     expect(summary).toContain('Jordan');
+  });
+
+  it('removes bidirectional approved connections', () => {
+    const localConfig = JSON.parse(JSON.stringify(config));
+    syncBidirectionalApprovedConnection(localConfig, localConfig.partners[0], localConfig.partners[1]);
+    expect(isApprovedPartnerConnection(resolvePartnerLimitEntry(localConfig.partners[0], 'Jordan'))).toBe(true);
+    expect(isApprovedPartnerConnection(resolvePartnerLimitEntry(localConfig.partners[1], 'Alex'))).toBe(true);
+    removeBidirectionalApprovedConnection(localConfig, localConfig.partners[0], localConfig.partners[1]);
+    expect(resolvePartnerLimitEntry(localConfig.partners[0], 'Jordan')).toBeNull();
+    expect(resolvePartnerLimitEntry(localConfig.partners[1], 'Alex')).toBeNull();
   });
 });
