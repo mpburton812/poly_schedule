@@ -25,7 +25,7 @@ export function setAutoArchiveDays(days) {
 }
 
 export function isProposalType(type) {
-  return type === 'event' || type === 'sleeping' || type === 'batch_sleeping';
+  return type === 'event' || type === 'sleeping' || type === 'batch_sleeping' || type === 'partner_connection';
 }
 
 export function getWorkflowState(event) {
@@ -38,7 +38,7 @@ export function getWorkflowState(event) {
 
 export function isCalendarEvent(event) {
   if (!event) return false;
-  if (event.type === 'batch_sleeping') return false;
+  if (event.type === 'batch_sleeping' || event.type === 'partner_connection') return false;
   if (event.recurrence?.frequency && !event.recurrenceSeriesId) return false;
   const ws = getWorkflowState(event);
   if (ws === WORKFLOW.APPROVED) return true;
@@ -272,7 +272,7 @@ export function isProposalApprover(proposal, userRef, config) {
 export function canUserRedraftEvent(event, userRef, config) {
   const ws = getWorkflowState(event);
   if (ws !== WORKFLOW.APPROVED && ws !== WORKFLOW.ARCHIVED) return false;
-  if (!isProposalType(event.type) || event.type === 'batch_sleeping') return false;
+  if (!isProposalType(event.type) || event.type === 'batch_sleeping' || event.type === 'partner_connection') return false;
   return isProposalApprover(event, userRef, config);
 }
 

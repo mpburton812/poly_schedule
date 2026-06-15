@@ -12,8 +12,19 @@ import { assertUsernameAvailable, claimUsernameGlobally } from '../../username-r
 import { CREATE_NEW_HOME, isPartnerPassive, applyHomeAssociationDefaults, partnerRefsMatch, normalizeEmail } from '../../helpers.js';
 import {
   setAutoArchiveDays,
-  getAutoArchiveDays
+  getAutoArchiveDays,
+  getWorkflowState,
+  WORKFLOW
 } from '../../proposal-workflow.js';
+import {
+  resolvePartnerLimitEntry,
+  isPendingPartnerConnection,
+  isApprovedPartnerConnection,
+  findPartnerConnectionProposal,
+  clearPartnerConnectionEntry,
+  createAndSubmitPartnerConnectionProposal
+} from '../../partner-connection.js';
+import { getCurrentUserName } from '../session.js';
 import {
   state,
   flowState
@@ -396,6 +407,91 @@ export function bindAddHomeEvents() {
   }
 }
 
+function bindEditPartnerSleepingConnections(editPartner) {
+  if (!editPartner || isPartnerPassive(editPartner)) return;
+
+  document.querySelectorAll('.sleeping-partner-checkbox').forEach(cb => {
+    cb.addEventListener('change', () => {
+      void (async () => {
+        const targetName = cb.dataset.partnerName;
+        const targetPartner = state.config.partners.find(p => p.id === cb.dataset.partnerId || p.name === targetName);
+        if (!targetPartner) return;
+
+        if (cb.checked) {
+          if (cb.dataset.approved === '1') {
+            cb.checked = true;
+            return;
+          }
+          const existing = resolvePartnerLimitEntry(editPartner, targetName);
+          if (isPendingPartnerConnection(existing) || isApprovedPartnerConnection(existing)) {
+            cb.checked = true;
+            return;
+          }
+
+          const ok = window.confirm(
+            `${targetPartner.name} will receive a sleeping partner connection request and must approve before you can schedule together. Continue?`
+          );
+          if (!ok) {
+            cb.checked = false;
+            return;
+          }
+
+          cb.disabled = true;
+          try {
+            await createAndSubmitPartnerConnectionProposal({
+              CalendarSync,
+              state,
+              initiatorPartner: editPartner,
+              targetPartner,
+              actingUserName: getCurrentUserName()
+            });
+            CalendarSync.config = state.config;
+            showToast(`Connection request sent to ${targetPartner.name}.`, 'success');
+            renderView();
+          } catch (err) {
+            cb.checked = false;
+            showToast(err?.message || 'Failed to send connection request.', 'error');
+          } finally {
+            cb.disabled = false;
+          }
+          return;
+        }
+
+        const existing = resolvePartnerLimitEntry(editPartner, targetName);
+        if (isApprovedPartnerConnection(existing)) {
+          cb.checked = true;
+          showToast('Approved sleeping partner connections cannot be removed here.', 'warning');
+          return;
+        }
+
+        if (!isPendingPartnerConnection(existing)) return;
+
+        const proposal = findPartnerConnectionProposal(state.events, existing.proposalId);
+        cb.disabled = true;
+        try {
+          if (proposal && getWorkflowState(proposal) === WORKFLOW.PROPOSED) {
+            await CalendarSync.retractProposal(proposal.id);
+          } else if (proposal) {
+            await CalendarSync.deleteEvent(proposal.id);
+          } else {
+            clearPartnerConnectionEntry(state.config, editPartner.id, targetName);
+            CalendarSync.config = state.config;
+            await persistHouseholdConfig('Sleeping partner request cleared');
+          }
+          state.events = CalendarSync.events;
+          showToast('Connection request withdrawn.', 'info');
+          renderView();
+        } catch (err) {
+          cb.checked = true;
+          showToast(err?.message || 'Failed to withdraw connection request.', 'error');
+        } finally {
+          cb.disabled = false;
+        }
+      })();
+    });
+  });
+}
+
 export function bindEditPartnerEvents() {
   document.getElementById('btn-edit-partner-back')?.addEventListener('click', () => {
     window.location.hash = '#logistics';
@@ -408,7 +504,7 @@ export function bindEditPartnerEvents() {
     initialUrl: editPartner?.avatar,
     onError: (msg) => showToast(msg, 'warning')
   });
-  bindSleepingPartnerCheckboxes();
+  bindEditPartnerSleepingConnections(editPartner);
 
   document.getElementById('btn-save-edit-partner')?.addEventListener('click', async () => {
     const partnerId = document.getElementById('edit-partner-id').value;
@@ -442,19 +538,6 @@ export function bindEditPartnerEvents() {
       partner.rules = partner.rules || {};
       partner.rules.minSoloNights = parseInt(document.getElementById('edit-partner-solo-nights')?.value, 10) || 2;
       delete partner.rules.maxSoloNights;
-      const nextLimits = { ...(partner.rules.partnerLimits || {}) };
-      document.querySelectorAll('.sleeping-partner-checkbox').forEach(cb => {
-        const pName = cb.dataset.partnerName;
-        if (cb.checked) {
-          nextLimits[pName] = {
-            min: parseInt(cb.closest('div').querySelector('.partner-min-nights').value) || 0,
-            max: parseInt(cb.closest('div').querySelector('.partner-max-nights').value) || 7
-          };
-        } else {
-          delete nextLimits[pName];
-        }
-      });
-      partner.rules.partnerLimits = nextLimits;
     }
 
     void updatePartnerProfile(partnerId, profileUpdates)

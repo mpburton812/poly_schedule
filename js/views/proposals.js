@@ -31,6 +31,7 @@ import {
   resolveParticipantRoleName,
   canUserRedraftEvent
 } from '../proposal-workflow.js';
+import { formatPartnerConnectionProposalSummary } from '../partner-connection.js';
 
 
 export function proposalsView(state, activeTab = 'proposed') {
@@ -204,6 +205,27 @@ export function proposalsView(state, activeTab = 'proposed') {
             </div>
           `
           : '';
+        const ruleWarningsHtml = (p.ruleWarnings || []).length
+          ? `
+            <div class="proposal-rule-warnings-notice">
+              <span class="material-symbols-outlined" aria-hidden="true">info</span>
+              <div>
+                <strong>Rule alerts noted at submission</strong>
+                <ul class="banner-alert-list" style="margin-top: var(--space-xs);">
+                  ${(p.ruleWarnings || []).map(w => `<li>${escapeHtml(w.message)}</li>`).join('')}
+                </ul>
+              </div>
+            </div>
+          `
+          : '';
+        const connectionSummaryHtml = p.type === 'partner_connection' && !display.redacted
+          ? `
+            <div class="proposal-notes-block">
+              <span class="font-label-sm" style="color: var(--on-surface-variant); display: block; margin-bottom: 4px;">CONNECTION REQUEST</span>
+              <p class="proposal-notes-text">${escapeHtml(formatPartnerConnectionProposalSummary(p, state.config))}</p>
+            </div>
+          `
+          : '';
         const notesHtml = display.showNotes && p.notes?.trim()
           ? `
             <div class="proposal-notes-block">
@@ -254,7 +276,7 @@ export function proposalsView(state, activeTab = 'proposed') {
           <div class="proposal-card ${p.type === 'sleeping' || p.type === 'batch_sleeping' ? 'sleeping' : ''}" id="prop-${p.id}">
             <div class="proposal-header">
               <div>
-                <span class="proposal-badge ${p.type === 'batch_sleeping' ? 'batch' : p.type}">${p.type === 'batch_sleeping' ? 'BATCH SLEEPING' : p.type.toUpperCase()} PROPOSAL</span>
+                <span class="proposal-badge ${p.type === 'batch_sleeping' ? 'batch' : p.type}">${p.type === 'batch_sleeping' ? 'BATCH SLEEPING' : p.type === 'partner_connection' ? 'PARTNER CONNECTION' : `${p.type.toUpperCase()} PROPOSAL`}</span>
                 <h3 class="font-title-lg" style="margin-top: 4px; font-weight: 700; color: var(--on-surface);">${escapeHtml(cardTitle)}${statusBadge}${privacyBadge}</h3>
               </div>
               <div style="text-align: right;">
@@ -270,10 +292,12 @@ export function proposalsView(state, activeTab = 'proposed') {
                   <span>${dateStr} • ${timeStr}</span>
                 </div>
                 <div class="proposal-meta-item">
-                  <span class="material-symbols-outlined" style="font-size: 18px;">${p.type === 'sleeping' || p.type === 'batch_sleeping' ? 'bed' : 'location_on'}</span>
+                  <span class="material-symbols-outlined" style="font-size: 18px;">${p.type === 'sleeping' || p.type === 'batch_sleeping' ? 'bed' : p.type === 'partner_connection' ? 'group' : 'location_on'}</span>
                   <span>${display.redacted
                     ? 'Details hidden'
-                    : p.type === 'batch_sleeping'
+                    : p.type === 'partner_connection'
+                      ? escapeHtml(formatPartnerConnectionProposalSummary(p, state.config))
+                      : p.type === 'batch_sleeping'
                       ? `${(p.batchNights || []).length} nights · ${new Date(p.start).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })} – ${new Date(p.end).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}`
                       : p.type === 'sleeping'
                         ? (display.showSleepingArrangement
@@ -286,7 +310,9 @@ export function proposalsView(state, activeTab = 'proposed') {
               </div>
             </div>
 
+            ${connectionSummaryHtml}
             ${notesHtml}
+            ${ruleWarningsHtml}
             ${commentsHtml}
             ${commentFormHtml}
 

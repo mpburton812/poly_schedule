@@ -15,14 +15,11 @@ import {
   hasSleepingPartnerConnections
 } from '../helpers.js';
 import {
-  WORKFLOW,
-  filterProposalsForTab,
-  getWorkflowState,
-  allowsAbstain,
-  isPassivePerson,
-  getAutoArchiveDays,
-  isCalendarEvent
-} from '../proposal-workflow.js';
+  resolvePartnerLimitEntry,
+  isPendingPartnerConnection,
+  isApprovedPartnerConnection,
+  isActivePartnerConnection
+} from '../partner-connection.js';
 
 
 export function editPartnerView(state, partnerId) {
@@ -34,26 +31,25 @@ export function editPartnerView(state, partnerId) {
     if (!passive) {
       let partnersCheckHtml = '';
       state.config.partners.filter(p => p.id !== partnerId).forEach(p => {
-        const limit = partner.rules?.partnerLimits?.[p.name] || partner.rules?.partnerLimits?.[p.name.split(' ')[0]];
-        const checked = limit ? 'checked' : '';
+        const limit = resolvePartnerLimitEntry(partner, p.name);
+        const pending = isPendingPartnerConnection(limit);
+        const approved = isApprovedPartnerConnection(limit);
+        const checked = isActivePartnerConnection(partner, p.name) ? 'checked' : '';
+        const rowClass = pending
+          ? 'sleeping-partner-row sleeping-partner-pending'
+          : approved
+            ? 'sleeping-partner-row sleeping-partner-approved'
+            : 'sleeping-partner-row';
+        const statusLabel = pending
+          ? ' <span class="sleeping-partner-status">(pending approval)</span>'
+          : '';
+        const approvedAttr = approved ? ' data-approved="1"' : '';
         partnersCheckHtml += `
-          <div style="border: 1px solid var(--outline-variant); padding: var(--space-md); border-radius: var(--radius-md);">
-            <label style="display: flex; align-items: center; gap: var(--space-md); font-weight: bold; cursor: pointer;">
-              <input type="checkbox" class="sleeping-partner-checkbox" data-partner-name="${escapeHtml(p.name)}" ${checked} style="accent-color: var(--primary); width: 18px; height: 18px;"/>
-              <span>${escapeHtml(p.name)}</span>
+          <div class="${rowClass}">
+            <label style="display: flex; align-items: center; gap: var(--space-md); font-weight: bold; cursor: pointer; margin: 0;">
+              <input type="checkbox" class="sleeping-partner-checkbox" data-partner-name="${escapeHtml(p.name)}" data-partner-id="${escapeHtml(p.id)}"${approvedAttr} ${checked} style="accent-color: var(--primary); width: 18px; height: 18px;"/>
+              <span>${escapeHtml(p.name)}${statusLabel}</span>
             </label>
-            <div class="sleeping-partner-details" style="display: ${checked ? 'flex' : 'none'}; flex-direction: column; gap: var(--space-xs); margin-left: 28px; margin-top: var(--space-xs);">
-              <div style="display: flex; gap: var(--space-md);">
-                <div class="form-group" style="flex: 1; margin-bottom: 0;">
-                  <label class="form-label" style="font-size: 0.75rem;">Min Nights</label>
-                  <input class="form-input partner-min-nights" type="number" min="0" max="7" value="${limit?.min || 1}" style="padding: 4px 8px; font-size: 0.8rem;"/>
-                </div>
-                <div class="form-group" style="flex: 1; margin-bottom: 0;">
-                  <label class="form-label" style="font-size: 0.75rem;">Max Nights</label>
-                  <input class="form-input partner-max-nights" type="number" min="0" max="7" value="${limit?.max || 3}" style="padding: 4px 8px; font-size: 0.8rem;"/>
-                </div>
-              </div>
-            </div>
           </div>
         `;
       });

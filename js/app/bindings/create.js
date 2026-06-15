@@ -600,6 +600,63 @@ export function ensureCreateDraftSync() {
   window.history.replaceState({}, '', `#create?draft=${draft.id}`);
 }
 
+export function gatherSleepingProposalWarnings() {
+  if (flowState.currentCreateType === 'batch_sleeping') {
+    return evaluateCurrentBatchProposalWarnings();
+  }
+  if (flowState.currentCreateType !== 'sleeping') return [];
+
+  const startInput = document.getElementById('prop-start-date');
+  if (!startInput) return [];
+
+  const currentUserName = getCurrentUserName();
+  const startD = parseLocalDateString(startInput.value, 22, 0, 0, 0);
+  const endD = parseLocalDateString(startInput.value, 0, 0, 0, 0);
+  endD.setDate(startD.getDate() + 1);
+  const participants = [...newProposalState.participants];
+  if (requireCurrentUserInSleepingProposal() && !participants.includes(currentUserName)) {
+    participants.unshift(currentUserName);
+  }
+
+  const tempProposal = {
+    id: flowState.currentDraftId || 'temp_create',
+    type: 'sleeping',
+    start: startD.toISOString(),
+    end: endD.toISOString(),
+    participants,
+    homeId: newProposalState.homeId,
+    roomId: newProposalState.roomId,
+    roomName: newProposalState.roomName,
+    recurrence: readRecurrenceFromForm()
+  };
+
+  return RulesEngine.evaluateSleepingProposal(
+    tempProposal,
+    state.events,
+    state.config,
+    state.config.partners
+  );
+}
+
+function applySoloMinWarningsToProposalData(data, warnings) {
+  const soloWarnings = (warnings || []).filter(w => w.type === 'SOLO_MIN_LIMIT');
+  if (!soloWarnings.length) return false;
+  data.ruleWarnings = soloWarnings.map(w => ({ type: w.type, message: w.message }));
+  const block = soloWarnings.map(w => `- ${w.message}`).join('\n');
+  const prefix = 'Minimum solo nights alert (submitter acknowledged):\n';
+  data.notes = data.notes?.trim() ? `${data.notes.trim()}\n\n${prefix}${block}` : `${prefix}${block}`;
+  return true;
+}
+
+function confirmSoloMinWarnings(warnings) {
+  const soloWarnings = (warnings || []).filter(w => w.type === 'SOLO_MIN_LIMIT');
+  if (!soloWarnings.length) return true;
+  const lines = soloWarnings.map(w => `• ${w.message}`).join('\n');
+  return window.confirm(
+    `This proposal may leave someone below their minimum solo nights for the week:\n\n${lines}\n\nSubmit anyway? Reviewers will see this on the proposal.`
+  );
+}
+
 export async function submitCurrentProposal() {
   const btnSubmit = document.getElementById('btn-submit-proposal');
   if (btnSubmit?.dataset.submitting === '1') return;
@@ -641,6 +698,7 @@ export async function submitCurrentProposal() {
       showToast('Cannot submit until all room conflicts are resolved.', 'error');
       return;
     }
+    if (!confirmSoloMinWarnings(batchWarnings)) return;
   } else if (flowState.currentCreateType === 'sleeping') {
     ensureCurrentUserSelectedForSleeping();
     if (newProposalState.participants.length === 0) {
@@ -651,6 +709,8 @@ export async function submitCurrentProposal() {
       showToast('You must include yourself in this sleeping arrangement.', 'warning');
       return;
     }
+    const sleepingWarnings = gatherSleepingProposalWarnings();
+    if (!confirmSoloMinWarnings(sleepingWarnings)) return;
   } else if (flowState.currentCreateType === 'event') {
     const dateStr = document.getElementById('prop-start-date').value;
     const startTime = read12HourTime('prop-start');
@@ -679,6 +739,10 @@ export async function submitCurrentProposal() {
     }
     if (!draftId) {
       throw new Error('Draft could not be created');
+    }
+
+    if (flowState.currentCreateType === 'sleeping' || flowState.currentCreateType === 'batch_sleeping') {
+      applySoloMinWarningsToProposalData(data, gatherSleepingProposalWarnings());
     }
 
     const proposalPayload = { ...data, id: draftId, type: flowState.currentCreateType };

@@ -265,7 +265,13 @@ export function getCurrentUserPartner(config, currentUser) {
 }
 
 export function hasSleepingPartnerConnections(partner) {
-  return !!(partner?.rules?.partnerLimits && Object.keys(partner.rules.partnerLimits).length > 0);
+  const limits = partner?.rules?.partnerLimits;
+  if (!limits) return false;
+  return Object.values(limits).some(entry => {
+    if (!entry || entry.status === 'pending') return false;
+    if (entry.status === 'approved') return true;
+    return typeof entry.min === 'number' || typeof entry.max === 'number';
+  });
 }
 
 /** Admins may propose sleeping arrangements; others need sleeping partner rules configured. */

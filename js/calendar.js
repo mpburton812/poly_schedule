@@ -515,10 +515,16 @@ export const CalendarSync = {
     const idx = this.events.findIndex(e => e.id === eventId);
     if (idx === -1) return;
 
+    const previous = { ...this.events[idx] };
     const updated = { ...this.events[idx], ...updatedData };
 
     if (!options.skipWorkflow && getWorkflowState(updated) === WORKFLOW.PROPOSED) {
       this.applyWorkflowEvaluation(updated);
+    }
+
+    if (updated.type === 'partner_connection') {
+      const { handlePartnerConnectionWorkflowChange } = await import('./partner-connection.js');
+      await handlePartnerConnectionWorkflowChange(this, updated, previous);
     }
 
     if (getWorkflowState(updated) === WORKFLOW.APPROVED && updated.type === 'batch_sleeping') {
@@ -678,6 +684,18 @@ export const CalendarSync = {
     }
 
     const event = this.events[idx];
+    if (event.type === 'partner_connection') {
+      const { releasePartnerConnectionProposal } = await import('./partner-connection.js');
+      if (releasePartnerConnectionProposal(this.config, event)) {
+        try {
+          const { persistHouseholdConfig } = await import('./app/household-config.js');
+          await persistHouseholdConfig('Sleeping partner connection request cleared');
+        } catch {
+          /* local-only */
+        }
+      }
+    }
+
     const targets = options.scope === 'future' && isRecurrenceInstance(event)
       ? getFutureRecurrenceInstances(this.events, event)
       : [event];

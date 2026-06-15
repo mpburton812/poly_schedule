@@ -1146,6 +1146,39 @@ body {
   background-color: var(--secondary-container);
   color: var(--on-secondary-container);
 }
+.proposal-badge.partner_connection {
+  background-color: var(--primary-container);
+  color: var(--on-primary-container);
+}
+.sleeping-partner-row {
+  border: 1px solid var(--outline-variant);
+  padding: var(--space-md);
+  border-radius: var(--radius-md);
+}
+.sleeping-partner-pending {
+  background-color: #fff9c4;
+  border-color: #f9a825;
+}
+.sleeping-partner-approved {
+  background-color: #e3f2fd;
+  border-color: #90caf9;
+}
+.sleeping-partner-status {
+  font-weight: 500;
+  font-size: 0.8rem;
+  color: var(--on-surface-variant);
+}
+.proposal-rule-warnings-notice {
+  display: flex;
+  gap: var(--space-sm);
+  align-items: flex-start;
+  padding: var(--space-sm) var(--space-md);
+  margin-top: var(--space-sm);
+  border-radius: var(--radius-md);
+  background-color: var(--tertiary-fixed);
+  color: var(--on-tertiary-fixed);
+  border: 1px solid var(--tertiary);
+}
 .batch-sleeping-grid {
   display: flex;
   flex-direction: column;

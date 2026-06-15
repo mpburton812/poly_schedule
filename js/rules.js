@@ -300,6 +300,9 @@ export const RulesEngine = {
           }
 
           if (limit) {
+            if (limit.status === 'pending') {
+              continue;
+            }
             // Count total nights pA and pB sleep together in the week of the proposal
             let nightsTogether = 0;
 

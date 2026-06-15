@@ -342,7 +342,7 @@ export function shouldAttemptGCalDelete(eventId) {
 
 /** Whether an event should be written to Google Calendar (proposed tentative or approved). */
 export function shouldSyncEventToGCal(event) {
-  if (!event || event.type === 'batch_sleeping') return false;
+  if (!event || event.type === 'batch_sleeping' || event.type === 'partner_connection') return false;
   if (event.recurrence?.frequency && !event.recurrenceSeriesId) return false;
   const ws = getWorkflowState(event);
   if (ws === WORKFLOW.PROPOSED || ws === WORKFLOW.APPROVED) return true;
