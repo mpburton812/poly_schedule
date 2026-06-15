@@ -3,7 +3,8 @@ import {
   formatLocalDateString,
   getMondayOfWeek,
   eventScheduleDayKey,
-  sleepingNightStart
+  sleepingNightStart,
+  batchProposalToSleepingEvents
 } from '../helpers.js';
 import { getEventDisplayPolicy } from '../event-privacy.js';
 import {
@@ -35,42 +36,57 @@ export function scheduleView(state) {
 
     const viewerRef = state.currentUser?.id || state.currentUser?.name;
 
-    // Filter confirmed events for this week
-    const weekEvents = state.events.filter(e => {
-      const eDate = e.type === 'sleeping' ? sleepingNightStart(e) : new Date(e.start);
-      const mon = new Date(startOfWeek);
-      mon.setHours(0,0,0,0);
-      const sun = new Date(startOfWeek);
-      sun.setDate(startOfWeek.getDate() + 7);
-      sun.setHours(23,59,59,999);
-      
-      const ws = getWorkflowState(e);
-      const isCorrectWeek = eDate >= mon && eDate < sun
-        && e.type !== 'batch_sleeping'
-        && (e.status === 'confirmed' || ws === WORKFLOW.APPROVED || ws === WORKFLOW.PROPOSED);
-      if (!isCorrectWeek) return false;
-
-      // Filter by selected partner
+    const eventPassesFilters = (e) => {
       if (state.filterPartner && state.filterPartner !== 'all') {
-        const hasPartner = e.participants && e.participants.some(p => 
+        const hasPartner = e.participants && e.participants.some(p =>
           p.split(' ')[0].toLowerCase() === state.filterPartner.split(' ')[0].toLowerCase()
         );
         if (!hasPartner) return false;
       }
-
-      // Filter by selected house/residence
       if (state.filterResidence && state.filterResidence !== 'all') {
         if (e.type === 'sleeping') {
           if (e.homeId !== state.filterResidence) return false;
-        } else {
+        } else if (e.type !== 'batch_sleeping') {
           const resObj = state.config?.residences?.find(r => r.id === state.filterResidence);
           if (!resObj || !e.location || !e.location.toLowerCase().includes(resObj.name.toLowerCase())) {
             return false;
           }
         }
       }
-
       return true;
+    };
+
+    const mon = new Date(startOfWeek);
+    mon.setHours(0, 0, 0, 0);
+    const sun = new Date(startOfWeek);
+    sun.setDate(startOfWeek.getDate() + 7);
+    sun.setHours(23, 59, 59, 999);
+
+    const isInDisplayWeek = (e) => {
+      const eDate = e.type === 'sleeping' ? sleepingNightStart(e) : new Date(e.start);
+      return eDate >= mon && eDate < sun;
+    };
+
+    // Filter confirmed / proposed events for this week
+    const weekEvents = state.events.filter(e => {
+      const ws = getWorkflowState(e);
+      const isCorrectWeek = isInDisplayWeek(e)
+        && e.type !== 'batch_sleeping'
+        && (e.status === 'confirmed' || ws === WORKFLOW.APPROVED || ws === WORKFLOW.PROPOSED);
+      return isCorrectWeek && eventPassesFilters(e);
+    });
+
+    // Show proposed batch sleeping nights on the schedule in yellow (proposed styling)
+    state.events.forEach((batch) => {
+      if (batch.type !== 'batch_sleeping' || getWorkflowState(batch) !== WORKFLOW.PROPOSED) return;
+      if (!batch.batchNights?.length) return;
+      batchProposalToSleepingEvents(batch).forEach((preview) => {
+        preview.workflowState = WORKFLOW.PROPOSED;
+        preview._scheduleNavigateId = batch.id;
+        if (isInDisplayWeek(preview) && eventPassesFilters(preview)) {
+          weekEvents.push(preview);
+        }
+      });
     });
 
     let daysHtml = '';
@@ -95,13 +111,14 @@ export function scheduleView(state) {
           const isProposed = getWorkflowState(e) === WORKFLOW.PROPOSED;
           const proposedClass = isProposed ? ' is-proposed' : '';
           const display = getEventDisplayPolicy(e, viewerRef, state.config);
+          const cardId = e._scheduleNavigateId || e.id;
 
           if (e.type === 'sleeping') {
             const sleepingText = display.showSleepingArrangement
               ? `${e.roomName || 'Room'}: ${(e.participants || []).join(' & ')}`
               : 'Private';
             cardsHtml += `
-              <div class="card-sleeping${proposedClass}${display.redacted ? ' is-private' : ''}" data-id="${e.id}">
+              <div class="card-sleeping${proposedClass}${display.redacted ? ' is-private' : ''}" data-id="${cardId}">
                 <div class="sleeping-header">
                   <span class="material-symbols-outlined" style="font-size: 16px;">bed</span>
                   <span class="font-label-md">${display.redacted && !display.showSleepingArrangement ? 'PRIVATE' : 'SLEEPING'}</span>
@@ -128,7 +145,7 @@ export function scheduleView(state) {
             const timeStr = new Date(e.start).toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit', hour12: true });
             const attendeeMeta = display.showParticipants ? `${e.participants.length} Attendees` : 'Private';
             cardsHtml += `
-              <div class="card-event${proposedClass}${display.redacted ? ' is-private' : ''}" data-id="${e.id}">
+              <div class="card-event${proposedClass}${display.redacted ? ' is-private' : ''}" data-id="${cardId}">
                 <div class="event-title">${escapeHtml(display.title)}</div>
                 <div class="event-meta font-label-sm">${timeStr} • ${attendeeMeta}</div>
                 ${avatarsHtml ? `<div class="avatar-stack">${avatarsHtml}</div>` : ''}
@@ -159,7 +176,7 @@ export function scheduleView(state) {
 
     return `
       <!-- Filter and Week Selector Header -->
-      <section class="filter-bar">
+      <section class="filter-bar view-sticky-toolbar">
         <div class="week-nav">
           <button type="button" class="week-nav-btn btn-icon-only" id="btn-week-prev" aria-label="Previous week">
             <span class="material-symbols-outlined">chevron_left</span>

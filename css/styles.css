@@ -973,6 +973,34 @@ body {
   border-bottom: 1px solid var(--outline-variant);
   margin-bottom: var(--space-lg);
 }
+
+.view-sticky-toolbar {
+  position: sticky;
+  top: 86px;
+  z-index: 35;
+  background: var(--surface);
+  margin-left: calc(-1 * var(--space-md));
+  margin-right: calc(-1 * var(--space-md));
+  padding-left: var(--space-md);
+  padding-right: var(--space-md);
+  box-shadow: 0 1px 0 var(--outline-variant);
+}
+
+.view-sticky-toolbar.tabs-nav {
+  margin-bottom: var(--space-md);
+}
+
+.view-sticky-toolbar.filter-bar {
+  padding-top: var(--space-xs);
+  padding-bottom: var(--space-md);
+  margin-top: 0;
+}
+
+@media (min-width: 840px) {
+  .view-sticky-toolbar {
+    top: 86px;
+  }
+}
 .tab-button {
   flex: 1;
   background: transparent;

@@ -363,9 +363,6 @@ function readProposalVisibility() {
 }
 
 function syncRecurrenceStateFromDom() {
-  const enabledEl = document.getElementById('prop-recurrence-enabled');
-  if (!enabledEl) return;
-  newProposalState.recurrenceEnabled = enabledEl.checked;
   newProposalState.recurrenceFrequency = document.getElementById('prop-recurrence-frequency')?.value
     || newProposalState.recurrenceFrequency
     || 'weekly';
@@ -375,8 +372,8 @@ function syncRecurrenceStateFromDom() {
 
 function readRecurrenceFromForm() {
   if (flowState.soloEventMode) return null;
-  const enabled = document.getElementById('prop-recurrence-enabled')?.checked;
-  if (!enabled) return null;
+  if (flowState.currentCreateType === 'batch_sleeping') return null;
+  if (!newProposalState.recurrenceEnabled) return null;
   syncRecurrenceStateFromDom();
   return normalizeRecurrence({
     frequency: newProposalState.recurrenceFrequency,
@@ -384,18 +381,18 @@ function readRecurrenceFromForm() {
   });
 }
 
+function setCreateProposalMode(type, recurring = false) {
+  preserveCreateFormDraft();
+  flowState.currentCreateType = type;
+  newProposalState.recurrenceEnabled = recurring && (type === 'event' || type === 'sleeping');
+  if (type === 'batch_sleeping') {
+    ensureBatchAssignments(newProposalState.batchNightCount || 3);
+  }
+  scheduleDraftSave();
+  renderView();
+}
+
 function bindRecurrenceControls() {
-  const enabledEl = document.getElementById('prop-recurrence-enabled');
-  const optionsEl = document.getElementById('recurrence-options');
-  if (!enabledEl) return;
-
-  enabledEl.addEventListener('change', () => {
-    newProposalState.recurrenceEnabled = enabledEl.checked;
-    if (optionsEl) optionsEl.style.display = enabledEl.checked ? '' : 'none';
-    scheduleDraftSave();
-    renderView();
-  });
-
   document.querySelectorAll('[data-recurrence-freq]').forEach((btn) => {
     btn.addEventListener('click', () => {
       const freq = btn.dataset.recurrenceFreq || 'weekly';
@@ -868,31 +865,16 @@ export function bindCreateEvents() {
   });
 
   const btnEvent = document.getElementById('btn-toggle-event');
+  const btnRecurringEvent = document.getElementById('btn-toggle-recurring-event');
   const btnSleep = document.getElementById('btn-toggle-sleeping');
+  const btnRecurringSleep = document.getElementById('btn-toggle-recurring-sleeping');
   const btnBatch = document.getElementById('btn-toggle-batch-sleeping');
-  if (btnEvent && btnSleep) {
-    btnEvent.addEventListener('click', () => {
-      preserveCreateFormDraft();
-      flowState.currentCreateType = 'event';
-      scheduleDraftSave();
-      renderView();
-    });
-    btnSleep.addEventListener('click', () => {
-      preserveCreateFormDraft();
-      flowState.currentCreateType = 'sleeping';
-      scheduleDraftSave();
-      renderView();
-    });
-  }
-  if (btnBatch) {
-    btnBatch.addEventListener('click', () => {
-      preserveCreateFormDraft();
-      flowState.currentCreateType = 'batch_sleeping';
-      ensureBatchAssignments(newProposalState.batchNightCount || 3);
-      scheduleDraftSave();
-      renderView();
-    });
-  }
+
+  btnEvent?.addEventListener('click', () => setCreateProposalMode('event', false));
+  btnRecurringEvent?.addEventListener('click', () => setCreateProposalMode('event', true));
+  btnSleep?.addEventListener('click', () => setCreateProposalMode('sleeping', false));
+  btnRecurringSleep?.addEventListener('click', () => setCreateProposalMode('sleeping', true));
+  btnBatch?.addEventListener('click', () => setCreateProposalMode('batch_sleeping', false));
 
   document.querySelectorAll('.circle-partner-option').forEach(opt => {
     opt.addEventListener('click', (e) => {

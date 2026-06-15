@@ -2,7 +2,7 @@
  * Partner pronoun presets, normalization, and sentence helpers.
  */
 
-import { findPartnerByRef } from './helpers.js';
+import { findPartnerByRef, partnerDisplayFirstName } from './helpers.js';
 
 export const DEFAULT_PRONOUN_PRESET = 'they/them';
 
@@ -73,22 +73,28 @@ export function partnerVerbBe(config, partnerRef) {
   return pronounVerbBe(partnerSubject(config, partnerRef));
 }
 
+export function partnerFirstName(config, partnerRef) {
+  const partner = findPartnerByRef(config, partnerRef);
+  return partnerDisplayFirstName(partner?.name || partnerRef);
+}
+
 export function partnerSleepingWithMessage(config, pA, pB, nightsTogether, limit, kind) {
-  const subA = partnerSubjectCap(config, pA);
+  const firstA = partnerFirstName(config, pA);
+  const firstB = partnerFirstName(config, pB);
   const verb = partnerVerbBe(config, pA);
   const objB = partnerObject(config, pB);
   const posA = partnerPossessive(config, pA);
   if (kind === 'max') {
-    return `${subA} ${verb} sleeping with ${objB} for ${nightsTogether} nights, which exceeds ${posA} preferred limit of ${limit.max} nights/week with ${objB}.`;
+    return `${firstA} ${verb} sleeping with ${firstB} for ${nightsTogether} nights, which exceeds ${posA} preferred limit of ${limit.max} nights/week with ${objB}.`;
   }
-  return `${subA} ${verb} sleeping with ${objB} for ${nightsTogether} nights, which is below ${posA} preferred limit of ${limit.min} nights/week with ${objB}.`;
+  return `${firstA} ${verb} sleeping with ${firstB} for ${nightsTogether} nights, which is below ${posA} preferred limit of ${limit.min} nights/week with ${objB}.`;
 }
 
 export function partnerSoloNightsMessage(config, pA, soloNights, minSoloNights) {
-  const subA = partnerSubjectCap(config, pA);
+  const firstA = partnerFirstName(config, pA);
   const verb = partnerVerbBe(config, pA);
   const posA = partnerPossessive(config, pA);
-  return `${subA} ${verb} sleeping alone for ${soloNights} nights, which is below ${posA} preferred minimum of ${minSoloNights} solo nights/week.`;
+  return `${firstA} ${verb} sleeping alone for ${soloNights} nights, which is below ${posA} preferred minimum of ${minSoloNights} solo nights/week.`;
 }
 
 export function renderPronounPickerHtml(partner) {

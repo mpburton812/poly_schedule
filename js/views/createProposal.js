@@ -245,6 +245,13 @@ export function createProposalView(state, type = 'event', formState = {}) {
       `;
     }
 
+    const isRecurring = (type === 'event' || type === 'sleeping') && formState.recurrenceEnabled;
+    const eventSingleActive = type === 'event' && !isRecurring;
+    const eventRecurringActive = type === 'event' && isRecurring;
+    const sleepSingleActive = type === 'sleeping' && !isRecurring;
+    const sleepRecurringActive = type === 'sleeping' && isRecurring;
+    const batchActive = type === 'batch_sleeping';
+
     return `
       <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: var(--space-lg);">
         <div>
@@ -257,12 +264,14 @@ export function createProposalView(state, type = 'event', formState = {}) {
       <!-- Proposal type: events on row 1, sleeping on row 2 -->
       <div style="display: flex; flex-direction: column; gap: var(--space-sm); margin-bottom: var(--space-md);">
         <div class="switch-selector proposal-type-row">
-          <button class="switch-btn ${type === 'event' ? 'active' : ''}" id="btn-toggle-event">Event</button>
+          <button type="button" class="switch-btn ${eventSingleActive ? 'active' : ''}" id="btn-toggle-event">Event</button>
+          <button type="button" class="switch-btn ${eventRecurringActive ? 'active' : ''}" id="btn-toggle-recurring-event">Recurring Event</button>
         </div>
         ${canUseSleepingProposals ? `
           <div class="switch-selector proposal-type-row">
-            <button class="switch-btn ${type === 'sleeping' ? 'active' : ''}" id="btn-toggle-sleeping">Sleeping Arrangement</button>
-            <button class="switch-btn ${type === 'batch_sleeping' ? 'active' : ''}" id="btn-toggle-batch-sleeping">Batch Sleeping</button>
+            <button type="button" class="switch-btn ${sleepSingleActive ? 'active' : ''}" id="btn-toggle-sleeping">Single Night</button>
+            <button type="button" class="switch-btn ${sleepRecurringActive ? 'active' : ''}" id="btn-toggle-recurring-sleeping">Recurring</button>
+            <button type="button" class="switch-btn ${batchActive ? 'active' : ''}" id="btn-toggle-batch-sleeping">Batch Proposal</button>
           </div>
         ` : `
           <div class="switch-selector proposal-type-row">
@@ -345,28 +354,19 @@ export function createProposalView(state, type = 'event', formState = {}) {
           ` : ''}
         </div>
 
-        ${(type === 'event' || type === 'sleeping') ? `
-        <div class="form-group" id="recurrence-section" style="margin-bottom: var(--space-md);">
-          <label class="solo-event-toggle" style="display: flex; align-items: flex-start; gap: var(--space-sm); cursor: pointer; padding: var(--space-sm); background: var(--surface-container-high); border-radius: var(--radius-default);">
-            <input type="checkbox" id="prop-recurrence-enabled" ${formState.recurrenceEnabled ? 'checked' : ''} style="accent-color: var(--primary); margin-top: 2px;"/>
-            <span>
-              <strong class="font-label-md" style="display: block;">Recurring ${type === 'sleeping' ? 'sleeping arrangement' : 'event'}</strong>
-              <span class="font-label-sm" style="color: var(--on-surface-variant);">Repeat daily, weekly, monthly, or yearly for multiple occurrences.</span>
-            </span>
-          </label>
-          <div id="recurrence-options" style="margin-top: var(--space-sm);${formState.recurrenceEnabled ? '' : ' display: none;'}">
-            <label class="form-label" style="margin-bottom: var(--space-xs);">Repeat</label>
-            <div class="switch-selector" id="prop-recurrence-freq-tabs" role="group" aria-label="Recurrence frequency">
-              ${['daily', 'weekly', 'monthly', 'yearly'].map(freq => `
-                <button type="button" class="switch-btn ${(formState.recurrenceFrequency || 'weekly') === freq ? 'active' : ''}" data-recurrence-freq="${freq}">${freq.charAt(0).toUpperCase() + freq.slice(1)}</button>
-              `).join('')}
-            </div>
-            <div class="form-group" style="margin-top: var(--space-sm); margin-bottom: 0;">
-              <label class="form-label" for="prop-recurrence-count">Number of occurrences</label>
-              <input class="form-input" id="prop-recurrence-count" type="number" min="2" max="52" value="${formState.recurrenceCount || DEFAULT_RECURRENCE_COUNT}" style="max-width: 120px;"/>
-            </div>
-            <input type="hidden" id="prop-recurrence-frequency" value="${formState.recurrenceFrequency || 'weekly'}"/>
+        ${isRecurring ? `
+        <div class="form-group" id="recurrence-options" style="margin-bottom: var(--space-md);">
+          <label class="form-label" style="margin-bottom: var(--space-xs);">Repeat</label>
+          <div class="switch-selector" id="prop-recurrence-freq-tabs" role="group" aria-label="Recurrence frequency">
+            ${['daily', 'weekly', 'monthly', 'yearly'].map(freq => `
+              <button type="button" class="switch-btn ${(formState.recurrenceFrequency || 'weekly') === freq ? 'active' : ''}" data-recurrence-freq="${freq}">${freq.charAt(0).toUpperCase() + freq.slice(1)}</button>
+            `).join('')}
           </div>
+          <div class="form-group" style="margin-top: var(--space-sm); margin-bottom: 0;">
+            <label class="form-label" for="prop-recurrence-count">Number of occurrences</label>
+            <input class="form-input" id="prop-recurrence-count" type="number" min="2" max="52" value="${formState.recurrenceCount || DEFAULT_RECURRENCE_COUNT}" style="max-width: 120px;"/>
+          </div>
+          <input type="hidden" id="prop-recurrence-frequency" value="${formState.recurrenceFrequency || 'weekly'}"/>
         </div>
         ` : ''}
 

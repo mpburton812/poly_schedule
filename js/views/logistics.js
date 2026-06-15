@@ -123,9 +123,9 @@ export function logisticsView(state) {
 
     return `
       <div class="mb-xl" style="margin-bottom: var(--space-xl);">
-        <h2 class="font-headline-lg">Logistics & Configuration</h2>
+        <h2 class="font-headline-lg">People and Places</h2>
         <p class="font-body-lg" style="color: var(--on-surface-variant); margin-top: 4px; max-width: 650px;">
-          Manage collective residences, sleeping quotas, partner preferences, and convert passive partners to active users.
+          Manage collective residences, partner profiles, sleeping partner connections, and convert passive partners to active users.
         </p>
       </div>
 

@@ -298,11 +298,11 @@ export function proposalsView(state, activeTab = 'proposed') {
     `).join('');
 
     return `
-      <nav class="tabs-nav">
+      <nav class="tabs-nav view-sticky-toolbar">
         ${tabsHtml}
       </nav>
 
-      <section style="display: flex; flex-direction: column; gap: var(--space-lg);">
+      <section class="proposals-list-scroll" style="display: flex; flex-direction: column; gap: var(--space-lg);">
         ${listHtml}
       </section>
     `;

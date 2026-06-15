@@ -193,8 +193,10 @@ function bindProposalActionHandlers() {
       if (!confirm(`Delete "${proposal.title}" permanently?`)) return;
       try {
         await CalendarSync.deleteProposal(id, 'Deleted by proposer');
+        state.events = CalendarSync.events;
         logUserAction(`Proposal deleted: "${proposal.title}"`, 'warning');
         showToast('Proposal deleted.', 'success');
+        renderView();
       } catch (err) {
         logOperationError('Proposal delete', err, {
           proposalId: id,

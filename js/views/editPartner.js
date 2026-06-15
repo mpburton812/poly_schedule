@@ -59,7 +59,7 @@ export function editPartnerView(state, partnerId) {
       });
       sleepingHtml = `
         <div class="bento-card" style="padding: var(--space-lg);">
-          <h3 class="font-title-lg" style="font-weight: 700; margin-bottom: var(--space-md);">Sleeping Rules</h3>
+          <h3 class="font-title-lg" style="font-weight: 700; margin-bottom: var(--space-md);">Sleeping Partners</h3>
           <div class="form-group">
             <label class="form-label" for="edit-partner-solo-nights">Min Solo Nights</label>
             <input class="form-input" id="edit-partner-solo-nights" type="number" min="0" max="7" value="${partner.rules?.minSoloNights ?? partner.rules?.maxSoloNights ?? 2}"/>

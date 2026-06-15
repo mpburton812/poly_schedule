@@ -55,18 +55,19 @@ describe('partner message helpers', () => {
     ]
   };
 
-  it('uses she/her in sleeping-with warnings', () => {
+  it('uses first names then pronouns in sleeping-with warnings', () => {
     const msg = partnerSleepingWithMessage(config, 'Alex', 'Sam', 4, { max: 3 }, 'max');
-    expect(msg).toContain('She is sleeping with them');
+    expect(msg).toContain('Alex is sleeping with Sam');
     expect(msg).toContain('her preferred limit');
+    expect(msg).toContain('with them');
   });
 
-  it('uses they/them verb agreement for solo warnings', () => {
+  it('uses first name then pronouns for solo warnings', () => {
     const soloConfig = {
       partners: [{ id: 'p1', name: 'Sam', pronouns: { preset: 'they/them' } }]
     };
     const msg = partnerSoloNightsMessage(soloConfig, 'Sam', 1, 2);
-    expect(msg).toContain('They are sleeping alone');
+    expect(msg).toContain('Sam are sleeping alone');
     expect(msg).toContain('their preferred minimum');
   });
 });

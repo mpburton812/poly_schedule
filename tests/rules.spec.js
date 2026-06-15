@@ -160,13 +160,14 @@ test.describe('Rules Engine Unit Tests', () => {
           partners: [
             {
               name: 'Alex',
+              pronouns: { preset: 'she/her' },
               rules: {
                 partnerLimits: {
                   'Sam': { max: 3 }
                 }
               }
             },
-            { name: 'Sam', rules: {} }
+            { name: 'Sam', pronouns: { preset: 'they/them' }, rules: {} }
           ]
         };
 
@@ -176,7 +177,7 @@ test.describe('Rules Engine Unit Tests', () => {
 
     expect(warnings.length).toBeGreaterThan(0);
     expect(warnings[0].type).toBe('PARTNER_MAX_LIMIT');
-    expect(warnings[0].message).toContain('They are sleeping with them');
-    expect(warnings[0].message).toContain('exceeds their preferred limit of 3 nights/week with them');
+    expect(warnings[0].message).toContain('Alex is sleeping with Sam');
+    expect(warnings[0].message).toContain('exceeds her preferred limit of 3 nights/week with them');
   });
 });

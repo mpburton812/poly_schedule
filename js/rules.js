@@ -10,13 +10,20 @@ import {
   partnerSoloNightsMessage
 } from './pronouns.js';
 
+/** Scheduling week boundary: Sunday 00:00 through Saturday 23:59:59. */
 const getStartOfWeek = (date) => {
   const d = new Date(date);
-  const day = d.getDay();
-  const diff = d.getDate() - day + (day === 0 ? -6 : 1);
-  const mon = new Date(d.setDate(diff));
-  mon.setHours(0, 0, 0, 0);
-  return mon;
+  d.setDate(d.getDate() - d.getDay());
+  d.setHours(0, 0, 0, 0);
+  return d;
+};
+
+const getEndOfWeek = (date) => {
+  const sun = getStartOfWeek(date);
+  const sat = new Date(sun);
+  sat.setDate(sun.getDate() + 6);
+  sat.setHours(23, 59, 59, 999);
+  return sat;
 };
 
 const eventCoversDay = (event, day) => {
@@ -187,33 +194,13 @@ export const RulesEngine = {
       return warnings;
     }
 
-    // Helper: calculate Monday-Sunday week boundaries for a given date
-    const getStartOfWeek = (date) => {
-      const d = new Date(date);
-      const day = d.getDay();
-      // Adjust so Monday is first day (1), Sunday is last (0)
-      const diff = d.getDate() - day + (day === 0 ? -6 : 1);
-      const mon = new Date(d.setDate(diff));
-      mon.setHours(0, 0, 0, 0);
-      return mon;
-    };
+    const weekStart = getStartOfWeek(proposalStart);
 
-    const getEndOfWeek = (date) => {
-      const mon = getStartOfWeek(date);
-      const sun = new Date(mon);
-      sun.setDate(mon.getDate() + 6);
-      sun.setHours(23, 59, 59, 999);
-      return sun;
-    };
-
-    const mon = getStartOfWeek(proposalStart);
-    const sun = getEndOfWeek(proposalStart);
-
-    // Get all days in the week of the proposal
+    // Sunday through Saturday for partner night limits
     const daysOfWeek = [];
     for (let i = 0; i < 7; i++) {
-      const d = new Date(mon);
-      d.setDate(mon.getDate() + i);
+      const d = new Date(weekStart);
+      d.setDate(weekStart.getDate() + i);
       daysOfWeek.push(d);
     }
 
