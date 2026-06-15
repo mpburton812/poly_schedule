@@ -1,7 +1,8 @@
 import {
   CLIENT_ID_KEY,
   API_KEY_KEY,
-  NOTIFY_URL_KEY
+  NOTIFY_URL_KEY,
+  CALENDAR_ID_KEY
 } from '../storage-keys.js';
 import { RulesEngine } from '../rules.js';
 import {
@@ -29,6 +30,8 @@ import {
 } from '../proposal-workflow.js';
 import { PUSH_TYPE_LABELS } from '../push-notifications.js';
 import { PUSH_TYPE_PREFS_KEY } from '../storage-keys.js';
+import { formatCalendarDisplayLabel, shouldShowCalendarIdDetail } from '../google-integration.js';
+import { escapeHtml } from '../escape.js';
 
 
 export function settingsView(state) {
@@ -56,6 +59,13 @@ export function settingsView(state) {
       && 'serviceWorker' in navigator
       && 'PushManager' in window
       && 'Notification' in window;
+    const calendarId = state.config?.googleIntegration?.calendarId
+      || localStorage.getItem(CALENDAR_ID_KEY)
+      || 'primary';
+    const calendarLabel = formatCalendarDisplayLabel(calendarId);
+    const calendarDetailHtml = shouldShowCalendarIdDetail(calendarId)
+      ? `<span class="calendar-id-detail">${escapeHtml(calendarId)}</span>`
+      : '';
     
     return `
       <div class="mb-xl" style="margin-bottom: var(--space-xl);">
@@ -74,6 +84,9 @@ export function settingsView(state) {
           <p class="font-label-sm" style="color: var(--on-surface-variant);">
             Status: <strong>${calendarConnected ? 'Connected' : 'Offline — use the banner at the top to re-authenticate'}</strong>
           </p>
+          ${credentialsConfigured
+            ? `<p class="font-label-sm calendar-connected-status" style="color: var(--secondary); margin-top: var(--space-sm);">Household calendar: <strong>${escapeHtml(calendarLabel)}</strong>${calendarDetailHtml}</p>`
+            : ''}
           <p class="font-label-sm" style="color: var(--on-surface-variant); margin-top: var(--space-sm);">
             ${credentialsConfigured
               ? 'Household Google credentials are configured.'

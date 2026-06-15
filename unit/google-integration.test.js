@@ -35,8 +35,10 @@ import { AuthManager } from '../js/auth.js';
 import {
   applyGoogleIntegrationFromConfig,
   ensureGoogleCredentialsFromConfig,
+  formatCalendarDisplayLabel,
   getGoogleIntegrationFromConfig,
-  setGoogleIntegrationOnConfig
+  setGoogleIntegrationOnConfig,
+  shouldShowCalendarIdDetail
 } from '../js/google-integration.js';
 
 beforeEach(() => {
@@ -133,5 +135,19 @@ describe('ensureGoogleCredentialsFromConfig', () => {
     expect(ready).toBe(true);
     expect(localStorage.getItem('polyschedule_client_id')).toBe('cid.apps.googleusercontent.com');
     expect(AuthManager.clientId).toBe('cid.apps.googleusercontent.com');
+  });
+});
+
+describe('formatCalendarDisplayLabel', () => {
+  it('labels primary and group calendars readably', () => {
+    expect(formatCalendarDisplayLabel('primary')).toBe('Primary calendar');
+    expect(formatCalendarDisplayLabel('abc123@group.calendar.google.com')).toBe('Shared group calendar');
+    expect(formatCalendarDisplayLabel('household@gmail.com')).toBe('household@gmail.com');
+  });
+
+  it('shows technical id detail only when label differs', () => {
+    expect(shouldShowCalendarIdDetail('primary')).toBe(false);
+    expect(shouldShowCalendarIdDetail('household@gmail.com')).toBe(false);
+    expect(shouldShowCalendarIdDetail('abc123@group.calendar.google.com')).toBe(true);
   });
 });

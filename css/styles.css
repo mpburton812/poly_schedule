@@ -1001,6 +1001,27 @@ body {
     top: 86px;
   }
 }
+
+.calendar-connected-status {
+  word-break: break-word;
+  overflow-wrap: anywhere;
+  line-height: 1.45;
+}
+
+.calendar-connected-status strong {
+  font-weight: 600;
+}
+
+.calendar-id-detail {
+  display: block;
+  margin-top: 4px;
+  font-size: 0.75rem;
+  color: var(--on-surface-variant);
+  word-break: break-all;
+  overflow-wrap: anywhere;
+  line-height: 1.35;
+}
+
 .tab-button {
   flex: 1;
   background: transparent;

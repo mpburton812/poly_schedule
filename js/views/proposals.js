@@ -19,7 +19,7 @@ import {
 } from '../helpers.js';
 import { isPastScheduledEvent } from '../gcal-sync.js';
 import { normalizeEventComments } from '../event-comments.js';
-import { VISIBILITY, getEventDisplayPolicy } from '../event-privacy.js';
+import { VISIBILITY, getEventDisplayPolicy, isEventInvitee } from '../event-privacy.js';
 import {
   WORKFLOW,
   filterProposalsForTab,
@@ -228,6 +228,19 @@ export function proposalsView(state, activeTab = 'proposed') {
             </div>
           `
           : '';
+        const canPostComment = display.showComments
+          && !display.redacted
+          && isEventInvitee(p, userRef, state.config)
+          && (ws === WORKFLOW.PROPOSED || ws === WORKFLOW.APPROVED);
+        const commentFormHtml = canPostComment
+          ? `
+            <div class="proposal-comment-form" style="margin-top: var(--space-sm);">
+              <label class="form-label" for="proposal-comment-${p.id}" style="font-size: 0.75rem;">Add a comment</label>
+              <textarea class="form-input proposal-comment-input" id="proposal-comment-${p.id}" data-id="${p.id}" rows="2" placeholder="Updates, logistics, follow-ups…" style="resize: vertical; min-height: 56px;"></textarea>
+              <button class="btn btn-outline proposal-comment-btn" data-id="${p.id}" style="margin-top: var(--space-xs);">Post Comment</button>
+            </div>
+          `
+          : '';
         const privacyLabel = p.visibility === VISIBILITY.PRIVATE
           ? 'Private'
           : p.visibility === VISIBILITY.SUPER_PRIVATE
@@ -275,6 +288,7 @@ export function proposalsView(state, activeTab = 'proposed') {
 
             ${notesHtml}
             ${commentsHtml}
+            ${commentFormHtml}
 
             ${batchNightsHtml}
 

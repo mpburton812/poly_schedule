@@ -655,7 +655,20 @@ export const CalendarSync = {
     const event = { ...this.events[idx] };
     const entry = appendEventComment(event, authorName, text);
     if (!entry) throw new Error('Comment text is required');
-    return this.updateEvent(eventId, { comments: event.comments }, { skipWorkflow: true });
+    const updated = await this.updateEvent(eventId, { comments: event.comments }, { skipWorkflow: true });
+    try {
+      const { notifyEventComment } = await import('./app/notification-store.js');
+      const { getCurrentUserId } = await import('./app/session.js');
+      notifyEventComment(updated, this.config, {
+        authorName,
+        commentText: text,
+        commentId: entry.id,
+        actingUserId: getCurrentUserId()
+      });
+    } catch (err) {
+      console.warn('[comment] Failed to notify event stakeholders', err);
+    }
+    return updated;
   },
 
   async deleteEvent(eventId, options = {}) {

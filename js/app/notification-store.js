@@ -11,10 +11,12 @@ import {
   dispatchProposalWithdrawnPush,
   dispatchGCalEventCreatedPush,
   dispatchGCalEventDeletedPush,
+  dispatchEventCommentPush,
   buildProposalReviewRecipients
 } from '../push-notifications.js';
 import { eventLabel, allHouseholdPartnerIds, collectEventStakeholderIds } from '../gcal-change-alerts.js';
 import { getWorkflowState, getRequiredVoters, getResponseForParticipant, userNeedsProposalVote, WORKFLOW, isProposalType } from '../proposal-workflow.js';
+import { canUserSeeEventDetails } from '../event-privacy.js';
 
 export function loadNotificationsStore() {
   try {
@@ -251,6 +253,56 @@ export function notifyGCalEventDeleted(event, config, {
     label,
     when,
     recipientIds: recipients
+  });
+}
+
+function buildEventCommentRecipients(event, config, actingUserId) {
+  const stakeholderIds = collectEventStakeholderIds(event, config);
+  return [...stakeholderIds].filter((recipientId) => {
+    if (!recipientId) return false;
+    if (actingUserId && recipientId === actingUserId) return false;
+    const partner = config?.partners?.find((p) => p.id === recipientId);
+    if (!partner || isPartnerPassive(partner)) return false;
+    const userRef = partner.id || partner.name;
+    return canUserSeeEventDetails(event, userRef, config);
+  });
+}
+
+export function notifyEventComment(event, config, {
+  authorName,
+  commentText,
+  commentId,
+  actingUserId = null
+} = {}) {
+  if (!event || !authorName || !commentText?.trim()) return;
+
+  const ws = getWorkflowState(event);
+  if (ws !== WORKFLOW.PROPOSED && ws !== WORKFLOW.APPROVED && ws !== WORKFLOW.ARCHIVED) return;
+
+  const actorId = actingUserId || getCurrentUserId();
+  const recipients = buildEventCommentRecipients(event, config, actorId);
+  if (!recipients.length) return;
+
+  const authorFirst = authorName.split(' ')[0];
+  const preview = commentText.length > 80 ? `${commentText.slice(0, 77)}…` : commentText;
+  const label = event.title || eventLabel(event);
+  const dedupeSuffix = commentId || Date.now();
+
+  recipients.forEach((recipientId) => {
+    pushAppNotification({
+      title: 'New comment',
+      description: `${authorFirst} on "${label}": ${preview}`,
+      dedupeKey: `comment_${event.id}_${recipientId}_${dedupeSuffix}`,
+      recipientId
+    });
+  });
+
+  dispatchEventCommentPush(event, config, {
+    authorName,
+    commentText,
+    actingUserId: actorId,
+    recipientIds: recipients,
+    label
   });
 }
 

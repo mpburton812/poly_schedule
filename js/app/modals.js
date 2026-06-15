@@ -1,6 +1,7 @@
 import {
   CLIENT_ID_KEY,
-  API_KEY_KEY
+  API_KEY_KEY,
+  CALENDAR_ID_KEY
 } from '../storage-keys.js';
 /**
  * Shared modal dialogs.
@@ -19,6 +20,7 @@ import { getEventDisplayPolicy } from '../event-privacy.js';
 import { normalizeEventComments } from '../event-comments.js';
 import { getWorkflowState, WORKFLOW, canUserRedraftEvent } from '../proposal-workflow.js';
 import { isRecurrenceInstance, askRecurrenceScope } from '../recurrence.js';
+import { formatCalendarDisplayLabel, shouldShowCalendarIdDetail } from '../google-integration.js';
 
 function openModalOverlay(box, ariaLabel) {
   const modal = document.getElementById('app-modal');
@@ -105,6 +107,13 @@ export function openUserProfileModal() {
 
   const profilePartner = getCurrentUserPartner(state.config, state.currentUser);
   const connectedGoogleEmail = AuthManager.userProfile?.email || '';
+  const calendarId = state.config?.googleIntegration?.calendarId
+    || localStorage.getItem(CALENDAR_ID_KEY)
+    || 'primary';
+  const calendarLabel = formatCalendarDisplayLabel(calendarId);
+  const calendarDetailHtml = shouldShowCalendarIdDetail(calendarId)
+    ? `<span class="calendar-id-detail">${escapeHtml(calendarId)}</span>`
+    : '';
 
   box.innerHTML = `
     <div style="display: flex; justify-content: space-between; align-items: start; margin-bottom: var(--space-md); border-bottom: 1px solid var(--outline-variant); padding-bottom: var(--space-sm);">
@@ -182,6 +191,9 @@ export function openUserProfileModal() {
             ? ' Your schedule is syncing with Google Calendar.'
             : ' Use the OFFLINE banner at the top of the app to re-authenticate.'}
         </p>
+        ${credentialsConfigured
+          ? `<p class="font-label-sm calendar-connected-status" style="color: var(--secondary); margin: 0;">Household calendar: <strong>${escapeHtml(calendarLabel)}</strong>${calendarDetailHtml}</p>`
+          : ''}
         <p class="font-body-md" style="color: var(--on-surface-variant); font-size: 0.8rem; margin: 0;">
           ${credentialsConfigured
             ? 'Household Google credentials are configured by an administrator.'

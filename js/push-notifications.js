@@ -34,7 +34,8 @@ export const PUSH_TYPE_LABELS = {
   'proposal-retracted': 'Proposal retracted',
   'proposal-cancelled': 'Proposal cancelled',
   'gcal-event-created': 'Events added in Google Calendar',
-  'gcal-event-deleted': 'Events removed in Google Calendar'
+  'gcal-event-deleted': 'Events removed in Google Calendar',
+  'event-comment': 'Comments on my events'
 };
 
 export function getPushTypePrefs() {
@@ -434,6 +435,36 @@ export async function dispatchGCalEventCreatedPush(event, config, options = {}) 
 
 export async function dispatchGCalEventDeletedPush(event, config, options = {}) {
   return dispatchPushEvent(attachRecipientEmails(buildGCalEventDeletedPushPayload(event, config, options), config));
+}
+
+export function buildEventCommentPushPayload(event, config, {
+  authorName,
+  commentText,
+  actingUserId = null,
+  recipientIds = [],
+  label = null
+} = {}) {
+  const ids = (recipientIds || []).filter((id) => id && id !== actingUserId);
+  if (!ids.length) return null;
+  const authorFirst = authorName?.split(' ')[0] || 'Someone';
+  const preview = commentText?.length > 100 ? `${commentText.slice(0, 97)}…` : commentText;
+  const ws = getWorkflowState(event);
+  const url = ws === WORKFLOW.PROPOSED
+    ? proposalsUrl(event?.id)
+    : scheduleUrl();
+  return {
+    type: 'event-comment',
+    proposalId: event?.id || 'comment',
+    title: 'New comment',
+    body: `${authorFirst} on "${label || event?.title || 'Event'}": ${preview}`,
+    url,
+    dedupeKey: `comment_${event?.id}_${authorFirst}`,
+    recipientIds: ids
+  };
+}
+
+export async function dispatchEventCommentPush(event, config, options = {}) {
+  return dispatchPushEvent(attachRecipientEmails(buildEventCommentPushPayload(event, config, options), config));
 }
 
 export async function sendTestPush(partnerId) {

@@ -285,4 +285,29 @@ function bindProposalActionHandlers() {
       }
     });
   });
+
+  document.querySelectorAll('.proposal-comment-btn').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      const id = btn.dataset.id;
+      const input = document.querySelector(`.proposal-comment-input[data-id="${id}"]`);
+      const text = input?.value?.trim() || '';
+      if (!text) {
+        showToast('Enter a comment first.', 'warning');
+        return;
+      }
+      const event = state.events.find(ev => ev.id === id);
+      if (!event) return;
+
+      try {
+        await CalendarSync.addEventComment(id, text, getCurrentUserName());
+        state.events = CalendarSync.events;
+        showToast('Comment posted.', 'success');
+        logUserAction(`Commented on "${event.title}"`, 'info');
+        renderView();
+      } catch (err) {
+        logOperationError('Proposal comment', err, { eventId: id, proposalTitle: event.title });
+        showToast('Failed to post comment.', 'error');
+      }
+    });
+  });
 }

@@ -33,7 +33,8 @@ import {
 import { renderChangeLogHtml } from '../change-log.js';
 import { renderSystemLogHtml } from '../app/operation-log.js';
 import { getGroupName } from '../group-name.js';
-import { isGoogleIntegrationServerManaged } from '../google-integration.js';
+import { isGoogleIntegrationServerManaged, formatCalendarDisplayLabel, shouldShowCalendarIdDetail } from '../google-integration.js';
+import { escapeHtml } from '../escape.js';
 
 
 export function adminView(state) {
@@ -57,6 +58,11 @@ export function adminView(state) {
 
     const logsHtml = renderSystemLogHtml(state.logs || []);
 
+    const calendarLabel = formatCalendarDisplayLabel(calendarId);
+    const calendarDetailHtml = shouldShowCalendarIdDetail(calendarId)
+      ? `<span class="calendar-id-detail">${escapeHtml(calendarId)}</span>`
+      : '';
+
     const googleCalendarSettingsSection = serverManagedGoogle
       ? `
         <div class="bento-card" id="admin-google-calendar-settings" style="padding: var(--space-lg); border: 1px solid var(--outline-variant);">
@@ -67,7 +73,7 @@ export function adminView(state) {
             Credentials are managed by the notify service. Household members only connect their Google account once per device — no manual API setup required.
           </p>
           ${credentialsConfigured
-            ? `<p class="font-label-sm" style="color: var(--secondary); margin-bottom: var(--space-md);">Connected to calendar <code>${calendarId}</code>.</p>`
+            ? `<p class="font-label-sm calendar-connected-status" style="color: var(--secondary); margin-bottom: var(--space-md);">Connected to <strong>${escapeHtml(calendarLabel)}</strong>${calendarDetailHtml}</p>`
             : '<p class="font-label-sm" style="color: var(--tertiary); margin-bottom: var(--space-md);">Credentials could not be loaded from the server. Verify GOOGLE_CLIENT_ID and GOOGLE_API_KEY on Render, then reload the app.</p>'}
           <div style="display: flex; gap: var(--space-sm); flex-wrap: wrap;">
             <button class="btn btn-outline" id="btn-test-google-calendar" type="button">Test Calendar API</button>

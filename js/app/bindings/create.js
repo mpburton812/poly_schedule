@@ -76,11 +76,12 @@ export function updateSleepingArrangementTitle() {
   let roomName = '';
   if (roomSelect && roomSelect.selectedIndex >= 0) {
     roomName = roomSelect.options[roomSelect.selectedIndex].text;
-  } else {
-    roomName = 'North Bedroom';
   }
 
-  titleInput.value = `Sleeping : ${names} : ${homeName} ${roomName}`;
+  const locationPart = [homeName, roomName].filter(Boolean).join(' ');
+  titleInput.value = locationPart
+    ? `Sleeping : ${names} : ${locationPart}`
+    : `Sleeping : ${names}`;
 }
 
 export function ensureBatchAssignments(count) {
@@ -517,12 +518,19 @@ export function collectProposalFormData() {
   };
 
   if (flowState.currentCreateType === 'sleeping') {
+    const homeSelect = document.getElementById('sleep-home-select');
+    const roomSelect = document.getElementById('sleep-room-select');
+    const homeObj = state.config?.residences?.find(h => h.id === newProposalState.homeId);
     data.homeId = newProposalState.homeId;
     data.roomId = newProposalState.roomId;
-    data.homeName = newProposalState.homeName || 'The Sanctuary';
-    data.roomName = newProposalState.roomName || 'North Bedroom';
+    data.homeName = (homeSelect?.selectedIndex >= 0
+      ? homeSelect.options[homeSelect.selectedIndex].text
+      : (homeObj?.name || newProposalState.homeName || '')).trim();
+    data.roomName = (roomSelect?.selectedIndex >= 0
+      ? roomSelect.options[roomSelect.selectedIndex].text
+      : (newProposalState.roomName || '')).trim();
   } else if (flowState.currentCreateType === 'event') {
-    data.location = document.getElementById('event-location')?.value || 'The Loft at Main St';
+    data.location = document.getElementById('event-location')?.value?.trim() || '';
   }
 
   const recurrence = readRecurrenceFromForm();

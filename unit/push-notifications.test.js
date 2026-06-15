@@ -253,6 +253,7 @@ describe('PUSH_TYPE_LABELS', () => {
     expect(PUSH_TYPE_LABELS['proposal-declined']).toBeTruthy();
     expect(PUSH_TYPE_LABELS['proposal-retracted']).toBeTruthy();
     expect(PUSH_TYPE_LABELS['proposal-cancelled']).toBeTruthy();
+    expect(PUSH_TYPE_LABELS['event-comment']).toBeTruthy();
   });
 
   it('defaults event types to enabled', () => {

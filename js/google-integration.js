@@ -93,3 +93,22 @@ export function ensureGoogleCredentialsFromConfig(config, { CalendarSync = null 
     && localStorage.getItem(API_KEY_KEY)
   );
 }
+
+/** Human-readable label for a Google Calendar ID (not the raw API id). */
+export function formatCalendarDisplayLabel(calendarId) {
+  const id = String(calendarId || '').trim() || 'primary';
+  if (id === 'primary') return 'Primary calendar';
+  if (id.endsWith('@group.calendar.google.com')) {
+    const namePart = id.slice(0, -'@group.calendar.google.com'.length);
+    if (namePart.includes('@')) return namePart;
+    return 'Shared group calendar';
+  }
+  if (/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(id)) return id;
+  return id;
+}
+
+/** True when the raw calendar id should be shown beneath the friendly label. */
+export function shouldShowCalendarIdDetail(calendarId) {
+  const id = String(calendarId || '').trim() || 'primary';
+  return id !== 'primary' && id !== formatCalendarDisplayLabel(id);
+}

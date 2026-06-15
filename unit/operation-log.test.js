@@ -21,7 +21,8 @@ const pushMocks = vi.hoisted(() => ({
   dispatchProposalVotePush: vi.fn().mockResolvedValue({ ok: true }),
   dispatchProposalApprovedPush: vi.fn().mockResolvedValue({ ok: true }),
   dispatchProposalDeclinedPush: vi.fn().mockResolvedValue({ ok: true }),
-  dispatchProposalWithdrawnPush: vi.fn().mockResolvedValue({ ok: true })
+  dispatchProposalWithdrawnPush: vi.fn().mockResolvedValue({ ok: true }),
+  dispatchEventCommentPush: vi.fn().mockResolvedValue({ ok: true })
 }));
 
 vi.mock('../js/push-notifications.js', async (importOriginal) => {
@@ -259,5 +260,37 @@ describe('phase 2 notification helpers', () => {
     expect(loadNotificationsForUser('p2')).toHaveLength(1);
     expect(loadNotificationsForUser('p2')[0].title).toBe('Proposal retracted');
     expect(pushMocks.dispatchProposalWithdrawnPush).toHaveBeenCalledOnce();
+  });
+
+  it('notifyEventComment alerts other participants and dispatches push', async () => {
+    const { state } = await import('../js/app/state.js');
+    const { loadNotificationsForUser, notifyEventComment } = await import('../js/app/context.js');
+    const { WORKFLOW } = await import('../js/proposal-workflow.js');
+
+    const event = {
+      id: 'prop_1',
+      type: 'event',
+      title: 'Dinner',
+      proposer: 'Michael Burton',
+      workflowState: WORKFLOW.PROPOSED,
+      participantRoles: [
+        { name: 'Michael Burton', role: 'required' },
+        { name: 'Katie Thompson', role: 'required' }
+      ],
+      participants: ['Michael Burton', 'Katie Thompson']
+    };
+
+    notifyEventComment(event, state.config, {
+      authorName: 'Michael Burton',
+      commentText: 'Running 10 minutes late.',
+      commentId: 'c_test',
+      actingUserId: 'p1'
+    });
+
+    expect(loadNotificationsForUser('p1')).toHaveLength(0);
+    expect(loadNotificationsForUser('p2')).toHaveLength(1);
+    expect(loadNotificationsForUser('p2')[0].title).toBe('New comment');
+    expect(loadNotificationsForUser('p2')[0].description).toContain('Michael on "Dinner"');
+    expect(pushMocks.dispatchEventCommentPush).toHaveBeenCalledOnce();
   });
 });
