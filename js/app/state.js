@@ -1,6 +1,7 @@
 import {
   CHANGE_LOG_KEY
 } from '../storage-keys.js';
+import { getDefaultProposalVisibility } from '../privacy-scheduling-policy.js';
 /**
  * Global application state and create-flow module variables.
  */
@@ -101,7 +102,7 @@ export function resetNewProposalFormState() {
   newProposalState.batchAssignments = [];
   newProposalState.batchStartDate = new Date().toISOString().split('T')[0];
   newProposalState.draftNotes = '';
-  newProposalState.draftVisibility = 'standard';
+  newProposalState.draftVisibility = getDefaultProposalVisibility(state.config);
   newProposalState.recurrenceEnabled = false;
   newProposalState.recurrenceFrequency = 'weekly';
   newProposalState.recurrenceCount = 12;

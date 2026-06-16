@@ -17,8 +17,6 @@ export function scheduleView(state) {
     const anchor = state.selectedDate ? new Date(state.selectedDate) : new Date();
     const startOfWeek = getMondayOfWeek(anchor);
     const now = new Date();
-    const thisWeekStart = getMondayOfWeek(now);
-    const isCurrentWeek = startOfWeek.getTime() === thisWeekStart.getTime();
 
     const weekdays = [];
     for (let i = 0; i < 7; i++) {
@@ -42,16 +40,6 @@ export function scheduleView(state) {
           p.split(' ')[0].toLowerCase() === state.filterPartner.split(' ')[0].toLowerCase()
         );
         if (!hasPartner) return false;
-      }
-      if (state.filterResidence && state.filterResidence !== 'all') {
-        if (e.type === 'sleeping') {
-          if (e.homeId !== state.filterResidence) return false;
-        } else if (e.type !== 'batch_sleeping') {
-          const resObj = state.config?.residences?.find(r => r.id === state.filterResidence);
-          if (!resObj || !e.location || !e.location.toLowerCase().includes(resObj.name.toLowerCase())) {
-            return false;
-          }
-        }
       }
       return true;
     };
@@ -133,11 +121,10 @@ export function scheduleView(state) {
             if (display.showParticipants) {
               e.participants.forEach(pName => {
                 const p = state.config.partners.find(part => part.name === pName);
-                const color = pName === 'Alex' ? 'var(--primary-fixed-dim)' : pName === 'Sam' ? 'var(--secondary-fixed-dim)' : 'var(--tertiary-fixed-dim)';
                 if (p && p.avatar) {
-                  avatarsHtml += `<div class="avatar-stack-item" style="background-color: ${color};"><img src="${escapeHtml(p.avatar)}" alt="${escapeHtml(pName)}"/></div>`;
+                  avatarsHtml += `<div class="avatar-stack-item"><img src="${escapeHtml(p.avatar)}" alt="${escapeHtml(pName)}"/></div>`;
                 } else {
-                  avatarsHtml += `<div class="avatar-stack-item" style="background-color: var(--outline-variant); font-size: 8px; color: var(--on-surface-variant); display: flex; align-items: center; justify-content: center; font-weight: bold;">${escapeHtml(pName[0])}</div>`;
+                  avatarsHtml += `<div class="avatar-stack-item avatar-stack-fallback">${escapeHtml(pName[0])}</div>`;
                 }
               });
             }
@@ -170,19 +157,14 @@ export function scheduleView(state) {
       `<option value="${escapeHtml(p.name)}" ${state.filterPartner === p.name ? 'selected' : ''}>${escapeHtml(p.name)}</option>`
     ).join('');
 
-    const residenceOptions = (state.config?.residences || []).map(r => 
-      `<option value="${escapeHtml(r.id)}" ${state.filterResidence === r.id ? 'selected' : ''}>${escapeHtml(r.name)}</option>`
-    ).join('');
-
     return `
-      <!-- Filter and Week Selector Header -->
-      <section class="filter-bar view-sticky-toolbar">
+      <section class="filter-bar view-sticky-toolbar schedule-toolbar">
         <div class="week-nav">
           <button type="button" class="week-nav-btn btn-icon-only" id="btn-week-prev" aria-label="Previous week">
             <span class="material-symbols-outlined">chevron_left</span>
           </button>
           <div class="week-picker-wrap">
-            <button type="button" class="chip active" id="btn-week-picker">
+            <button type="button" class="toolbar-filter-chip" id="btn-week-picker">
               <span>${weekLabel}</span>
               <span class="material-symbols-outlined" style="font-size: 16px;">calendar_month</span>
             </button>
@@ -191,22 +173,12 @@ export function scheduleView(state) {
           <button type="button" class="week-nav-btn btn-icon-only" id="btn-week-next" aria-label="Next week">
             <span class="material-symbols-outlined">chevron_right</span>
           </button>
-          <button type="button" class="chip${isCurrentWeek ? ' is-muted' : ''}" id="btn-week-today"${isCurrentWeek ? ' disabled' : ''}>Today</button>
         </div>
 
-        <div style="position: relative; display: inline-block;">
-          <select class="chip" id="filter-partner-select" style="border: 1px solid var(--outline-variant); border-radius: var(--radius-full); padding: 4px 12px; font-family: var(--font-body); font-size: 0.875rem; background-color: var(--surface); color: var(--on-surface); cursor: pointer; outline: none; transition: background-color 0.2s, border-color 0.2s;">
-            <option value="all" ${state.filterPartner === 'all' ? 'selected' : ''}>All Partners</option>
-            ${partnerOptions}
-          </select>
-        </div>
-
-        <div style="position: relative; display: inline-block;">
-          <select class="chip" id="filter-residence-select" style="border: 1px solid var(--outline-variant); border-radius: var(--radius-full); padding: 4px 12px; font-family: var(--font-body); font-size: 0.875rem; background-color: var(--surface); color: var(--on-surface); cursor: pointer; outline: none; transition: background-color 0.2s, border-color 0.2s;">
-            <option value="all" ${state.filterResidence === 'all' ? 'selected' : ''}>All Houses</option>
-            ${residenceOptions}
-          </select>
-        </div>
+        <select class="toolbar-filter-chip" id="filter-partner-select" aria-label="Filter by partner">
+          <option value="all" ${state.filterPartner === 'all' ? 'selected' : ''}>All Partners</option>
+          ${partnerOptions}
+        </select>
       </section>
 
       <!-- Weekly Schedule (vertical) -->

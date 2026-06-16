@@ -18,6 +18,7 @@ import { normalizePronouns } from './pronouns.js';
 import { DEFAULT_AVATARS, migrateAvatarUrl, isCustomAvatar } from './avatar.js';
 import { escapeHtml } from './escape.js';
 import { buildPersonConflictMessage } from './event-privacy.js';
+import { ensurePrivacySchedulingPolicies } from './privacy-scheduling-policy.js';
 
 export { DEFAULT_AVATARS, migrateAvatarUrl, isCustomAvatar };
 
@@ -172,6 +173,7 @@ export function normalizeHouseholdConfigShape(config) {
   }
   if (!Array.isArray(config.partners)) config.partners = [];
   if (!Array.isArray(config.residences)) config.residences = [];
+  ensurePrivacySchedulingPolicies(config);
   return config;
 }
 

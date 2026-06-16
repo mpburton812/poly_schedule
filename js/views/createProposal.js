@@ -25,6 +25,11 @@ import {
   isCalendarEvent
 } from '../proposal-workflow.js';
 import { buildRecurrenceInstanceDates, DEFAULT_RECURRENCE_COUNT } from '../recurrence.js';
+import { VISIBILITY } from '../event-privacy.js';
+import {
+  coerceProposalVisibility,
+  isPrivacyLevelAvailable
+} from '../privacy-scheduling-policy.js';
 
 
 export function createProposalView(state, type = 'event', formState = {}) {
@@ -201,7 +206,9 @@ export function createProposalView(state, type = 'event', formState = {}) {
     }
 
     const polyFamilyName = getGroupName(state.config);
-    const draftVisibility = formState.draftVisibility || 'standard';
+    const draftVisibility = coerceProposalVisibility(state.config, formState.draftVisibility);
+    const showPrivateOption = isPrivacyLevelAvailable(state.config, VISIBILITY.PRIVATE);
+    const showSuperPrivateOption = isPrivacyLevelAvailable(state.config, VISIBILITY.SUPER_PRIVATE);
     const privacyHints = {
       standard: 'Everyone in the household can see event details on the schedule.',
       private: 'Only invitees see details; others see times only (sleeping arrangements still visible).',
@@ -284,8 +291,8 @@ export function createProposalView(state, type = 'event', formState = {}) {
         <label class="form-label">Who can see this on the schedule?</label>
         <div class="switch-selector" id="prop-visibility-tabs" role="group" aria-label="Privacy level">
           <button type="button" class="switch-btn ${draftVisibility === 'standard' ? 'active' : ''}" data-visibility="standard">Standard</button>
-          <button type="button" class="switch-btn ${draftVisibility === 'private' ? 'active' : ''}" data-visibility="private">Private</button>
-          <button type="button" class="switch-btn ${draftVisibility === 'super_private' ? 'active' : ''}" data-visibility="super_private">Super Private</button>
+          ${showPrivateOption ? `<button type="button" class="switch-btn ${draftVisibility === 'private' ? 'active' : ''}" data-visibility="private">Private</button>` : ''}
+          ${showSuperPrivateOption ? `<button type="button" class="switch-btn ${draftVisibility === 'super_private' ? 'active' : ''}" data-visibility="super_private">Super Private</button>` : ''}
         </div>
         <p class="font-label-sm privacy-hint" id="prop-visibility-hint">${privacyHints[draftVisibility] || privacyHints.standard}</p>
         <input type="hidden" id="prop-visibility" value="${draftVisibility}"/>

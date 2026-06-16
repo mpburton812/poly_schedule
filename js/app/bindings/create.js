@@ -20,6 +20,11 @@ import {
 import { pastScheduleWarning } from '../../gcal-sync.js';
 import { normalizeRecurrence } from '../../recurrence.js';
 import {
+  coerceProposalVisibility,
+  isPrivacyLevelAvailable
+} from '../../privacy-scheduling-policy.js';
+import { VISIBILITY } from '../../event-privacy.js';
+import {
   WORKFLOW,
   getWorkflowState,
   normalizeParticipantRoles,
@@ -323,7 +328,7 @@ export function loadDraftIntoForm(draftId) {
   }
   newProposalState.draftTitle = draft.title || '';
   newProposalState.draftNotes = draft.notes || '';
-  newProposalState.draftVisibility = draft.visibility || 'standard';
+  newProposalState.draftVisibility = coerceProposalVisibility(state.config, draft.visibility);
   flowState.soloEventMode = draft.type === 'event' && isSoloEventProposal(draft, state.config);
   newProposalState.homeId = draft.homeId || 'h1';
   newProposalState.roomId = draft.roomId || 'r1';
@@ -360,7 +365,8 @@ export function syncParticipantRolesFromParticipants() {
 }
 
 function readProposalVisibility() {
-  return document.getElementById('prop-visibility')?.value || newProposalState.draftVisibility || 'standard';
+  const raw = document.getElementById('prop-visibility')?.value || newProposalState.draftVisibility || VISIBILITY.STANDARD;
+  return coerceProposalVisibility(state.config, raw);
 }
 
 function syncRecurrenceStateFromDom() {
@@ -432,7 +438,8 @@ function bindVisibilityTabs() {
 
   tabs.querySelectorAll('[data-visibility]').forEach((btn) => {
     btn.addEventListener('click', () => {
-      const value = btn.dataset.visibility || 'standard';
+      const value = btn.dataset.visibility || VISIBILITY.STANDARD;
+      if (!isPrivacyLevelAvailable(state.config, value)) return;
       input.value = value;
       tabs.querySelectorAll('.switch-btn').forEach((b) => {
         b.classList.toggle('active', b.dataset.visibility === value);

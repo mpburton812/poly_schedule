@@ -47,10 +47,6 @@ export function bindScheduleEvents() {
     setSelectedWeek(monday);
   });
 
-  document.getElementById('btn-week-today')?.addEventListener('click', () => {
-    setSelectedWeek(new Date());
-  });
-
   document.getElementById('btn-week-picker')?.addEventListener('click', () => {
     if (!weekInput) return;
     if (typeof weekInput.showPicker === 'function') {
@@ -65,14 +61,6 @@ export function bindScheduleEvents() {
   if (partnerSelect) {
     partnerSelect.addEventListener('change', (e) => {
       state.filterPartner = e.target.value;
-      renderView();
-    });
-  }
-
-  const residenceSelect = document.getElementById('filter-residence-select');
-  if (residenceSelect) {
-    residenceSelect.addEventListener('change', (e) => {
-      state.filterResidence = e.target.value;
       renderView();
     });
   }

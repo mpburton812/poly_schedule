@@ -232,8 +232,20 @@ export function migrateEventRecord(event, config) {
   return event;
 }
 
+/** Legacy demo seed events removed from pre-built data (no longer injected on load). */
+const RETIRED_DEMO_EVENT_IDS = new Set(['e1', 'e2', 's1', 's2', 'p_e1', 'p_s1']);
+
+function isRetiredDemoEvent(event) {
+  if (!event) return false;
+  if (RETIRED_DEMO_EVENT_IDS.has(event.id)) return true;
+  const title = String(event.title || '').trim().toLowerCase();
+  return title === 'weekend at the lake house';
+}
+
 export function migrateEvents(events, config) {
-  return (events || []).map(e => migrateEventRecord({ ...e }, config));
+  return (events || [])
+    .filter((e) => !isRetiredDemoEvent(e))
+    .map((e) => migrateEventRecord({ ...e }, config));
 }
 
 export function computeAutoArchiveAt(approvedAt, days = getAutoArchiveDays()) {

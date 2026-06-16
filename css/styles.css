@@ -830,10 +830,59 @@ body {
 /* Date Selector / Filter Row */
 .filter-bar {
   display: flex;
+  align-items: center;
   gap: var(--space-sm);
   overflow-x: auto;
   padding-bottom: var(--space-md);
   margin-top: var(--space-base);
+}
+.schedule-toolbar {
+  flex-wrap: wrap;
+}
+.toolbar-filter-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-xs);
+  padding: 4px 12px;
+  min-height: 36px;
+  background-color: var(--surface);
+  border: 1px solid var(--outline-variant);
+  border-radius: var(--radius-full);
+  font-family: var(--font-body);
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: var(--on-surface);
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background-color var(--transition-speed), border-color var(--transition-speed);
+}
+button.toolbar-filter-chip {
+  background-color: var(--secondary-container);
+  color: var(--on-secondary-container);
+  border-color: transparent;
+}
+.toolbar-filter-chip:hover {
+  background-color: rgba(87, 66, 64, 0.05);
+}
+button.toolbar-filter-chip:hover {
+  background-color: var(--secondary-container);
+  filter: brightness(0.98);
+}
+select.toolbar-filter-chip {
+  appearance: none;
+  padding-right: 28px;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%23574240' stroke-width='2'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 8px center;
+}
+.avatar-stack-fallback {
+  background-color: var(--outline-variant);
+  font-size: 8px;
+  color: var(--on-surface-variant);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: bold;
 }
 .chip {
   display: inline-flex;

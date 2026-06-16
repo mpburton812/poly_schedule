@@ -35,6 +35,10 @@ import { renderSystemLogHtml } from '../app/operation-log.js';
 import { getGroupName } from '../group-name.js';
 import { isGoogleIntegrationServerManaged, formatCalendarDisplayLabel, shouldShowCalendarIdDetail } from '../google-integration.js';
 import { escapeHtml } from '../escape.js';
+import {
+  normalizePrivacySchedulingPolicies,
+  PRIVACY_SCHEDULING_MODE
+} from '../privacy-scheduling-policy.js';
 
 
 export function adminView(state) {
@@ -57,6 +61,13 @@ export function adminView(state) {
     const changeLogHtml = renderChangeLogHtml(state.changeLog || []);
 
     const logsHtml = renderSystemLogHtml(state.logs || []);
+    const privacyPolicies = normalizePrivacySchedulingPolicies(state.config);
+
+    const privacyModeOptions = (selected) => `
+      <option value="${PRIVACY_SCHEDULING_MODE.DISABLED}" ${selected === PRIVACY_SCHEDULING_MODE.DISABLED ? 'selected' : ''}>Disabled</option>
+      <option value="${PRIVACY_SCHEDULING_MODE.ENABLED}" ${selected === PRIVACY_SCHEDULING_MODE.ENABLED ? 'selected' : ''}>Available (not default)</option>
+      <option value="${PRIVACY_SCHEDULING_MODE.DEFAULT}" ${selected === PRIVACY_SCHEDULING_MODE.DEFAULT ? 'selected' : ''}>Default for new proposals</option>
+    `;
 
     const calendarLabel = formatCalendarDisplayLabel(calendarId);
     const calendarDetailHtml = shouldShowCalendarIdDetail(calendarId)
@@ -169,6 +180,27 @@ export function adminView(state) {
               ${changeLogHtml}
             </div>
           </div>
+        </div>`,
+
+      `
+        <div class="bento-card" style="padding: var(--space-lg); border: 1px solid var(--outline-variant);">
+          <h3 class="font-title-lg" style="font-weight: 700; margin-bottom: var(--space-md);">Private Scheduling</h3>
+          <p class="font-body-md" style="color: var(--on-surface-variant); margin-bottom: var(--space-md);">
+            Control whether partners can choose private or super-private visibility on new proposals. Events already scheduled with those settings stay private for non-invitees.
+          </p>
+          <div class="form-group" style="margin-bottom: var(--space-md);">
+            <label class="form-label" for="admin-privacy-private-mode">Private scheduling</label>
+            <select class="form-input" id="admin-privacy-private-mode">
+              ${privacyModeOptions(privacyPolicies.private)}
+            </select>
+          </div>
+          <div class="form-group" style="margin-bottom: var(--space-md);">
+            <label class="form-label" for="admin-privacy-super-private-mode">Super private scheduling</label>
+            <select class="form-input" id="admin-privacy-super-private-mode">
+              ${privacyModeOptions(privacyPolicies.superPrivate)}
+            </select>
+          </div>
+          <button class="btn btn-filled" id="btn-save-privacy-scheduling" style="align-self: flex-start;">Save Privacy Settings</button>
         </div>`,
 
       `

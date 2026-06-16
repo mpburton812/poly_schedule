@@ -32,6 +32,64 @@ async function clickAdminNav(page) {
   }
 }
 
+async function createEventProposal(page, title, participantName = 'Katie Thompson') {
+  await page.click('#fab-quick-add');
+  await page.waitForSelector('#prop-title');
+  await page.fill('#prop-title', title);
+  await page.locator(`.circle-partner-option[data-name="${participantName}"]`).click();
+  await page.selectOption('#prop-start-hour', '6');
+  await page.selectOption('#prop-start-minute', '00');
+  await page.selectOption('#prop-start-ampm', 'PM');
+  await page.selectOption('#prop-end-hour', '9');
+  await page.selectOption('#prop-end-minute', '00');
+  await page.selectOption('#prop-end-ampm', 'PM');
+  await page.click('#btn-submit-proposal');
+  await expect(page.url()).toContain('#proposals');
+}
+
+async function injectProposedEvent(page, {
+  title,
+  proposer = 'Michael Burton',
+  pendingVoter = 'Katie Thompson'
+}) {
+  await page.evaluate(async ({ title, proposer, pendingVoter }) => {
+    const { CalendarSync } = await import('./js/calendar.js');
+    const { state } = await import('./js/app/state.js');
+    const { WORKFLOW } = await import('./js/proposal-workflow.js');
+    const start = new Date();
+    start.setDate(start.getDate() + 2);
+    start.setHours(18, 0, 0, 0);
+    const end = new Date(start);
+    end.setHours(21, 0, 0, 0);
+    const proposal = {
+      id: `prop_e2e_${Date.now()}`,
+      title,
+      type: 'event',
+      start: start.toISOString(),
+      end: end.toISOString(),
+      location: "Michael's Place",
+      participants: [proposer, pendingVoter],
+      participantRoles: [
+        { name: proposer, role: 'required' },
+        { name: pendingVoter, role: 'required' }
+      ],
+      proposer,
+      workflowState: WORKFLOW.PROPOSED,
+      status: 'pending',
+      revision: 1,
+      responses: {
+        [proposer]: { status: 'accept', comment: '' },
+        [pendingVoter]: { status: 'pending', comment: '' }
+      }
+    };
+    CalendarSync.events.push(proposal);
+    state.events = CalendarSync.events;
+    localStorage.setItem('polyschedule_events', JSON.stringify(CalendarSync.events));
+    const { requestRender } = await import('./js/app/render-bus.js');
+    requestRender();
+  }, { title, proposer, pendingVoter });
+}
+
 test.describe('PolySchedule UI E2E Flow Tests', () => {
   test.beforeEach(async ({ page }) => {
     await installE2EHouseholdSeed(page);
@@ -49,8 +107,8 @@ test.describe('PolySchedule UI E2E Flow Tests', () => {
     await expect(page.locator('.day-column')).toHaveCount(7);
     await expect(page.locator('#btn-week-prev')).toBeVisible();
     await expect(page.locator('#btn-week-next')).toBeVisible();
-    await expect(page.locator('.card-event').first()).toBeVisible();
-    await expect(page.locator('.card-sleeping').first()).toBeVisible();
+    await expect(page.locator('#filter-partner-select')).toBeVisible();
+    await expect(page.locator('#btn-week-picker')).toBeVisible();
   });
 
   test('should navigate between weeks on the schedule', async ({ page }) => {
@@ -202,10 +260,11 @@ test.describe('PolySchedule UI E2E Flow Tests', () => {
     await page.evaluate(() => localStorage.clear());
     await page.goto('/');
     await loginAs(page, 'kthompson', 'password');
+    await injectProposedEvent(page, { title: 'Vote Test Dinner' });
     await clickNav(page, '#proposals');
-    const firstProposalCard = page.locator('.proposal-card').first();
-    await expect(firstProposalCard).toBeVisible();
-    const acceptBtn = firstProposalCard.locator('.vote-btn[data-vote="accept"]');
+    const proposalCard = page.locator('.proposal-card', { hasText: 'Vote Test Dinner' });
+    await expect(proposalCard).toBeVisible();
+    const acceptBtn = proposalCard.locator('.vote-btn[data-vote="accept"]');
     page.on('dialog', async dialog => {
       await dialog.accept('I am excited!');
     });
@@ -219,8 +278,11 @@ test.describe('PolySchedule UI E2E Flow Tests', () => {
     await page.evaluate(() => localStorage.clear());
     await page.goto('/');
     await loginAs(page, 'kthompson', 'password');
+    await injectProposedEvent(page, { title: 'Abstain Test Dinner' });
     await clickNav(page, '#proposals');
-    await expect(page.locator('.vote-btn[data-vote="abstain"]').first()).toBeVisible();
+    await expect(
+      page.locator('.proposal-card', { hasText: 'Abstain Test Dinner' }).locator('.vote-btn[data-vote="abstain"]')
+    ).toBeVisible();
   });
 
   test('should confirm proposal when all votes are accept or abstain', async ({ page }) => {
@@ -237,13 +299,16 @@ test.describe('PolySchedule UI E2E Flow Tests', () => {
   });
 
   test('should update proposer name when display name changes', async ({ page }) => {
+    await createEventProposal(page, 'Proposer Rename Test');
     await page.click('#avatar-container');
     await page.fill('#setting-display-name', 'Michael M. Burton');
     await page.fill('#setting-username', 'mpburton2');
     await page.fill('#setting-password', 'newsecretpwd');
     await page.click('#btn-save-profile');
     await clickNav(page, '#proposals');
-    await expect(page.locator('.proposal-card').first()).toContainText('Michael M. Burton');
+    await expect(
+      page.locator('.proposal-card', { hasText: 'Proposer Rename Test' })
+    ).toContainText('Michael M. Burton');
   });
 
   test('should redirect non-admins away from #admin', async ({ page }) => {

@@ -17,6 +17,10 @@ import {
   WORKFLOW
 } from '../../proposal-workflow.js';
 import {
+  ensurePrivacySchedulingPolicies,
+  PRIVACY_SCHEDULING_MODE
+} from '../../privacy-scheduling-policy.js';
+import {
   resolvePartnerLimitEntry,
   isPendingPartnerConnection,
   isApprovedPartnerConnection,
@@ -105,6 +109,39 @@ export function bindAdminEvents() {
       setAutoArchiveDays(Number.isFinite(days) ? days : 7);
       logUserAction(`Auto-archive set to ${getAutoArchiveDays()} day(s).`, 'info');
       showToast('Archive setting saved.', 'success');
+    });
+  }
+
+  const btnPrivacySave = document.getElementById('btn-save-privacy-scheduling');
+  const privateModeSelect = document.getElementById('admin-privacy-private-mode');
+  const superPrivateModeSelect = document.getElementById('admin-privacy-super-private-mode');
+  if (btnPrivacySave && privateModeSelect && superPrivateModeSelect) {
+    btnPrivacySave.addEventListener('click', () => {
+      void (async () => {
+        if (!state.config) {
+          showToast('Household config is not loaded yet.', 'error');
+          return;
+        }
+        const privateMode = privateModeSelect.value;
+        const superPrivateMode = superPrivateModeSelect.value;
+        if (
+          privateMode === PRIVACY_SCHEDULING_MODE.DEFAULT
+          && superPrivateMode === PRIVACY_SCHEDULING_MODE.DEFAULT
+        ) {
+          showToast('Only one privacy level can be the default. Set the other to Available or Disabled.', 'warning');
+          return;
+        }
+        ensurePrivacySchedulingPolicies(state.config);
+        state.config.privacyScheduling.private = privateMode;
+        state.config.privacyScheduling.superPrivate = superPrivateMode;
+        try {
+          await persistHouseholdConfig('Updated private scheduling policy');
+          logUserAction('Private scheduling policy updated.', 'info');
+          showToast('Privacy settings saved.', 'success');
+        } catch {
+          /* persistHouseholdConfig already toasts */
+        }
+      })();
     });
   }
 

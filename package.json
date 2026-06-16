@@ -5,7 +5,7 @@
   "main": "index.html",
   "scripts": {
     "start": "node generate-version.js && http-server -p 8080 -c-1",
-    "dev": "node generate-version.js && live-server --port=8080 --host=127.0.0.1 --no-css-inject --wait=300",
+    "dev": "node generate-version.js && five-server --port=8080 --host=127.0.0.1 --no-browser --no-css-inject --wait=300",
     "emulator": "node scripts/web-emulator.js",
     "emulator:mobile": "node scripts/web-emulator.js --preset=mobile",
     "emulator:tablet": "node scripts/web-emulator.js --preset=tablet",
@@ -14,6 +14,7 @@
     "generate:avatars": "node scripts/generate-avatar-icons.js",
     "test:e2e": "npm run build && playwright test",
     "test": "npm run test:unit && npm run test:e2e",
+    "audit:ci": "npm audit --audit-level=high",
     "build": "node scripts/vercel-build.js",
     "notify": "npm --prefix notify-service start",
     "notify:install": "npm --prefix notify-service install"
@@ -28,9 +29,13 @@
   "license": "ISC",
   "devDependencies": {
     "@playwright/test": "^1.42.1",
+    "five-server": "^0.4.5",
     "http-server": "^14.1.1",
-    "live-server": "^1.2.2",
     "sharp": "^0.34.5",
-    "vitest": "^3.2.4"
+    "vitest": "^4.1.9"
+  },
+  "overrides": {
+    "braces": "^3.0.3",
+    "esbuild": "^0.28.1"
   }
 }
