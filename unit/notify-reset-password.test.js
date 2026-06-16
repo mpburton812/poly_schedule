@@ -49,9 +49,9 @@ describe('resetPartnerPassword', () => {
     expect(await verifyPartnerPassword(partner, 'wrong')).toBe(false);
   });
 
-  it('returns NOT_FOUND for unknown usernames', async () => {
+  it('returns USERNAME_UNKNOWN for unknown usernames', async () => {
     const result = await resetPartnerPassword('nobody', 'TempPass123!');
     expect(result.ok).toBe(false);
-    expect(result.code).toBe('NOT_FOUND');
+    expect(result.code).toBe('USERNAME_UNKNOWN');
   });
 });

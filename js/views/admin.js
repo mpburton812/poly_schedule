@@ -151,6 +151,22 @@ export function adminView(state) {
           </div>
           <button class="btn btn-filled" id="btn-save-group-name" style="align-self: flex-start;">Save Name</button>
         </div>`,
+
+      `
+        <div class="bento-card" style="padding: var(--space-lg); border: 1px solid var(--outline-variant);">
+          <h3 class="font-title-lg" style="font-weight: 700; margin-bottom: var(--space-xs); display: flex; align-items: center; gap: var(--space-sm);">
+            <span class="material-symbols-outlined text-primary">manage_accounts</span> User Registry Health
+          </h3>
+          <p class="font-body-md" style="color: var(--on-surface-variant); margin-bottom: var(--space-md);">
+            Compare login-capable partners in household config against the global username registry on the notify service.
+          </p>
+          <div style="display: flex; gap: var(--space-sm); flex-wrap: wrap; margin-bottom: var(--space-md);">
+            <button class="btn btn-outline" id="btn-refresh-user-health" type="button" ${syncHubConfigured ? '' : 'disabled'}>Refresh User Health</button>
+          </div>
+          <div id="user-health-panel" class="font-body-sm" style="color: var(--on-surface-variant);">
+            ${syncHubConfigured ? 'Click Refresh to load user registry health.' : 'Configure the notify service first.'}
+          </div>
+        </div>`,
       ...((!credentialsConfigured && !serverManagedGoogle) ? [googleCalendarSettingsSection] : []),
       `
         <div class="bento-card" style="padding: var(--space-lg); border: 1px solid var(--outline-variant);">

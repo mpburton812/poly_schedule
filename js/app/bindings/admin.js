@@ -7,8 +7,9 @@ import { CalendarSync } from '../../calendar.js';
 import { AuthManager } from '../../auth.js';
 import { hashPassword } from '../../crypto.js';
 import { normalizePronouns } from '../../pronouns.js';
-import { assertUsernameAvailable, claimUsernameGlobally } from '../../username-registry.js';
-import { isPartnerPassive, partnerRefsMatch, normalizeEmail } from '../../helpers.js';
+import { assertUsernameAvailable, claimUsernameAfterPersist, releaseUsernameGlobally } from '../../username-registry.js';
+import { createPartnerViaNotify, fetchUserHealthReport } from '../../household-partners.js';
+import { isPartnerPassive, partnerRefsMatch, normalizeEmail, escapeHtml } from '../../helpers.js';
 import {
   setAutoArchiveDays,
   getAutoArchiveDays,
@@ -149,7 +150,68 @@ export function bindAdminEvents() {
   bindNotifyCredentialsEvents(document);
   bindAdminDevicesEvents(document);
   bindAdminLogFilterEvents();
+  bindUserHealthEvents();
   focusAdminSectionIfRequested();
+}
+
+function renderUserHealthPanel(report) {
+  const panel = document.getElementById('user-health-panel');
+  if (!panel || !report) return;
+
+  const rows = (report.partners || []).map((row) => {
+    const issues = (row.issues || []).join(', ') || 'ok';
+    const status = row.canLogin ? 'ready' : 'blocked';
+    return `<tr>
+      <td>${escapeHtml(row.name || '—')}</td>
+      <td><code>${escapeHtml(row.username || '')}</code></td>
+      <td>${row.inRegistry ? 'yes' : 'no'}</td>
+      <td>${status}</td>
+      <td>${escapeHtml(issues)}</td>
+    </tr>`;
+  }).join('');
+
+  panel.innerHTML = `
+    <p style="margin-bottom: var(--space-sm);">
+      Storage: <strong>${escapeHtml(report.storageBackend || 'json')}</strong>
+      · Active partners: <strong>${report.summary?.activePartners ?? 0}</strong>
+      · Registry entries: <strong>${report.summary?.registryEntries ?? 0}</strong>
+      · Orphans: <strong>${report.summary?.registryOrphans ?? 0}</strong>
+      · Login-ready: <strong>${report.summary?.loginReady ?? 0}</strong>
+    </p>
+    <div style="overflow-x: auto;">
+      <table class="font-body-sm" style="width: 100%; border-collapse: collapse;">
+        <thead>
+          <tr>
+            <th style="text-align: left; padding: 6px 8px;">Name</th>
+            <th style="text-align: left; padding: 6px 8px;">Username</th>
+            <th style="text-align: left; padding: 6px 8px;">Registry</th>
+            <th style="text-align: left; padding: 6px 8px;">Login</th>
+            <th style="text-align: left; padding: 6px 8px;">Issues</th>
+          </tr>
+        </thead>
+        <tbody>${rows || '<tr><td colspan="5">No active partners found.</td></tr>'}</tbody>
+      </table>
+    </div>`;
+}
+
+function bindUserHealthEvents() {
+  const btn = document.getElementById('btn-refresh-user-health');
+  if (!btn) return;
+  btn.addEventListener('click', async () => {
+    const householdId = state.config?.householdId;
+    if (!householdId) {
+      showToast('Household id is not assigned yet.', 'warning');
+      return;
+    }
+    btn.disabled = true;
+    const result = await fetchUserHealthReport(householdId);
+    btn.disabled = false;
+    if (!result.ok) {
+      showToast(result.message, 'error');
+      return;
+    }
+    renderUserHealthPanel(result.report);
+  });
 }
 
 function bindAdminLogFilterEvents() {
@@ -338,28 +400,57 @@ export function bindAddPartnerEvents() {
       }
 
       if (!isPassive) {
-        const claim = await claimUsernameGlobally(username, state.config.householdId, newPartner.id);
-        if (!claim.ok) {
-          showToast(claim.message, 'warning');
+        const btnSubmit = document.getElementById('btn-submit-partner');
+        if (btnSubmit) btnSubmit.disabled = true;
+        try {
+          let claimedViaNotify = false;
           if (pushedNewPartner) {
-            state.config.partners.pop();
+            const notifyResult = await createPartnerViaNotify(state.config.householdId, newPartner, {
+              actorPartnerId: state.currentUser?.id || null
+            });
+            if (notifyResult.ok) {
+              state.config = notifyResult.config;
+              CalendarSync.config = notifyResult.config;
+              claimedViaNotify = true;
+            }
           }
-          return;
+
+          await persistHouseholdConfig(`Added partner: ${name}`);
+          if (!claimedViaNotify) {
+            const claim = await claimUsernameAfterPersist(username, state.config.householdId, newPartner.id);
+            if (!claim.ok) {
+              if (pushedNewPartner) state.config.partners.pop();
+              showToast(claim.message, 'warning');
+              return;
+            }
+          }
+
+          await notifyPartnerCalendarShare(name, googleEmail);
+          window.location.hash = '#logistics';
+        } catch {
+          if (pushedNewPartner) state.config.partners.pop();
+          if (!isPassive) {
+            await releaseUsernameGlobally(username, state.config.householdId, newPartner.id);
+          }
+          showToast('Failed to save partner. Please try again.', 'error');
+        } finally {
+          if (btnSubmit) btnSubmit.disabled = false;
         }
+        return;
       }
 
-      void persistHouseholdConfig(`${isPassive ? 'Added passive partner' : 'Added partner'}: ${name}`)
-        .then(async () => {
-          if (!isPassive) {
-            await notifyPartnerCalendarShare(name, googleEmail);
-          } else {
-            showToast(`Partner "${name}" added successfully!`, 'success');
-          }
-          window.location.hash = '#logistics';
-        })
-        .catch(() => {
-          state.config.partners.pop();
-        });
+      const btnSubmitPassive = document.getElementById('btn-submit-partner');
+      if (btnSubmitPassive) btnSubmitPassive.disabled = true;
+      try {
+        await persistHouseholdConfig(`Added passive partner: ${name}`);
+        showToast(`Partner "${name}" added successfully!`, 'success');
+        window.location.hash = '#logistics';
+      } catch {
+        if (pushedNewPartner) state.config.partners.pop();
+        showToast('Failed to save partner. Please try again.', 'error');
+      } finally {
+        if (btnSubmitPassive) btnSubmitPassive.disabled = false;
+      }
     });
   }
 }
@@ -606,7 +697,7 @@ export function bindEditPartnerEvents() {
       .catch(() => {});
   });
 
-  document.getElementById('btn-delete-edit-partner')?.addEventListener('click', () => {
+  document.getElementById('btn-delete-edit-partner')?.addEventListener('click', async () => {
     const partnerId = document.getElementById('edit-partner-id').value;
     const partner = state.config.partners.find(p => p.id === partnerId);
     if (!partner) return;
@@ -624,12 +715,25 @@ export function bindEditPartnerEvents() {
 
     if (!confirm(`Delete partner "${partner.name}"? This cannot be undone.`)) return;
 
-    CalendarSync.removePartner(partnerId);
-    state.config = CalendarSync.config;
-    state.events = CalendarSync.events;
-    logUserAction(`Partner "${partner.name}" deleted.`, 'warning');
-    showToast(`Partner "${partner.name}" deleted.`, 'success');
-    window.location.hash = '#logistics';
+    const removedUsername = partner.username || null;
+    const btnDelete = document.getElementById('btn-delete-edit-partner');
+    if (btnDelete) btnDelete.disabled = true;
+    try {
+      CalendarSync.removePartner(partnerId);
+      state.config = CalendarSync.config;
+      state.events = CalendarSync.events;
+      await persistHouseholdConfig(`Deleted partner: ${partner.name}`);
+      if (removedUsername) {
+        await releaseUsernameGlobally(removedUsername, state.config.householdId, partnerId);
+      }
+      logUserAction(`Partner "${partner.name}" deleted.`, 'warning');
+      showToast(`Partner "${partner.name}" deleted.`, 'success');
+      window.location.hash = '#logistics';
+    } catch {
+      showToast('Failed to delete partner. Please try again.', 'error');
+    } finally {
+      if (btnDelete) btnDelete.disabled = false;
+    }
   });
 }
 
@@ -785,11 +889,21 @@ export function bindActivatePartnerEvents() {
     }
     partner.rules = rules;
 
-    void persistHouseholdConfig(`Activated partner: ${partner.name}`)
-      .then(async () => {
-        await notifyPartnerCalendarShare(partner.name, googleEmail, { action: 'activated' });
-        window.location.hash = '#logistics';
-      })
-      .catch(() => {});
+    const btnSubmit = document.getElementById('btn-submit-activate');
+    if (btnSubmit) btnSubmit.disabled = true;
+    try {
+      await persistHouseholdConfig(`Activated partner: ${partner.name}`);
+      const claim = await claimUsernameAfterPersist(username, state.config.householdId, partnerId);
+      if (!claim.ok) {
+        showToast(claim.message, 'warning');
+        return;
+      }
+      await notifyPartnerCalendarShare(partner.name, googleEmail, { action: 'activated' });
+      window.location.hash = '#logistics';
+    } catch {
+      showToast('Failed to activate partner. Please try again.', 'error');
+    } finally {
+      if (btnSubmit) btnSubmit.disabled = false;
+    }
   });
 }

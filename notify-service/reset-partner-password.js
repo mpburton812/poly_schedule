@@ -1,39 +1,8 @@
 import { getHousehold, upsertHouseholdCache } from './sync-store.js';
 import { hashPassword } from './crypto.js';
-import { isUsernameTaken, normalizeUsername } from './username-registry.js';
-import { getFixedHouseholdId } from './fixed-household.js';
+import { resolvePartnerLoginContext } from './login-context.js';
 
-function findLoginPartner(config, normalizedUsername) {
-  return (config?.partners || []).find((partner) => {
-    if (partner?.passive || !partner?.username) return false;
-    return normalizeUsername(partner.username) === normalizedUsername;
-  }) || null;
-}
-
-export function resolvePartnerLoginContext(username) {
-  const normalized = normalizeUsername(username);
-  if (!normalized) return null;
-
-  const fixedHouseholdId = getFixedHouseholdId();
-  if (fixedHouseholdId) {
-    const household = getHousehold(fixedHouseholdId);
-    if (!household?.config) return null;
-    const partner = findLoginPartner(household.config, normalized);
-    if (!partner) return null;
-    return { householdId: fixedHouseholdId, household, partner };
-  }
-
-  const lookup = isUsernameTaken(username);
-  if (!lookup.taken || !lookup.householdId || !lookup.partnerId) return null;
-
-  const household = getHousehold(lookup.householdId);
-  if (!household?.config) return null;
-
-  const partner = findLoginPartner(household.config, lookup.normalized || normalized);
-  if (!partner || partner.id !== lookup.partnerId) return null;
-
-  return { householdId: lookup.householdId, household, partner };
-}
+export { resolvePartnerLoginContext };
 
 /**
  * Set a partner password hash in the notify household cache (lockout recovery).
@@ -46,8 +15,8 @@ export async function resetPartnerPassword(username, newPassword) {
   }
 
   const ctx = resolvePartnerLoginContext(username);
-  if (!ctx) {
-    return { ok: false, code: 'NOT_FOUND', message: 'Partner not found for that username.' };
+  if (ctx.error) {
+    return { ok: false, code: ctx.error.code || 'NOT_FOUND', message: ctx.error.message };
   }
 
   const { householdId, household, partner } = ctx;

@@ -111,3 +111,67 @@ export async function claimUsernameGlobally(username, householdId, partnerId) {
     return { ok: false, message: 'Could not register username with the sync service.' };
   }
 }
+
+/**
+ * Claim a username only after the partner exists in the notify household cache.
+ * @returns {Promise<{ ok: true, verified?: boolean } | { ok: false, message: string }>}
+ */
+export async function claimUsernameAfterPersist(username, householdId, partnerId) {
+  const trimmed = String(username || '').trim();
+  const { url, secret } = getNotifyConfig();
+  if (!url || !secret || !householdId || !partnerId) {
+    return { ok: true, verified: false };
+  }
+
+  try {
+    const res = await fetch(`${url}/v1/usernames/claim-after-persist`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Notify-Secret': secret
+      },
+      body: JSON.stringify({ username: trimmed, householdId, partnerId })
+    });
+    if (res.status === 409) {
+      return { ok: false, message: 'This username is already used by another partner. Choose a different username.' };
+    }
+    if (!res.ok) {
+      const body = await res.json().catch(() => ({}));
+      return { ok: false, message: body.error || 'Could not register username after save.' };
+    }
+    return { ok: true, verified: true };
+  } catch {
+    return { ok: false, message: 'Could not register username with the sync service.' };
+  }
+}
+
+/**
+ * @returns {Promise<{ ok: true, released?: boolean } | { ok: false, message: string }>}
+ */
+export async function releaseUsernameGlobally(username, householdId = null, partnerId = null) {
+  const trimmed = String(username || '').trim();
+  const { url, secret } = getNotifyConfig();
+  if (!trimmed) return { ok: true, released: false };
+  if (!url || !secret) return { ok: true, released: false };
+
+  try {
+    const res = await fetch(`${url}/v1/usernames/release`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Notify-Secret': secret
+      },
+      body: JSON.stringify({ username: trimmed, householdId, partnerId })
+    });
+    if (res.status === 404) {
+      return { ok: true, released: false };
+    }
+    if (!res.ok) {
+      const body = await res.json().catch(() => ({}));
+      return { ok: false, message: body.error || 'Could not release username.' };
+    }
+    return { ok: true, released: true };
+  } catch {
+    return { ok: false, message: 'Could not reach the username registry.' };
+  }
+}

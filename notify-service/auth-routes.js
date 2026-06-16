@@ -1,6 +1,5 @@
 import { getHousehold } from './sync-store.js';
 import { verifyPartnerPassword } from './crypto.js';
-import { getFixedHouseholdId } from './fixed-household.js';
 import { resolvePartnerLoginContext, resetPartnerPassword } from './reset-partner-password.js';
 import { mergeGoogleIntegrationIntoConfig, resolveGoogleIntegration } from './google-integration-env.js';
 
@@ -36,26 +35,14 @@ function sanitizeNotifyService(config) {
 
 function resolveLoginContext(username) {
   const ctx = resolvePartnerLoginContext(username);
-  if (!ctx) {
-    const fixedHouseholdId = getFixedHouseholdId();
-    if (fixedHouseholdId) {
-      const household = getHousehold(fixedHouseholdId);
-      if (!household?.config) {
-        return {
-          error: {
-            status: 503,
-            body: {
-              error: 'Household data is not available yet. Ask an admin to open PolySchedule on a connected device first.',
-              code: 'HOUSEHOLD_UNAVAILABLE'
-            }
-          }
-        };
-      }
-    }
+  if (ctx.error) {
     return {
       error: {
-        status: 401,
-        body: { error: 'Invalid username or password.', code: 'INVALID_CREDENTIALS' }
+        status: ctx.error.code === 'HOUSEHOLD_UNAVAILABLE' ? 503 : 401,
+        body: {
+          error: ctx.error.message,
+          code: ctx.error.code
+        }
       }
     };
   }
@@ -81,7 +68,10 @@ export function mountAuthRoutes(app, { requireSecret } = {}) {
     const { householdId, household, partner } = ctx;
     const valid = await verifyPartnerPassword(partner, password);
     if (!valid) {
-      res.status(401).json({ error: 'Invalid username or password.', code: 'INVALID_CREDENTIALS' });
+      res.status(401).json({
+        error: 'Invalid username or password.',
+        code: 'INVALID_CREDENTIALS'
+      });
       return;
     }
 

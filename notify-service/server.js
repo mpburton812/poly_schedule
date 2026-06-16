@@ -11,6 +11,8 @@ import {
 import { sendPushToPartners } from './send.js';
 import { mountSyncRoutes } from './sync-routes.js';
 import { mountAuthRoutes } from './auth-routes.js';
+import { mountAdminRoutes } from './admin-routes.js';
+import { initHouseholdDatabase } from './household-db.js';
 import { startWatchRenewalLoop } from './gcal-watch.js';
 import { getGoogleIntegrationFromEnv, isGoogleIntegrationEnvManaged } from './google-integration-env.js';
 
@@ -131,6 +133,11 @@ app.post('/v1/events', requireSecret, async (req, res) => {
 
 mountAuthRoutes(app, { requireSecret });
 mountSyncRoutes(app, { requireSecret });
+mountAdminRoutes(app, { requireSecret });
+
+initHouseholdDatabase().catch((err) => {
+  console.error('[notify] database initialization failed:', err.message);
+});
 
 app.listen(PORT, () => {
   const meta = getStoreDiagnostics();

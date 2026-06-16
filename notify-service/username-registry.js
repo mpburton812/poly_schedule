@@ -2,6 +2,10 @@ import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { getFixedHouseholdId } from './fixed-household.js';
+import {
+  isDatabaseEnabled,
+  writeUsernameRegistryToDatabase
+} from './household-db.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const DATA_DIR = process.env.DATA_DIR || path.join(__dirname, 'data');
@@ -32,6 +36,9 @@ function loadUsernamesDoc() {
 
 function saveUsernamesDoc(doc) {
   writeJson(USERNAMES_PATH, doc);
+  if (isDatabaseEnabled()) {
+    void writeUsernameRegistryToDatabase(doc.usernames || {});
+  }
 }
 
 function loadHouseholdsDoc() {
@@ -129,6 +136,18 @@ export function releaseUsername(username, householdId, partnerId) {
   delete doc.usernames[normalized];
   saveUsernamesDoc(doc);
   return true;
+}
+
+export function listRegisteredUsernames({ householdId = null } = {}) {
+  const doc = loadUsernamesDoc();
+  return Object.entries(doc.usernames || {})
+    .filter(([, entry]) => !householdId || entry.householdId === householdId)
+    .map(([username, entry]) => ({
+      username,
+      householdId: entry.householdId,
+      partnerId: entry.partnerId,
+      updatedAt: entry.updatedAt || null
+    }));
 }
 
 export function syncHouseholdUsernames(householdId, config) {

@@ -181,6 +181,24 @@ export async function attemptLogin(username, password) {
     return false;
   }
 
+  if (remote.code === 'USERNAME_UNKNOWN') {
+    showToast(remote.message, 'error');
+    logUserAction('Login failed — username not registered.', 'warning', trimmedUser);
+    return false;
+  }
+
+  if (remote.code === 'PARTNER_NOT_IN_HOUSEHOLD') {
+    showToast(remote.message, 'error');
+    logUserAction('Login failed — partner missing from household cache.', 'warning', trimmedUser);
+    return false;
+  }
+
+  if (remote.code === 'REGISTRY_MISMATCH') {
+    showToast(remote.message, 'error');
+    logUserAction('Login failed — username registry mismatch.', 'warning', trimmedUser);
+    return false;
+  }
+
   if (remote.code === 'HOUSEHOLD_UNAVAILABLE') {
     showToast(remote.message, 'warning');
     logUserAction('Login blocked — household cache unavailable.', 'warning', trimmedUser);

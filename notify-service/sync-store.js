@@ -2,6 +2,7 @@ import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { mergePartnerAuthFields } from './partner-auth-merge.js';
+import { isDatabaseEnabled, writeHouseholdToDatabase } from './household-db.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const DATA_DIR = process.env.DATA_DIR || path.join(__dirname, 'data');
@@ -56,6 +57,9 @@ export function upsertHouseholdCache(householdId, { revision, config, events, ac
   };
   doc.households[householdId] = next;
   saveHouseholdsDoc(doc);
+  if (isDatabaseEnabled()) {
+    void writeHouseholdToDatabase(householdId, next);
+  }
   return next;
 }
 

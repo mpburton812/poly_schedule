@@ -5,7 +5,7 @@ import { normalizePronouns } from '../pronouns.js';
 import { logUserAction } from './operation-log.js';
 import { showToast } from './toast.js';
 import { establishSession } from './session.js';
-import { assertUsernameAvailable, claimUsernameGlobally } from '../username-registry.js';
+import { assertUsernameAvailable, claimUsernameAfterPersist, releaseUsernameGlobally } from '../username-registry.js';
 import { ensureHouseholdIdentity } from '../household-sync.js';
 import { normalizeEmail } from '../helpers.js';
 
@@ -56,9 +56,11 @@ export async function updatePartnerProfile(partnerId, updates) {
 
   if (updates.name !== undefined) partner.name = updates.name;
   if (updates.avatar !== undefined) partner.avatar = updates.avatar;
+  let usernameChange = null;
   if (updates.username !== undefined) {
     const nextUsername = String(updates.username || '').trim();
-    if (nextUsername !== String(partner.username || '').trim()) {
+    const previousUsername = String(partner.username || '').trim();
+    if (nextUsername !== previousUsername) {
       ensureHouseholdIdentity(state.config);
       const check = await assertUsernameAvailable(nextUsername, {
         config: state.config,
@@ -69,13 +71,9 @@ export async function updatePartnerProfile(partnerId, updates) {
         showToast(check.message, 'warning');
         return false;
       }
-      const claim = await claimUsernameGlobally(nextUsername, state.config.householdId, partnerId);
-      if (!claim.ok) {
-        showToast(claim.message, 'warning');
-        return false;
-      }
+      usernameChange = { nextUsername, previousUsername };
+      partner.username = nextUsername;
     }
-    partner.username = nextUsername;
   }
   if (updates.password !== undefined && updates.password !== '') {
     partner.passwordHash = await hashPassword(updates.password, partnerId);
@@ -90,6 +88,25 @@ export async function updatePartnerProfile(partnerId, updates) {
   }
 
   await persistHouseholdConfig(`Updated profile for ${partner.name}`);
+
+  if (usernameChange) {
+    const claim = await claimUsernameAfterPersist(
+      usernameChange.nextUsername,
+      state.config.householdId,
+      partnerId
+    );
+    if (!claim.ok) {
+      showToast(claim.message, 'warning');
+      return false;
+    }
+    if (usernameChange.previousUsername) {
+      await releaseUsernameGlobally(
+        usernameChange.previousUsername,
+        state.config.householdId,
+        partnerId
+      );
+    }
+  }
 
   if (updates.googleEmail !== undefined && partner.googleEmail) {
     const share = await grantPartnerCalendarAccess(partner.googleEmail);
