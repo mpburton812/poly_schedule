@@ -25,6 +25,8 @@ export const PUSH_QUIET_HOURS_KEY = 'polyschedule_push_quiet_hours';
 export const PUSH_QUIET_START_KEY = 'polyschedule_push_quiet_start';
 export const PUSH_QUIET_END_KEY = 'polyschedule_push_quiet_end';
 export const AUTO_ARCHIVE_DAYS_KEY = 'polyschedule_auto_archive_days';
+export const COLOR_THEME_KEY = 'polyschedule_color_theme';
+export const SCHEDULE_VIEW_MODE_KEY = 'polyschedule_schedule_view_mode';
 
 export const DEVICE_ID_KEY = 'polyschedule_device_id';
 export const HOUSEHOLD_SYNC_TOKEN_KEY = 'polyschedule_sync_token';

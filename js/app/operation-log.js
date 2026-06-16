@@ -1,7 +1,7 @@
 import { escapeHtml } from '../escape.js';
 import { LOGS_STORAGE_KEY } from '../storage-keys.js';
 import { formatAppTime } from '../helpers.js';
-import { state } from './state.js';
+import { state, flowState } from './state.js';
 import { CalendarSync } from '../calendar.js';
 import {
   persistChangeLog,
@@ -12,6 +12,9 @@ import {
 } from '../change-log.js';
 
 const SYSTEM_LOG_PREFIXES = ['Sync:', 'Admin settings', 'Application initialized'];
+const MAX_LOCAL_LOGS = 200;
+const MAX_HOUSEHOLD_LOGS = 200;
+let householdLogSyncTimer = null;
 
 export function loadPersistedLogs() {
   try {
@@ -31,6 +34,90 @@ export function isUserLogEntry(log) {
   if (SYSTEM_LOG_PREFIXES.some((prefix) => msg.startsWith(prefix))) return false;
   const prefix = msg.split(': ')[0];
   return prefix.length > 0 && prefix.length < 80;
+}
+
+export function isAlertLogEntry(log) {
+  return log?.type === 'error' || log?.type === 'warning';
+}
+
+export function classifyLogEntry(log) {
+  if (isAlertLogEntry(log)) return 'alerts';
+  if (isUserLogEntry(log)) return 'user';
+  return 'system';
+}
+
+export function filterLogsByCategory(logs = [], filter = 'all') {
+  if (!filter || filter === 'all') return logs;
+  return logs.filter((log) => classifyLogEntry(log) === filter);
+}
+
+function logEntryKey(log) {
+  return `${log.timestamp || 0}:${log.message || ''}`;
+}
+
+function mergeOperationLogLists(...lists) {
+  const merged = new Map();
+  for (const list of lists) {
+    for (const entry of list || []) {
+      if (!entry?.message) continue;
+      merged.set(logEntryKey(entry), entry);
+    }
+  }
+  return Array.from(merged.values())
+    .sort((a, b) => (a.timestamp || 0) - (b.timestamp || 0))
+    .slice(-MAX_HOUSEHOLD_LOGS);
+}
+
+export function appendOperationLogToConfig(config, entry) {
+  if (!config || !entry) return;
+  if (!Array.isArray(config.operationLogs)) config.operationLogs = [];
+  config.operationLogs.push(entry);
+  if (config.operationLogs.length > MAX_HOUSEHOLD_LOGS) {
+    config.operationLogs = config.operationLogs.slice(-MAX_HOUSEHOLD_LOGS);
+  }
+}
+
+export function hydrateOperationLogsFromConfig(config) {
+  const householdLogs = Array.isArray(config?.operationLogs) ? config.operationLogs : [];
+  const localLogs = loadPersistedLogs();
+  state.logs = mergeOperationLogLists(householdLogs, localLogs);
+  localStorage.setItem(LOGS_STORAGE_KEY, JSON.stringify(state.logs));
+  if (config) {
+    config.operationLogs = [...state.logs];
+  }
+  refreshOperationLogDom();
+}
+
+function scheduleHouseholdOperationLogSync() {
+  if (!state.config) return;
+  if (householdLogSyncTimer) clearTimeout(householdLogSyncTimer);
+  householdLogSyncTimer = setTimeout(() => {
+    householdLogSyncTimer = null;
+    void persistHouseholdOperationLogs();
+  }, 1500);
+}
+
+async function persistHouseholdOperationLogs() {
+  if (!state.config) return;
+  try {
+    const { bumpSyncRevision } = await import('../household-sync.js');
+    const { CalendarSync } = await import('../calendar.js');
+    bumpSyncRevision(state.config);
+    await CalendarSync.saveConfig(state.config);
+    state.config = CalendarSync.config;
+  } catch (err) {
+    console.warn('[logs] Failed to sync operational log to household config', err);
+  }
+}
+
+export function refreshOperationLogDom() {
+  if (typeof document === 'undefined') return;
+  const filter = flowState.adminLogFilter || 'all';
+  const html = renderSystemLogHtml(filterLogsByCategory(state.logs, filter));
+  document.querySelectorAll('#console-logs-body').forEach((consoleBody) => {
+    consoleBody.innerHTML = html;
+    consoleBody.scrollTop = consoleBody.scrollHeight;
+  });
 }
 
 export function renderSystemLogLine(log) {
@@ -59,15 +146,25 @@ export function addLog(message, type = 'info', meta = null) {
   const time = formatAppTime();
   const entry = { time, message, type, timestamp: Date.now(), ...(meta || {}) };
   state.logs.push(entry);
-  if (state.logs.length > 100) state.logs.shift();
+  if (state.logs.length > MAX_LOCAL_LOGS) state.logs.shift();
   localStorage.setItem(LOGS_STORAGE_KEY, JSON.stringify(state.logs));
 
+  if (state.config) {
+    appendOperationLogToConfig(state.config, entry);
+    scheduleHouseholdOperationLogSync();
+  }
+
   if (typeof document !== 'undefined') {
-    const lineHtml = renderSystemLogLine(entry);
-    document.querySelectorAll('#console-logs-body').forEach((consoleBody) => {
-      consoleBody.insertAdjacentHTML('beforeend', lineHtml);
-      consoleBody.scrollTop = consoleBody.scrollHeight;
-    });
+    const filter = flowState.adminLogFilter || 'all';
+    if (filter === 'all' || classifyLogEntry(entry) === filter) {
+      const lineHtml = renderSystemLogLine(entry);
+      document.querySelectorAll('#console-logs-body').forEach((consoleBody) => {
+        const empty = consoleBody.querySelector('.system-log-empty');
+        if (empty) empty.remove();
+        consoleBody.insertAdjacentHTML('beforeend', lineHtml);
+        consoleBody.scrollTop = consoleBody.scrollHeight;
+      });
+    }
   }
 }
 
@@ -144,4 +241,3 @@ export async function syncPromotionChangeLog() {
     console.warn('Could not sync promotion change log', err);
   }
 }
-

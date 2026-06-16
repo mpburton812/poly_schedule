@@ -3,9 +3,9 @@ import {
   CLIENT_ID_KEY,
   API_KEY_KEY,
   NOTIFY_URL_KEY,
-  NOTIFY_SECRET_KEY,
-  HOUSEHOLD_SYNC_TOKEN_KEY
+  NOTIFY_SECRET_KEY
 } from '../storage-keys.js';
+import { flowState } from '../app/state.js';
 import { RulesEngine } from '../rules.js';
 import {
   DEFAULT_AVATARS,
@@ -31,7 +31,7 @@ import {
   isCalendarEvent
 } from '../proposal-workflow.js';
 import { renderChangeLogHtml } from '../change-log.js';
-import { renderSystemLogHtml } from '../app/operation-log.js';
+import { renderSystemLogHtml, filterLogsByCategory } from '../app/operation-log.js';
 import { getGroupName } from '../group-name.js';
 import { isGoogleIntegrationServerManaged, formatCalendarDisplayLabel, shouldShowCalendarIdDetail } from '../google-integration.js';
 import { escapeHtml } from '../escape.js';
@@ -54,13 +54,18 @@ export function adminView(state) {
     const notifySecret = notifyService.secret || localStorage.getItem(NOTIFY_SECRET_KEY) || '';
     const householdId = state.config?.householdId || '';
     const syncRevision = state.config?.syncRevision ?? 0;
-    const householdSyncToken = syncHub.token || localStorage.getItem(HOUSEHOLD_SYNC_TOKEN_KEY) || '';
     const serverManagedGoogle = isGoogleIntegrationServerManaged();
     const credentialsConfigured = !!(clientId && apiKey);
     const syncHubConfigured = !!(notifyUrl && notifySecret);
     const changeLogHtml = renderChangeLogHtml(state.changeLog || []);
 
-    const logsHtml = renderSystemLogHtml(state.logs || []);
+    const logFilter = flowState.adminLogFilter || 'all';
+    const allLogs = state.logs || [];
+    const filteredLogs = filterLogsByCategory(allLogs, logFilter);
+    const logsHtml = renderSystemLogHtml(filteredLogs);
+    const logCountLabel = logFilter === 'all'
+      ? `${allLogs.length} entries`
+      : `${filteredLogs.length} of ${allLogs.length} entries`;
     const privacyPolicies = normalizePrivacySchedulingPolicies(state.config);
 
     const privacyModeOptions = (selected) => `
@@ -154,7 +159,12 @@ export function adminView(state) {
           </h3>
           <div class="console-container">
             <div class="console-header">
-              <span class="font-label-sm">Operational Log (${(state.logs || []).length} entries)</span>
+              <span class="font-label-sm">Operational Log (${logCountLabel})</span>
+              <div class="console-log-filters" role="group" aria-label="Filter operational log">
+                <button type="button" class="console-log-filter-btn${logFilter === 'user' ? ' active' : ''}" data-log-filter="user" aria-pressed="${logFilter === 'user'}">User</button>
+                <button type="button" class="console-log-filter-btn${logFilter === 'system' ? ' active' : ''}" data-log-filter="system" aria-pressed="${logFilter === 'system'}">System</button>
+                <button type="button" class="console-log-filter-btn${logFilter === 'alerts' ? ' active' : ''}" data-log-filter="alerts" aria-pressed="${logFilter === 'alerts'}">Alerts/Errors</button>
+              </div>
             </div>
             <div class="console-body" id="console-logs-body" style="max-height: 280px; overflow-y: auto;">
               ${logsHtml}
@@ -232,14 +242,6 @@ export function adminView(state) {
               : '<p class="font-label-sm" style="color: var(--on-surface-variant); margin: 0;">Sync id is assigned automatically when config is first saved to Google Calendar.</p>'}
             <div style="display: flex; gap: var(--space-sm); flex-wrap: wrap;">
               <button class="btn btn-outline" id="btn-register-gcal-watch" type="button" ${!householdId || !credentialsConfigured ? 'disabled' : ''}>Register GCal Webhook</button>
-            </div>
-            <div class="form-group" style="margin-bottom: 0;">
-              <label class="form-label" for="admin-household-sync-token">Household sync token (optional)</label>
-              <input class="form-input" id="admin-household-sync-token" type="password" value="${householdSyncToken}" placeholder="Per-household secret for future device pairing"/>
-            </div>
-            <div style="display: flex; gap: var(--space-sm); flex-wrap: wrap;">
-              <button class="btn btn-outline" id="btn-generate-household-sync-token" type="button">Generate Token</button>
-              <button class="btn btn-filled" id="btn-save-household-sync-token" type="button">Save Sync Token</button>
             </div>
           </div>
         </div>`,

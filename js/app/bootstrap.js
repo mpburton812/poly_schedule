@@ -25,6 +25,8 @@ import {
   openUserProfileModal
 } from './modals.js';
 import { router } from './router.js';
+import { applyColorTheme } from '../color-themes.js';
+import { bindSwipeNavigation } from './swipe-nav.js';
 import {
   bindUpdateBanner,
   checkForAppUpdate,
@@ -296,6 +298,8 @@ export function init() {
 
   const run = async () => {
     markBooted();
+    applyColorTheme();
+    bindSwipeNavigation();
     state.logs = loadPersistedLogs();
     initChangeLog();
     void syncPromotionChangeLog();

@@ -119,6 +119,29 @@ test.describe('PolySchedule UI E2E Flow Tests', () => {
     await expect(page.locator('#btn-week-picker')).toHaveText(labelBefore);
   });
 
+  test('should show proposal type section headers on create form', async ({ page }) => {
+    await page.click('#fab-quick-add');
+    await expect(page.getByRole('heading', { name: 'Events' })).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Sleeping Arrangements' })).toBeVisible();
+  });
+
+  test('should support compact schedule view with two weeks', async ({ page }) => {
+    await expect(page.locator('.day-column')).toHaveCount(7);
+    await page.click('#btn-schedule-view-compact');
+    await expect(page.locator('.week-grid--compact')).toBeVisible();
+    await expect(page.locator('.day-column')).toHaveCount(14);
+
+    const labelBefore = await page.locator('#btn-week-picker').innerText();
+    await page.click('#btn-week-next');
+    const labelAfter = await page.locator('#btn-week-picker').innerText();
+    expect(labelAfter).not.toBe(labelBefore);
+
+    await page.click('#btn-week-prev');
+    await expect(page.locator('#btn-week-picker')).toHaveText(labelBefore);
+    await page.click('#btn-schedule-view-normal');
+    await expect(page.locator('.day-column')).toHaveCount(7);
+  });
+
   test('should show privacy options when creating a proposal', async ({ page }) => {
     await page.click('#fab-quick-add');
     await expect(page.locator('#prop-visibility-tabs')).toBeVisible();

@@ -33,4 +33,10 @@ export function applyCacheSnapshot(snapshot, { state, CalendarSync }) {
 
   CalendarSync.events = snapshot.events || [];
   state.events = CalendarSync.events;
+
+  if (snapshot.config) {
+    import('./app/operation-log.js').then(({ hydrateOperationLogsFromConfig }) => {
+      hydrateOperationLogsFromConfig(snapshot.config);
+    });
+  }
 }

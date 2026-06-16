@@ -17,7 +17,7 @@ import {
   canEditPartnerProfile
 } from './context.js';
 import { needsGoogleCalendarConnect, isGoogleGateActive, showGoogleConnectGate, canBypassGoogleConnectGate } from './google-connect-gate.js';
-import { bindScheduleEvents } from './bindings/schedule.js';
+import { bindScheduleEvents, loadStoredScheduleViewMode } from './bindings/schedule.js';
 import { bindProposalsEvents } from './bindings/proposals.js';
 import {
   bindCreateEvents,
@@ -118,7 +118,10 @@ export function renderView() {
 
   const dispatchTable = {
     'schedule': () => {
-      container.innerHTML = Views.schedule(state);
+      if (!flowState.scheduleViewMode) {
+        flowState.scheduleViewMode = loadStoredScheduleViewMode();
+      }
+      container.innerHTML = Views.schedule(state, flowState.scheduleViewMode);
       bindScheduleEvents();
     },
     'proposals': () => {

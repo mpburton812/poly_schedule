@@ -220,9 +220,10 @@ describe('sleeping proposal helpers', () => {
     expect(mustIncludeCurrentUserInSleepingProposal(config, { id: 'p2' })).toBe(true);
   });
 
-  it('sorts the current user to the front of partner lists', () => {
+  it('sorts the current user to the front of partner lists and alphabetizes the rest', () => {
     const sorted = sortPartnersWithCurrentUserFirst(config.partners, config, { id: 'p2' });
     expect(sorted[0].id).toBe('p2');
+    expect(sorted.slice(1).map((p) => p.name)).toEqual(['Alex Rivera']);
   });
 });
 

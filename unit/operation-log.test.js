@@ -30,6 +30,63 @@ vi.mock('../js/push-notifications.js', async (importOriginal) => {
   return { ...actual, ...pushMocks };
 });
 
+describe('log filtering and household sync', () => {
+  beforeEach(async () => {
+    localStorage.clear();
+    const { state } = await import('../js/app/state.js');
+    state.logs = [];
+    state.config = null;
+  });
+
+  it('classifies user, system, and alert log entries', async () => {
+    const {
+      classifyLogEntry,
+      filterLogsByCategory,
+      isAlertLogEntry
+    } = await import('../js/app/operation-log.js');
+
+    const userLog = { message: 'Katie Thompson: Submitted proposal.', userEvent: true, type: 'info' };
+    const systemLog = { message: 'Sync: Initializing cloud calendar (sync).', type: 'info' };
+    const alertLog = { message: 'Proposal submit failed · error=Network', type: 'error' };
+
+    expect(classifyLogEntry(userLog)).toBe('user');
+    expect(classifyLogEntry(systemLog)).toBe('system');
+    expect(classifyLogEntry(alertLog)).toBe('alerts');
+    expect(isAlertLogEntry(alertLog)).toBe(true);
+
+    const logs = [userLog, systemLog, alertLog];
+    expect(filterLogsByCategory(logs, 'user')).toEqual([userLog]);
+    expect(filterLogsByCategory(logs, 'system')).toEqual([systemLog]);
+    expect(filterLogsByCategory(logs, 'alerts')).toEqual([alertLog]);
+    expect(filterLogsByCategory(logs, 'all')).toEqual(logs);
+  });
+
+  it('merges household operation logs from config on hydrate', async () => {
+    const { state } = await import('../js/app/state.js');
+    const { hydrateOperationLogsFromConfig, logUserAction } = await import('../js/app/operation-log.js');
+
+    const config = {
+      partners: [],
+      residences: [],
+      operationLogs: [{
+        time: '10:00 AM',
+        message: 'Katie Thompson: Submitted proposal: "Dinner".',
+        type: 'info',
+        timestamp: 1000,
+        userEvent: true,
+        user: 'Katie Thompson'
+      }]
+    };
+
+    logUserAction('Local-only entry.', 'info', 'Michael Burton');
+    hydrateOperationLogsFromConfig(config);
+
+    expect(state.logs).toHaveLength(2);
+    expect(state.logs.some((log) => log.user === 'Katie Thompson')).toBe(true);
+    expect(config.operationLogs).toHaveLength(2);
+  });
+});
+
 describe('system log rendering', () => {
   beforeEach(async () => {
     localStorage.clear();

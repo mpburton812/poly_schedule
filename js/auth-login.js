@@ -107,4 +107,7 @@ export function applyRemoteLoginPayload({ config, events, revision, googleIntegr
   }
   applyGoogleIntegrationFromConfig(config, { CalendarSync });
   applyHouseholdServicesFromConfig(config);
+  import('./app/operation-log.js').then(({ hydrateOperationLogsFromConfig }) => {
+    hydrateOperationLogsFromConfig(config);
+  });
 }

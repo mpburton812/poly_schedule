@@ -24,7 +24,7 @@ import {
   getAutoArchiveDays,
   isCalendarEvent
 } from '../proposal-workflow.js';
-import { buildRecurrenceInstanceDates, DEFAULT_RECURRENCE_COUNT } from '../recurrence.js';
+import { DEFAULT_RECURRENCE_COUNT } from '../recurrence.js';
 import { VISIBILITY } from '../event-privacy.js';
 import {
   coerceProposalVisibility,
@@ -209,48 +209,12 @@ export function createProposalView(state, type = 'event', formState = {}) {
     const draftVisibility = coerceProposalVisibility(state.config, formState.draftVisibility);
     const showPrivateOption = isPrivacyLevelAvailable(state.config, VISIBILITY.PRIVATE);
     const showSuperPrivateOption = isPrivacyLevelAvailable(state.config, VISIBILITY.SUPER_PRIVATE);
+    const showVisibilitySection = showPrivateOption || showSuperPrivateOption;
     const privacyHints = {
       standard: 'Everyone in the household can see event details on the schedule.',
       private: 'Only invitees see details; others see times only (sleeping arrangements still visible).',
       super_private: 'Only invitees can see details — everyone else sees a private placeholder.'
     };
-
-    const contextStartStr = formState.batchStartDate || new Date().toISOString().split('T')[0];
-    const contextStart = new Date(contextStartStr + 'T12:00:00');
-    const contextWeekStart = new Date(contextStart);
-    contextWeekStart.setDate(contextStart.getDate() - contextStart.getDay());
-    let contextNightCount = type === 'batch_sleeping'
-      ? (formState.batchNightCount || 3)
-      : 1;
-    const proposedDateKeys = new Set();
-    if ((type === 'event' || type === 'sleeping') && formState.recurrenceEnabled) {
-      const recurrence = {
-        frequency: formState.recurrenceFrequency || 'weekly',
-        count: formState.recurrenceCount || DEFAULT_RECURRENCE_COUNT
-      };
-      buildRecurrenceInstanceDates(contextStart, recurrence).forEach((d) => {
-        proposedDateKeys.add(d.toDateString());
-      });
-      contextNightCount = proposedDateKeys.size;
-    } else {
-      for (let n = 0; n < contextNightCount; n++) {
-        const d = new Date(contextStart);
-        d.setDate(contextStart.getDate() + n);
-        proposedDateKeys.add(d.toDateString());
-      }
-    }
-    let microCalCellsHtml = '';
-    for (let i = 0; i < 7; i++) {
-      const d = new Date(contextWeekStart);
-      d.setDate(contextWeekStart.getDate() + i);
-      const isProposed = proposedDateKeys.has(d.toDateString());
-      microCalCellsHtml += `
-        <div class="micro-calendar-cell${isProposed ? ' active-cell' : ''}" data-date="${d.toISOString().split('T')[0]}">
-          <span class="day-num">${d.getDate()}</span>
-          ${isProposed ? '<div class="micro-cal-proposed">PROPOSED</div>' : ''}
-        </div>
-      `;
-    }
 
     const isRecurring = (type === 'event' || type === 'sleeping') && formState.recurrenceEnabled;
     const eventSingleActive = type === 'event' && !isRecurring;
@@ -268,25 +232,35 @@ export function createProposalView(state, type = 'event', formState = {}) {
         <button type="button" class="btn btn-filled" id="btn-submit-proposal">Send Proposal</button>
       </div>
 
-      <!-- Proposal type: events on row 1, sleeping on row 2 -->
-      <div style="display: flex; flex-direction: column; gap: var(--space-sm); margin-bottom: var(--space-md);">
-        <div class="switch-selector proposal-type-row">
-          <button type="button" class="switch-btn ${eventSingleActive ? 'active' : ''}" id="btn-toggle-event">Event</button>
-          <button type="button" class="switch-btn ${eventRecurringActive ? 'active' : ''}" id="btn-toggle-recurring-event">Recurring Event</button>
+      <!-- Proposal type -->
+      <div style="display: flex; flex-direction: column; gap: var(--space-md); margin-bottom: var(--space-md);">
+        <div class="proposal-type-section">
+          <h3 class="proposal-type-section-label">Events</h3>
+          <div class="switch-selector proposal-type-row">
+            <button type="button" class="switch-btn ${eventSingleActive ? 'active' : ''}" id="btn-toggle-event">Event</button>
+            <button type="button" class="switch-btn ${eventRecurringActive ? 'active' : ''}" id="btn-toggle-recurring-event">Recurring Event</button>
+          </div>
         </div>
         ${canUseSleepingProposals ? `
-          <div class="switch-selector proposal-type-row">
-            <button type="button" class="switch-btn ${sleepSingleActive ? 'active' : ''}" id="btn-toggle-sleeping">Single Night</button>
-            <button type="button" class="switch-btn ${sleepRecurringActive ? 'active' : ''}" id="btn-toggle-recurring-sleeping">Recurring</button>
-            <button type="button" class="switch-btn ${batchActive ? 'active' : ''}" id="btn-toggle-batch-sleeping">Batch Proposal</button>
+          <div class="proposal-type-section">
+            <h3 class="proposal-type-section-label">Sleeping Arrangements</h3>
+            <div class="switch-selector proposal-type-row">
+              <button type="button" class="switch-btn ${sleepSingleActive ? 'active' : ''}" id="btn-toggle-sleeping">Single Night</button>
+              <button type="button" class="switch-btn ${sleepRecurringActive ? 'active' : ''}" id="btn-toggle-recurring-sleeping">Recurring</button>
+              <button type="button" class="switch-btn ${batchActive ? 'active' : ''}" id="btn-toggle-batch-sleeping">Batch Proposal</button>
+            </div>
           </div>
         ` : `
-          <div class="switch-selector proposal-type-row">
-            <button class="switch-btn" disabled style="opacity: 0.4; cursor: not-allowed; background-color: var(--surface-container-highest);" title="No sleeping connections configured for your profile.">Sleeping (Disabled)</button>
+          <div class="proposal-type-section">
+            <h3 class="proposal-type-section-label">Sleeping Arrangements</h3>
+            <div class="switch-selector proposal-type-row">
+              <button class="switch-btn" disabled style="opacity: 0.4; cursor: not-allowed; background-color: var(--surface-container-highest);" title="No sleeping connections configured for your profile.">Sleeping (Disabled)</button>
+            </div>
           </div>
         `}
       </div>
 
+      ${showVisibilitySection ? `
       <div class="form-group" id="prop-visibility-section" style="margin-bottom: var(--space-md);">
         <label class="form-label">Who can see this on the schedule?</label>
         <div class="switch-selector" id="prop-visibility-tabs" role="group" aria-label="Privacy level">
@@ -297,6 +271,7 @@ export function createProposalView(state, type = 'event', formState = {}) {
         <p class="font-label-sm privacy-hint" id="prop-visibility-hint">${privacyHints[draftVisibility] || privacyHints.standard}</p>
         <input type="hidden" id="prop-visibility" value="${draftVisibility}"/>
       </div>
+      ` : '<input type="hidden" id="prop-visibility" value="standard"/>'}
 
       <!-- Live Logistics Rules Warning Banner -->
       <div class="banner-alert hidden" id="proposal-rules-banner">
@@ -320,22 +295,11 @@ export function createProposalView(state, type = 'event', formState = {}) {
           <textarea class="form-input" id="prop-notes" rows="3" placeholder="Optional context for reviewers (parking, dress code, etc.)" style="resize: vertical; min-height: 72px;">${formState.draftNotes || ''}</textarea>
         </div>
 
-        ${type === 'event' ? `
-        <div class="form-group" style="margin-bottom: var(--space-sm);">
-          <label class="solo-event-toggle" style="display: flex; align-items: flex-start; gap: var(--space-sm); cursor: pointer; padding: var(--space-sm); background: var(--surface-container-high); border-radius: var(--radius-default);">
-            <input type="checkbox" id="solo-event-checkbox" ${formState.soloEventMode ? 'checked' : ''} style="accent-color: var(--primary); margin-top: 2px;"/>
-            <span>
-              <strong class="font-label-md" style="display: block;">Just me — add directly to calendar</strong>
-              <span class="font-label-sm" style="color: var(--on-surface-variant);">Personal events skip group review and are confirmed immediately.</span>
-            </span>
-          </label>
-        </div>
-        ` : ''}
-
-        ${type !== 'batch_sleeping' && !(type === 'event' && formState.soloEventMode) ? `
+        ${type !== 'batch_sleeping' ? `
         <!-- Poly Circle Selection -->
         <div class="form-group" id="invitees-section">
           <label class="form-label" style="margin-bottom: var(--space-sm);">${polyFamilyName} (Invitees)</label>
+          <p class="font-label-sm" style="color: var(--on-surface-variant); margin-bottom: var(--space-xs);">You are listed first. Select only yourself to add a personal event directly to the calendar.</p>
           <div style="display: flex; flex-wrap: wrap; gap: var(--space-lg); padding: var(--space-sm) 0;" id="circle-options-row">
             ${circleHtml}
           </div>
@@ -379,27 +343,6 @@ export function createProposalView(state, type = 'event', formState = {}) {
 
         <!-- Dynamic Location block -->
         ${locationHtml}
-
-        <!-- Schedule Context Mini-Calendar -->
-        <div class="form-group" style="margin-top: var(--space-md);">
-          <div style="display: flex; justify-content: space-between; margin-bottom: var(--space-sm);">
-            <label class="form-label">Schedule Context</label>
-            <span class="font-label-sm" style="color: var(--on-surface-variant);">Weekly conflict visualization</span>
-          </div>
-          <div class="impact-bar-container" style="background-color: var(--surface-container-lowest); border: 1px solid var(--outline-variant); padding: var(--space-md);">
-            <div class="micro-calendar" id="micro-cal-grid">
-              <div class="micro-calendar-header">S</div>
-              <div class="micro-calendar-header">M</div>
-              <div class="micro-calendar-header">T</div>
-              <div class="micro-calendar-header">W</div>
-              <div class="micro-calendar-header">T</div>
-              <div class="micro-calendar-header">F</div>
-              <div class="micro-calendar-header">S</div>
-              ${microCalCellsHtml}
-            </div>
-            <div id="micro-cal-conflict-notice" class="font-label-sm micro-cal-conflict-notice" style="display: none;"></div>
-          </div>
-        </div>
       </section>
     `;
 }

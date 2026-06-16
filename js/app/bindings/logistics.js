@@ -8,20 +8,18 @@ import { escapeHtml } from '../../escape.js';
 import { state } from '../state.js';
 import { logUserAction, showToast, logoutGoogleSync, getCurrentUserId, hasAdminSessionAccess, canEditPartnerProfile } from '../context.js';
 import {
-  generateHouseholdSyncToken,
   registerGCalWatchOnServer,
-  setHouseholdSyncToken,
   isSyncHubConfigured
 } from '../../household-sync.js';
 import { setGoogleIntegrationOnConfig } from '../../google-integration.js';
 import {
-  setNotifyServiceOnConfig,
-  setSyncHubOnConfig
+  setNotifyServiceOnConfig
 } from '../../household-services.js';
 import { NOTIFY_URL_KEY, NOTIFY_SECRET_KEY } from '../../storage-keys.js';
 import { enablePushOnThisDevice, disablePushOnThisDevice, sendTestPush, saveQuietHoursSettings, savePushTypePrefs, getPushTypePrefs, fetchRegisteredDevices } from '../../push-notifications.js';
 import { forceReloadApp } from '../version-update.js';
 import { renderView } from '../router.js';
+import { saveColorTheme } from '../../color-themes.js';
 
 export function bindLogisticsEvents(container = document) {
   const exportBtn = container.querySelector('#btn-export-logs');
@@ -160,57 +158,25 @@ export function bindSettingsEvents(container = document) {
   }
 
   bindPushSettingsEvents(container);
+  bindColorThemeEvents(container);
+}
+
+function bindColorThemeEvents(container = document) {
+  container.querySelectorAll('[data-color-theme]').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      const themeId = btn.dataset.colorTheme;
+      saveColorTheme(themeId);
+      container.querySelectorAll('[data-color-theme]').forEach((el) => {
+        const active = el.dataset.colorTheme === themeId;
+        el.classList.toggle('active', active);
+        el.setAttribute('aria-pressed', active ? 'true' : 'false');
+      });
+      showToast(`${btn.querySelector('.font-label-md')?.textContent || 'Theme'} applied.`, 'success');
+    });
+  });
 }
 
 export function bindHouseholdSyncEvents(container = document) {
-  const btnSaveToken = container.querySelector('#btn-save-household-sync-token');
-  if (btnSaveToken) {
-    btnSaveToken.addEventListener('click', () => {
-      void (async () => {
-        const token = container.querySelector('#admin-household-sync-token')?.value.trim();
-        if (!token) {
-          showToast('Enter a sync token or click Generate Token.', 'warning');
-          return;
-        }
-        setHouseholdSyncToken(token);
-        if (state.config) {
-          setSyncHubOnConfig(state.config, { token });
-          try {
-            await CalendarSync.saveConfig(state.config);
-          } catch (err) {
-            showToast(`Saved locally but failed to sync token: ${err.message}`, 'warning');
-            return;
-          }
-        }
-        logUserAction('Household sync token saved and synced to household.', 'info');
-        showToast('Household sync token saved and synced.', 'success');
-      })();
-    });
-  }
-
-  const btnGenToken = container.querySelector('#btn-generate-household-sync-token');
-  if (btnGenToken) {
-    btnGenToken.addEventListener('click', () => {
-      void (async () => {
-        const token = generateHouseholdSyncToken();
-        const input = container.querySelector('#admin-household-sync-token');
-        if (input) input.value = token;
-        setHouseholdSyncToken(token);
-        if (state.config) {
-          setSyncHubOnConfig(state.config, { token });
-          try {
-            await CalendarSync.saveConfig(state.config);
-            showToast('Generated and synced a new household sync token.', 'success');
-          } catch (err) {
-            showToast('Token generated locally but failed to sync.', 'warning');
-          }
-        } else {
-          showToast('Generated a new sync token.', 'success');
-        }
-      })();
-    });
-  }
-
   const btnWatch = container.querySelector('#btn-register-gcal-watch');
   if (btnWatch) {
     btnWatch.addEventListener('click', async () => {

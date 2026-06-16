@@ -173,6 +173,7 @@ export function normalizeHouseholdConfigShape(config) {
   }
   if (!Array.isArray(config.partners)) config.partners = [];
   if (!Array.isArray(config.residences)) config.residences = [];
+  if (!Array.isArray(config.operationLogs)) config.operationLogs = [];
   ensurePrivacySchedulingPolicies(config);
   return config;
 }
@@ -289,15 +290,21 @@ export function mustIncludeCurrentUserInSleepingProposal(config, currentUser) {
   return partner?.role !== 'Admin';
 }
 
-/** Keep the signed-in partner first in invitee pickers. */
+/** Keep the signed-in partner first in invitee pickers; remaining partners are alphabetical. */
 export function sortPartnersWithCurrentUserFirst(partners, config, currentUser) {
-  const list = [...(partners || [])];
+  const list = [...(partners || [])].filter(
+    (partner) => partner.name !== 'Guest User' && partner.username !== 'guest'
+  );
   const current = getCurrentUserPartner(config, currentUser);
-  if (!current) return list;
-  const idx = list.findIndex(p => p.id === current.id);
-  if (idx <= 0) return list;
-  const [me] = list.splice(idx, 1);
-  return [me, ...list];
+  const collator = new Intl.Collator(undefined, { sensitivity: 'base' });
+  const byName = (a, b) => collator.compare(a.name, b.name);
+
+  const others = list
+    .filter((partner) => !current || partner.id !== current.id)
+    .sort(byName);
+
+  if (current) return [current, ...others];
+  return others;
 }
 
 /**

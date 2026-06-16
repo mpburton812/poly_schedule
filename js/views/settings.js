@@ -32,6 +32,7 @@ import { PUSH_TYPE_LABELS } from '../push-notifications.js';
 import { PUSH_TYPE_PREFS_KEY } from '../storage-keys.js';
 import { formatCalendarDisplayLabel, shouldShowCalendarIdDetail } from '../google-integration.js';
 import { escapeHtml } from '../escape.js';
+import { COLOR_THEME_IDS, COLOR_THEME_LABELS, loadStoredColorTheme } from '../color-themes.js';
 
 
 export function settingsView(state) {
@@ -66,6 +67,16 @@ export function settingsView(state) {
     const calendarDetailHtml = shouldShowCalendarIdDetail(calendarId)
       ? `<span class="calendar-id-detail">${escapeHtml(calendarId)}</span>`
       : '';
+    const activeTheme = loadStoredColorTheme();
+    const themeOptionsHtml = COLOR_THEME_IDS.map((themeId) => `
+      <button type="button" class="theme-swatch${activeTheme === themeId ? ' active' : ''}" data-color-theme="${themeId}" aria-pressed="${activeTheme === themeId}">
+        <span class="theme-swatch-color theme-swatch-color--${themeId}" aria-hidden="true"></span>
+        <span>
+          <strong class="font-label-md" style="display: block;">${COLOR_THEME_LABELS[themeId]}</strong>
+          <span class="font-label-sm" style="color: var(--on-surface-variant);">Personal color theme</span>
+        </span>
+      </button>
+    `).join('');
     
     return `
       <div class="mb-xl" style="margin-bottom: var(--space-xl);">
@@ -76,6 +87,18 @@ export function settingsView(state) {
       </div>
 
       <section style="max-width: 600px; display: flex; flex-direction: column; gap: var(--space-xl);">
+        <div class="bento-card" style="padding: var(--space-lg); border: 1px solid var(--outline-variant);">
+          <h3 class="font-title-lg" style="font-weight: 700; margin-bottom: var(--space-xs); display: flex; align-items: center; gap: var(--space-sm);">
+            <span class="material-symbols-outlined text-primary">palette</span> Color Theme
+          </h3>
+          <p class="font-body-md" style="color: var(--on-surface-variant); margin-bottom: var(--space-md);">
+            Choose a personal accent palette for this device. Other household members can pick their own theme.
+          </p>
+          <div class="theme-swatch-grid" role="group" aria-label="Color theme">
+            ${themeOptionsHtml}
+          </div>
+        </div>
+
         <div class="bento-card" style="padding: var(--space-lg); border: 1px solid var(--outline-variant);">
           <h3 class="font-title-lg" style="font-weight: 700; margin-bottom: var(--space-xs);">Google Calendar</h3>
           <p class="font-body-md" style="color: var(--on-surface-variant); margin-bottom: var(--space-md);">

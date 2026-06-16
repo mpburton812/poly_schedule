@@ -49,7 +49,9 @@ import {
   bindAvatarPicker,
   bindSleepingPartnerCheckboxes,
   updatePartnerProfile,
-  grantPartnerCalendarAccess
+  grantPartnerCalendarAccess,
+  refreshOperationLogDom,
+  filterLogsByCategory
 } from '../context.js';
 import { renderView } from '../router.js';
 import { bindLogisticsEvents, bindGoogleCredentialsEvents, bindHouseholdSyncEvents, bindNotifyCredentialsEvents, bindAdminDevicesEvents } from './logistics.js';
@@ -150,7 +152,31 @@ export function bindAdminEvents() {
   bindHouseholdSyncEvents(document);
   bindNotifyCredentialsEvents(document);
   bindAdminDevicesEvents(document);
+  bindAdminLogFilterEvents();
   focusAdminSectionIfRequested();
+}
+
+function bindAdminLogFilterEvents() {
+  document.querySelectorAll('[data-log-filter]').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      const filter = btn.dataset.logFilter;
+      flowState.adminLogFilter = flowState.adminLogFilter === filter ? 'all' : filter;
+      refreshOperationLogDom();
+      document.querySelectorAll('[data-log-filter]').forEach((b) => {
+        const active = b.dataset.logFilter === flowState.adminLogFilter;
+        b.classList.toggle('active', active);
+        b.setAttribute('aria-pressed', active ? 'true' : 'false');
+      });
+      const allLogs = state.logs || [];
+      const filtered = filterLogsByCategory(allLogs, flowState.adminLogFilter);
+      const label = document.querySelector('.console-header .font-label-sm');
+      if (label) {
+        label.textContent = flowState.adminLogFilter === 'all'
+          ? `Operational Log (${allLogs.length} entries)`
+          : `Operational Log (${filtered.length} of ${allLogs.length} entries)`;
+      }
+    });
+  });
 }
 
 function focusAdminSectionIfRequested() {

@@ -102,7 +102,7 @@ function bindProposalActionHandlers() {
         }
 
         if (finalEvent && afterWs === WORKFLOW.APPROVED) {
-          flowState.activeProposalsTab = 'resolved';
+          flowState.activeProposalsTab = 'proposed';
           showToast(getProposalApprovedToastText(finalEvent), 'success');
         } else {
           showToast('Vote submitted successfully!', 'success');

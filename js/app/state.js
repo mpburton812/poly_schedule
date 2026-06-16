@@ -73,7 +73,9 @@ export const flowState = {
   draftSaveTimer: null,
   soloEventMode: false,
   highlightProposalId: null,
-  adminFocusSection: null
+  adminFocusSection: null,
+  adminLogFilter: 'all',
+  scheduleViewMode: 'normal'
 };
 
 export const newProposalState = {

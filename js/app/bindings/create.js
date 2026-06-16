@@ -364,6 +364,19 @@ export function syncParticipantRolesFromParticipants() {
   });
 }
 
+function syncSoloEventModeFromParticipants() {
+  if (flowState.currentCreateType !== 'event') {
+    flowState.soloEventMode = false;
+    return;
+  }
+  const currentUserName = getCurrentUserName();
+  flowState.soloEventMode = newProposalState.participants.length === 1
+    && newProposalState.participants[0] === currentUserName;
+  if (flowState.soloEventMode) {
+    newProposalState.participantRoles = [{ name: currentUserName, role: 'required' }];
+  }
+}
+
 function readProposalVisibility() {
   const raw = document.getElementById('prop-visibility')?.value || newProposalState.draftVisibility || VISIBILITY.STANDARD;
   return coerceProposalVisibility(state.config, raw);
@@ -390,7 +403,13 @@ function readRecurrenceFromForm() {
 
 function setCreateProposalMode(type, recurring = false) {
   preserveCreateFormDraft();
+  const previousType = flowState.currentCreateType;
+  const wasSleepingFamily = previousType === 'sleeping' || previousType === 'batch_sleeping';
   flowState.currentCreateType = type;
+  if (wasSleepingFamily && type === 'event') {
+    newProposalState.draftTitle = '';
+    newProposalState.draftNotes = '';
+  }
   newProposalState.recurrenceEnabled = recurring && (type === 'event' || type === 'sleeping');
   if (type === 'batch_sleeping') {
     ensureBatchAssignments(newProposalState.batchNightCount || 3);
@@ -507,8 +526,11 @@ export function collectProposalFormData() {
   ) {
     newProposalState.participants.unshift(currentUserName);
   }
-  if (flowState.currentCreateType === 'event' && flowState.soloEventMode) {
-    newProposalState.participants = [currentUserName];
+  if (flowState.currentCreateType === 'event') {
+    syncSoloEventModeFromParticipants();
+    if (flowState.soloEventMode) {
+      newProposalState.participants = [currentUserName];
+    }
   }
   syncParticipantRolesFromParticipants();
 
@@ -726,6 +748,11 @@ export async function submitCurrentProposal() {
     const endD = parseLocalDateString(dateStr, endTime.hours, endTime.minutes, 0, 0);
     if (endD <= startD) {
       showToast('End time must be after start time.', 'warning');
+      return;
+    }
+    syncSoloEventModeFromParticipants();
+    if (newProposalState.participants.length === 0) {
+      showToast('Select at least one person for this event.', 'warning');
       return;
     }
   }
@@ -958,11 +985,6 @@ export function bindCreateEvents() {
   document.querySelectorAll('.circle-partner-option').forEach(opt => {
     opt.addEventListener('click', (e) => {
       if (e.target.closest('.role-toggle-btn')) return;
-      if (flowState.soloEventMode && flowState.currentCreateType === 'event') {
-        flowState.soloEventMode = false;
-        const soloCb = document.getElementById('solo-event-checkbox');
-        if (soloCb) soloCb.checked = false;
-      }
       const name = opt.dataset.name;
       const currentUserName = getCurrentUserName();
       const idx = newProposalState.participants.indexOf(name);
@@ -985,6 +1007,7 @@ export function bindCreateEvents() {
       }
 
       syncParticipantRolesFromParticipants();
+      syncSoloEventModeFromParticipants();
       runRulesChecks();
       updateSleepingArrangementTitle();
       scheduleDraftSave();
@@ -1005,19 +1028,8 @@ export function bindCreateEvents() {
     });
   });
 
-  const soloCheckbox = document.getElementById('solo-event-checkbox');
-  if (soloCheckbox) {
-    soloCheckbox.addEventListener('change', () => {
-      flowState.soloEventMode = soloCheckbox.checked;
-      const currentUserName = getCurrentUserName();
-      if (flowState.soloEventMode) {
-        newProposalState.participants = [currentUserName];
-        newProposalState.participantRoles = [{ name: currentUserName, role: 'required' }];
-      }
-      scheduleDraftSave();
-      renderView();
-    });
-  }
+  bindVisibilityTabs();
+  bindRecurrenceControls();
 
   const titleInputEl = document.getElementById('prop-title');
   if (titleInputEl) {
@@ -1034,9 +1046,6 @@ export function bindCreateEvents() {
       scheduleDraftSave();
     });
   }
-
-  bindVisibilityTabs();
-  bindRecurrenceControls();
 
   const startDateInput = document.getElementById('prop-start-date');
   const durationInput = document.getElementById('prop-duration');
