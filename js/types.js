@@ -26,7 +26,6 @@
  * @property {boolean} [passive] Passive partners do not vote on proposals.
  * @property {string} [avatar] Avatar image URL.
  * @property {PartnerPronouns} [pronouns] Subject/object/possessive forms for generated text.
- * @property {string} [defaultHome] Default residence id.
  * @property {PartnerRules} [rules] Sleeping and partner limit rules.
  * @property {string} [notificationEmail] Email for push/notify fallback delivery.
  * @property {string} [googleEmail] Google account email used for Calendar actor matching.

@@ -471,11 +471,35 @@ test.describe('PolySchedule UI E2E Flow Tests', () => {
     await expect(page.locator('text=Red Room, Blue Room').first()).toBeVisible();
   });
 
-  test('should show partner homes from home associations on logistics', async ({ page }) => {
+  test('should show sleeping location with Other option on create form', async ({ page }) => {
+    await page.click('#fab-quick-add');
+    await page.waitForSelector('#prop-title');
+    await page.locator('#btn-toggle-sleeping').click();
+    await expect(page.locator('label[for="sleep-home-select"]')).toHaveText('Location');
+    await expect(page.locator('#sleep-home-select option[value="__other__"]')).toHaveText('Other');
+    await page.selectOption('#sleep-home-select', '__other__');
+    await expect(page.locator('#sleep-room-label')).toHaveText('Description');
+    await expect(page.locator('#sleep-room-description')).toBeVisible();
+    await page.fill('#sleep-room-description', 'Friend\'s couch');
+    await expect(page.locator('#prop-title')).toHaveValue(/Other: Friend's couch/);
+  });
+
+  test('should keep admin role when saving own profile', async ({ page }) => {
     await clickNav(page, '#logistics');
+    await page.locator('.partner-card-editable', { hasText: 'Michael Burton' }).click();
+    await page.waitForURL(/#edit-partner/);
+    await page.fill('#edit-partner-name', 'Michael Burton');
+    await page.click('#btn-save-edit-partner');
+    await page.waitForURL(/#logistics/, { timeout: 10000 });
     const michaelCard = page.locator('.partner-card-editable', { hasText: 'Michael Burton' });
-    await expect(michaelCard).toContainText('Homes:');
-    await expect(michaelCard).toContainText("Michael's Place");
+    await expect(michaelCard.locator('text=ADMIN')).toBeVisible();
+    await expect(page.locator('#side-nav-admin, #mobile-nav-admin').first()).toBeVisible();
+  });
+
+  test('should show Places section on logistics page', async ({ page }) => {
+    await clickNav(page, '#logistics');
+    await expect(page.locator('text=Places').first()).toBeVisible();
+    await expect(page.locator('text=Homes & Spaces')).toHaveCount(0);
   });
 
   test('should not show Sleep Rules on logistics page', async ({ page }) => {

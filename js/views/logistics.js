@@ -10,8 +10,7 @@ import {
   normalizeBatchNight,
   getBedroomOptionsForHome,
   getCurrentUserPartner,
-  hasSleepingPartnerConnections,
-  getPartnerAssociatedHomeNames
+  hasSleepingPartnerConnections
 } from '../helpers.js';
 import {
   WORKFLOW,
@@ -40,8 +39,6 @@ export function logisticsView(state) {
       } else if (partner.role === 'Admin') {
         badge = `<span class="font-label-sm" style="background-color: var(--secondary-container); color: var(--on-secondary-container); padding: 2px 8px; border-radius: var(--radius-sm); font-size: 9px; font-weight: bold;">ADMIN</span>`;
       }
-      const associatedHomes = getPartnerAssociatedHomeNames(state.config, partner.name);
-      const homesLabel = associatedHomes.length ? associatedHomes.join(', ') : 'None';
       const editBtn = canEditThis ? `
         <button class="btn btn-outline btn-edit-partner" data-partner-id="${partner.id}" style="padding: 4px 12px; font-size: 0.75rem; flex-shrink: 0;">
           <span class="material-symbols-outlined" style="font-size: 16px;">edit</span>
@@ -58,7 +55,6 @@ export function logisticsView(state) {
               <h4 class="font-title-lg" style="font-size: 1.05rem; font-weight: 700;">${partner.name}</h4>
               ${badge}
             </div>
-            <p class="font-body-md" style="color: var(--on-surface-variant); margin-top: 2px;">Homes: <strong style="color: var(--secondary);">${homesLabel}</strong></p>
             ${passive ? '<p class="font-label-sm" style="color: var(--on-surface-variant); margin-top: 2px;">Not using the app — scheduling only</p>' : ''}
           </div>
           ${editBtn}
@@ -148,7 +144,7 @@ export function logisticsView(state) {
         <section class="bento-span-12" style="display: flex; flex-direction: column; gap: var(--space-md);">
           <div style="display: flex; justify-content: space-between; align-items: center;">
             <h3 class="font-title-lg" style="display: flex; align-items: center; gap: var(--space-base); font-weight: 700;">
-              <span class="material-symbols-outlined text-primary">home_work</span> Homes & Spaces
+              <span class="material-symbols-outlined text-primary">home_work</span> Places
             </h3>
             <a href="#add-home" class="btn btn-outline" id="btn-add-home" style="padding: var(--space-xs) var(--space-md); font-size: 0.85rem; border-color: var(--primary); color: var(--primary); text-decoration: none;${showAdminControls ? '' : ' display: none;'}">
               <span class="material-symbols-outlined" style="font-size: 16px;">add_home</span> Add Home

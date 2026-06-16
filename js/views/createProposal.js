@@ -1,5 +1,6 @@
 import { getGroupName } from '../group-name.js';
 import { RulesEngine } from '../rules.js';
+import { escapeHtml } from '../escape.js';
 import {
   DEFAULT_AVATARS,
   isPartnerPassive,
@@ -13,7 +14,9 @@ import {
   getBedroomOptionsForHome,
   getCurrentUserPartner,
   canCreateSleepingProposals,
-  sortPartnersWithCurrentUserFirst
+  sortPartnersWithCurrentUserFirst,
+  SLEEP_LOCATION_OTHER,
+  isOtherSleepLocation
 } from '../helpers.js';
 import {
   WORKFLOW,
@@ -69,36 +72,46 @@ export function createProposalView(state, type = 'event', formState = {}) {
     // Generate location / residences dropdown
     let locationHtml = '';
     if (type === 'sleeping') {
-      let residenceOptions = '';
-      state.config.residences.forEach(home => {
-        residenceOptions += `<option value="${home.id}">${home.name}</option>`;
-      });
+      const firstHome = state.config.residences[0];
+      const selectedHomeId = formState.homeId || firstHome?.id || SLEEP_LOCATION_OTHER;
+      const otherSelected = isOtherSleepLocation(selectedHomeId);
 
-      const defaultHome = state.config.residences[0];
-      let bedroomOptions = '';
-      if (defaultHome) {
-        if (defaultHome.bedroomDetails && defaultHome.bedroomDetails.length > 0) {
-          bedroomOptions = defaultHome.bedroomDetails.map(r => `<option value="${r.id}">${r.name}</option>`).join('');
-        } else {
-          for (let i = 0; i < defaultHome.bedrooms; i++) {
-            bedroomOptions += `<option value="r${i + 1}">Bedroom ${i + 1}</option>`;
-          }
-        }
+      let residenceOptions = (state.config.residences || []).map(home =>
+        `<option value="${home.id}" ${home.id === selectedHomeId ? 'selected' : ''}>${escapeHtml(home.name)}</option>`
+      ).join('');
+      residenceOptions += `<option value="${SLEEP_LOCATION_OTHER}" ${otherSelected ? 'selected' : ''}>Other</option>`;
+
+      const selectedHome = state.config.residences.find(h => h.id === selectedHomeId) || firstHome;
+      let bedroomFieldHtml = '';
+      if (otherSelected) {
+        bedroomFieldHtml = `
+          <input class="form-input" id="sleep-room-description" type="text" placeholder="Optional description" value="${escapeHtml(formState.roomName || '')}" style="border-radius: var(--radius-default); border: 1px solid var(--outline);"/>
+        `;
+      } else if (selectedHome) {
+        const bedrooms = getBedroomOptionsForHome(selectedHome);
+        const selectedRoomId = formState.roomId || bedrooms[0]?.id || '';
+        bedroomFieldHtml = `
+          <select class="form-input" id="sleep-room-select" style="border-radius: var(--radius-default); border: 1px solid var(--outline);">
+            ${bedrooms.map(r => `<option value="${r.id}" ${r.id === selectedRoomId ? 'selected' : ''}>${escapeHtml(r.name)}</option>`).join('')}
+          </select>
+        `;
+      } else {
+        bedroomFieldHtml = `
+          <select class="form-input" id="sleep-room-select" style="border-radius: var(--radius-default); border: 1px solid var(--outline);"></select>
+        `;
       }
 
       locationHtml = `
         <div class="grid grid-cols-1 md:grid-cols-2 gap-md" style="display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-md); margin-bottom: var(--space-lg);">
           <div class="form-group" style="margin-bottom: 0;">
-            <label class="form-label" for="sleep-home-select">Residence</label>
+            <label class="form-label" for="sleep-home-select">Location</label>
             <select class="form-input" id="sleep-home-select" style="border-radius: var(--radius-default); border: 1px solid var(--outline);">
               ${residenceOptions}
             </select>
           </div>
-          <div class="form-group" style="margin-bottom: 0;">
-            <label class="form-label" for="sleep-room-select">Bedroom</label>
-            <select class="form-input" id="sleep-room-select" style="border-radius: var(--radius-default); border: 1px solid var(--outline);">
-              ${bedroomOptions}
-            </select>
+          <div class="form-group" style="margin-bottom: 0;" id="sleep-room-field">
+            <label class="form-label" id="sleep-room-label" for="${otherSelected ? 'sleep-room-description' : 'sleep-room-select'}">${otherSelected ? 'Description' : 'Bedroom'}</label>
+            ${bedroomFieldHtml}
           </div>
         </div>
       `;

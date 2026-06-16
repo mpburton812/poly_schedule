@@ -23,6 +23,11 @@ import { ensurePrivacySchedulingPolicies } from './privacy-scheduling-policy.js'
 export { DEFAULT_AVATARS, migrateAvatarUrl, isCustomAvatar };
 
 export const CREATE_NEW_HOME = '__create_new__';
+export const SLEEP_LOCATION_OTHER = '__other__';
+
+export function isOtherSleepLocation(homeId) {
+  return homeId === SLEEP_LOCATION_OTHER;
+}
 
 export function partnerDisplayFirstName(name) {
   if (!name) return '';
@@ -226,25 +231,13 @@ export function getPartnerById(config, partnerId) {
 }
 
 /**
- * Homes associated with a partner via residence.associatedPeople (not defaultHome).
+ * Homes associated with a partner via residence.associatedPeople.
  */
 export function getPartnerAssociatedHomeNames(config, partnerName) {
   if (!partnerName) return [];
   return (config?.residences || [])
     .filter((home) => (home.associatedPeople || []).includes(partnerName))
     .map((home) => home.name);
-}
-
-/**
- * @deprecated Home associations are stored on residence.associatedPeople only.
- */
-export function applyHomeAssociationDefaults(_config, _homeId, _associatedPeople = []) {
-  return false;
-}
-
-/** @deprecated No longer syncs partner defaultHome. */
-export function syncAllHomeAssociationDefaults(_config) {
-  return false;
 }
 
 export function getCurrentUserPartner(config, currentUser) {
@@ -542,10 +535,6 @@ export function removePartnerReferences(config, events, partnerId, partnerName) 
  * Clear home references before removing a residence.
  */
 export function removeHomeReferences(config, events, homeId) {
-  (config?.partners || []).forEach(partner => {
-    if (partner.defaultHome === homeId) partner.defaultHome = '';
-  });
-
   (events || []).forEach(event => {
     if (event.homeId === homeId) {
       event.homeName = event.homeName ? `${event.homeName} (removed)` : '(removed home)';

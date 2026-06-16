@@ -14,7 +14,8 @@ import {
   findPartnerByCalendarEmail,
   renderBatchNightsReviewHtml,
   getPartnerAssociatedHomeNames,
-  syncAllHomeAssociationDefaults
+  isOtherSleepLocation,
+  SLEEP_LOCATION_OTHER
 } from '../js/helpers.js';
 import { DEFAULT_AVATARS } from '../js/helpers.js';
 
@@ -230,16 +231,14 @@ describe('sleeping proposal helpers', () => {
 });
 
 describe('getPartnerAssociatedHomeNames', () => {
-  it('returns home names from associatedPeople only', () => {
+  it('returns home names from associatedPeople', () => {
     const config = {
       residences: [
         { id: 'h1', name: "Michael's Place", associatedPeople: ['Michael Burton'] },
         { id: 'h2', name: "Izzy's Place", associatedPeople: ['Izzy Chen'] },
         { id: 'h3', name: 'Shared Loft', associatedPeople: ['Michael Burton', 'Katie Thompson'] }
       ],
-      partners: [
-        { id: 'p1', name: 'Michael Burton', defaultHome: 'h2' }
-      ]
+      partners: [{ id: 'p1', name: 'Michael Burton' }]
     };
     expect(getPartnerAssociatedHomeNames(config, 'Michael Burton')).toEqual([
       "Michael's Place",
@@ -247,14 +246,12 @@ describe('getPartnerAssociatedHomeNames', () => {
     ]);
     expect(getPartnerAssociatedHomeNames(config, 'Unknown')).toEqual([]);
   });
+});
 
-  it('does not mutate partner defaultHome when syncing associations', () => {
-    const config = {
-      residences: [{ id: 'h1', name: 'Home A', associatedPeople: ['Alex'] }],
-      partners: [{ id: 'p1', name: 'Alex', defaultHome: 'h9' }]
-    };
-    expect(syncAllHomeAssociationDefaults(config)).toBe(false);
-    expect(config.partners[0].defaultHome).toBe('h9');
+describe('sleep location other', () => {
+  it('detects other sleep location id', () => {
+    expect(isOtherSleepLocation(SLEEP_LOCATION_OTHER)).toBe(true);
+    expect(isOtherSleepLocation('h1')).toBe(false);
   });
 });
 

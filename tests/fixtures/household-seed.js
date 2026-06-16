@@ -28,7 +28,6 @@ const E2E_HOUSEHOLD_CONFIG = {
       username: 'mpburton',
       password: 'password',
       role: 'Admin',
-      defaultHome: 'h1',
       avatar: 'assets/images/icons/bird_blue.png',
       pronouns: { preset: 'he/him' },
       rules: {
@@ -41,7 +40,6 @@ const E2E_HOUSEHOLD_CONFIG = {
       username: 'kthompson',
       password: 'password',
       role: 'Admin',
-      defaultHome: 'h2',
       avatar: 'assets/images/icons/bird_green.png',
       pronouns: { preset: 'she/her' },
       rules: {
@@ -52,7 +50,6 @@ const E2E_HOUSEHOLD_CONFIG = {
       id: 'p3',
       name: 'Zachery',
       passive: true,
-      defaultHome: '',
       avatar: 'assets/images/icons/bird_orange.png',
       pronouns: { preset: 'he/him' },
       rules: {}
@@ -61,7 +58,6 @@ const E2E_HOUSEHOLD_CONFIG = {
       id: 'p4',
       name: 'Bailey',
       passive: true,
-      defaultHome: '',
       avatar: 'assets/images/icons/bird_red.png',
       pronouns: { preset: 'they/them' },
       rules: {}
@@ -72,7 +68,6 @@ const E2E_HOUSEHOLD_CONFIG = {
       username: 'jordan',
       password: 'password',
       role: 'User',
-      defaultHome: '',
       avatar: 'assets/images/icons/bird_yellow.png',
       pronouns: { preset: 'they/them' },
       rules: { minSoloNights: 2 }

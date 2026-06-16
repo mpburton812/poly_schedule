@@ -15,7 +15,9 @@ import {
   buildBatchNightsPayload,
   formatAppTime,
   mustIncludeCurrentUserInSleepingProposal,
-  resolvePersonConflictMessage
+  resolvePersonConflictMessage,
+  SLEEP_LOCATION_OTHER,
+  isOtherSleepLocation
 } from '../../helpers.js';
 import { pastScheduleWarning } from '../../gcal-sync.js';
 import { normalizeRecurrence } from '../../recurrence.js';
@@ -69,21 +71,32 @@ export function updateSleepingArrangementTitle() {
     : 'Nobody';
 
   const homeSelect = document.getElementById('sleep-home-select');
+  const selectedHomeId = homeSelect?.value || newProposalState.homeId || '';
   let homeName = '';
-  if (homeSelect && homeSelect.selectedIndex >= 0) {
+  if (isOtherSleepLocation(selectedHomeId)) {
+    homeName = 'Other';
+  } else if (homeSelect && homeSelect.selectedIndex >= 0) {
     homeName = homeSelect.options[homeSelect.selectedIndex].text;
   } else {
-    const defaultHome = state.config?.residences?.find(h => h.id === newProposalState.homeId);
-    homeName = defaultHome ? defaultHome.name : '';
+    const home = state.config?.residences?.find(h => h.id === selectedHomeId);
+    homeName = home ? home.name : '';
   }
 
-  const roomSelect = document.getElementById('sleep-room-select');
   let roomName = '';
-  if (roomSelect && roomSelect.selectedIndex >= 0) {
-    roomName = roomSelect.options[roomSelect.selectedIndex].text;
+  if (isOtherSleepLocation(selectedHomeId)) {
+    roomName = document.getElementById('sleep-room-description')?.value?.trim()
+      || newProposalState.roomName
+      || '';
+  } else {
+    const roomSelect = document.getElementById('sleep-room-select');
+    if (roomSelect && roomSelect.selectedIndex >= 0) {
+      roomName = roomSelect.options[roomSelect.selectedIndex].text;
+    }
   }
 
-  const locationPart = [homeName, roomName].filter(Boolean).join(' ');
+  const locationPart = isOtherSleepLocation(selectedHomeId)
+    ? [homeName, roomName].filter(Boolean).join(roomName ? ': ' : '')
+    : [homeName, roomName].filter(Boolean).join(' ');
   titleInput.value = locationPart
     ? `Sleeping : ${names} : ${locationPart}`
     : `Sleeping : ${names}`;
@@ -548,16 +561,25 @@ export function collectProposalFormData() {
 
   if (flowState.currentCreateType === 'sleeping') {
     const homeSelect = document.getElementById('sleep-home-select');
-    const roomSelect = document.getElementById('sleep-room-select');
-    const homeObj = state.config?.residences?.find(h => h.id === newProposalState.homeId);
-    data.homeId = newProposalState.homeId;
-    data.roomId = newProposalState.roomId;
-    data.homeName = (homeSelect?.selectedIndex >= 0
-      ? homeSelect.options[homeSelect.selectedIndex].text
-      : (homeObj?.name || newProposalState.homeName || '')).trim();
-    data.roomName = (roomSelect?.selectedIndex >= 0
-      ? roomSelect.options[roomSelect.selectedIndex].text
-      : (newProposalState.roomName || '')).trim();
+    const otherSelected = isOtherSleepLocation(newProposalState.homeId);
+    const homeObj = otherSelected
+      ? null
+      : state.config?.residences?.find(h => h.id === newProposalState.homeId);
+    data.homeId = newProposalState.homeId || homeSelect?.value || '';
+    if (otherSelected) {
+      data.homeName = 'Other';
+      data.roomId = '';
+      data.roomName = document.getElementById('sleep-room-description')?.value?.trim() || '';
+    } else {
+      const roomSelect = document.getElementById('sleep-room-select');
+      data.roomId = newProposalState.roomId || roomSelect?.value || '';
+      data.homeName = (homeSelect?.selectedIndex >= 0
+        ? homeSelect.options[homeSelect.selectedIndex].text
+        : (homeObj?.name || newProposalState.homeName || '')).trim();
+      data.roomName = (roomSelect?.selectedIndex >= 0
+        ? roomSelect.options[roomSelect.selectedIndex].text
+        : (newProposalState.roomName || '')).trim();
+    }
   } else if (flowState.currentCreateType === 'event') {
     data.location = document.getElementById('event-location')?.value?.trim() || '';
   }
@@ -960,6 +982,70 @@ export function evaluateCurrentBatchProposalWarnings() {
   );
 }
 
+function renderSleepRoomField(homeObj, selectedRoomId = '') {
+  const roomField = document.getElementById('sleep-room-field');
+  if (!roomField) return;
+
+  const bedrooms = getBedroomOptionsForHome(homeObj);
+  const roomId = selectedRoomId || bedrooms[0]?.id || '';
+  roomField.innerHTML = `
+    <label class="form-label" id="sleep-room-label" for="sleep-room-select">Bedroom</label>
+    <select class="form-input" id="sleep-room-select" style="border-radius: var(--radius-default); border: 1px solid var(--outline);">
+      ${bedrooms.map(r => `<option value="${r.id}" ${r.id === roomId ? 'selected' : ''}>${escapeHtml(r.name)}</option>`).join('')}
+    </select>
+  `;
+  const roomSelect = document.getElementById('sleep-room-select');
+  roomSelect?.addEventListener('change', (e) => {
+    newProposalState.roomId = e.target.value;
+    newProposalState.roomName = roomSelect.options[roomSelect.selectedIndex].text;
+    runRulesChecks();
+    updateSleepingArrangementTitle();
+    scheduleDraftSave();
+  });
+}
+
+function syncSleepOtherDescription() {
+  newProposalState.roomId = '';
+  newProposalState.roomName = document.getElementById('sleep-room-description')?.value?.trim() || '';
+  updateSleepingArrangementTitle();
+  scheduleDraftSave();
+}
+
+function renderSleepOtherDescriptionField(value = '') {
+  const roomField = document.getElementById('sleep-room-field');
+  if (!roomField) return;
+
+  roomField.innerHTML = `
+    <label class="form-label" id="sleep-room-label" for="sleep-room-description">Description</label>
+    <input class="form-input" id="sleep-room-description" type="text" placeholder="Optional description" value="${escapeHtml(value)}" style="border-radius: var(--radius-default); border: 1px solid var(--outline);"/>
+  `;
+  document.getElementById('sleep-room-description')?.addEventListener('input', syncSleepOtherDescription);
+  document.getElementById('sleep-room-description')?.addEventListener('change', syncSleepOtherDescription);
+  updateSleepingArrangementTitle();
+}
+
+function setSleepLocationFieldMode(homeId, { roomId = '', roomName = '' } = {}) {
+  if (isOtherSleepLocation(homeId)) {
+    renderSleepOtherDescriptionField(roomName);
+    newProposalState.homeId = SLEEP_LOCATION_OTHER;
+    newProposalState.homeName = 'Other';
+    newProposalState.roomId = '';
+    newProposalState.roomName = roomName;
+    return;
+  }
+
+  const homeObj = state.config.residences.find(h => h.id === homeId);
+  renderSleepRoomField(homeObj, roomId);
+  newProposalState.homeId = homeId;
+  newProposalState.homeName = homeObj?.name || '';
+  const roomSelect = document.getElementById('sleep-room-select');
+  if (roomSelect) {
+    newProposalState.roomId = roomSelect.value;
+    newProposalState.roomName = roomSelect.options[roomSelect.selectedIndex]?.text || '';
+  }
+  updateSleepingArrangementTitle();
+}
+
 export function bindCreateEvents() {
   document.querySelectorAll('.circle-partner-option').forEach(opt => {
     const name = opt.dataset.name;
@@ -1191,36 +1277,26 @@ export function bindCreateEvents() {
   }
 
   const homeSelect = document.getElementById('sleep-home-select');
-  const roomSelect = document.getElementById('sleep-room-select');
-  if (homeSelect && roomSelect) {
+  if (homeSelect) {
     homeSelect.addEventListener('change', (e) => {
-      newProposalState.homeId = e.target.value;
-      const homeObj = state.config.residences.find(h => h.id === e.target.value);
-      newProposalState.homeName = homeObj ? homeObj.name : '';
-
-      if (homeObj) {
-        if (homeObj.bedroomDetails && homeObj.bedroomDetails.length > 0) {
-          roomSelect.innerHTML = homeObj.bedroomDetails.map(r => `<option value="${r.id}">${r.name}</option>`).join('');
-        } else {
-          let genericOpts = '';
-          for (let i = 0; i < homeObj.bedrooms; i++) {
-            genericOpts += `<option value="r${i + 1}">Bedroom ${i + 1}</option>`;
-          }
-          roomSelect.innerHTML = genericOpts;
-        }
-      }
-      newProposalState.roomId = roomSelect.value;
-      newProposalState.roomName = roomSelect.options[roomSelect.selectedIndex].text;
+      const homeId = e.target.value;
+      setSleepLocationFieldMode(homeId);
       runRulesChecks();
       updateSleepingArrangementTitle();
+      scheduleDraftSave();
     });
 
-    roomSelect.addEventListener('change', (e) => {
+    const roomSelect = document.getElementById('sleep-room-select');
+    roomSelect?.addEventListener('change', (e) => {
       newProposalState.roomId = e.target.value;
       newProposalState.roomName = roomSelect.options[roomSelect.selectedIndex].text;
       runRulesChecks();
       updateSleepingArrangementTitle();
+      scheduleDraftSave();
     });
+
+    document.getElementById('sleep-room-description')?.addEventListener('input', syncSleepOtherDescription);
+    document.getElementById('sleep-room-description')?.addEventListener('change', syncSleepOtherDescription);
   }
 
   updateSleepingArrangementTitle();

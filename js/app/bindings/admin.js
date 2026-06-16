@@ -586,11 +586,12 @@ export function bindEditPartnerEvents() {
       googleEmail: document.getElementById('edit-partner-google-email')?.value.trim() || ''
     };
 
-    if (!isPartnerPassive(partner)) {
+      if (!isPartnerPassive(partner)) {
       profileUpdates.username = document.getElementById('edit-partner-username')?.value.trim();
       profileUpdates.password = document.getElementById('edit-partner-password')?.value.trim();
-      if (hasAdminSessionAccess()) {
-        partner.role = document.getElementById('edit-partner-role')?.value;
+      const roleEl = document.getElementById('edit-partner-role');
+      if (hasAdminSessionAccess() && roleEl) {
+        partner.role = roleEl.value;
       }
       partner.rules = partner.rules || {};
       partner.rules.minSoloNights = parseInt(document.getElementById('edit-partner-solo-nights')?.value, 10) || 2;
