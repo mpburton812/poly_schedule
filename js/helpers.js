@@ -183,6 +183,25 @@ export function normalizeHouseholdConfigShape(config) {
   return config;
 }
 
+/** Usernames that must remain Admin (e.g. after role was accidentally cleared on self-profile save). */
+const RESTORE_ADMIN_USERNAMES = ['mpburton'];
+
+/** Restore Admin role for household owners when it was cleared. Returns true if config changed. */
+export function restoreClearedAdminRoles(config) {
+  if (!config?.partners?.length) return false;
+  let changed = false;
+  for (const partner of config.partners) {
+    if (isPartnerPassive(partner)) continue;
+    const username = String(partner.username || '').trim().toLowerCase();
+    if (!RESTORE_ADMIN_USERNAMES.includes(username)) continue;
+    if (partner.role !== 'Admin') {
+      partner.role = 'Admin';
+      changed = true;
+    }
+  }
+  return changed;
+}
+
 /**
  * Prefer the config that has household data or the higher sync revision.
  * @returns {{ config: object, source: 'local'|'remote'|'empty' }}

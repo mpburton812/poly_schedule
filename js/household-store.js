@@ -6,6 +6,7 @@ import {
   normalizeHouseholdConfigShape,
   pickNewerHouseholdConfig,
   normalizeConfigPartners,
+  restoreClearedAdminRoles,
   removePartnerReferences,
   removeHomeReferences,
   renamePartnerReferences
@@ -142,6 +143,7 @@ export const HouseholdStore = {
 
   async normalizeAndPersistConfig(context) {
     let changed = normalizeConfigPartners(this.config, EMPTY_HOUSEHOLD);
+    if (restoreClearedAdminRoles(this.config)) changed = true;
     if (!changed) return;
 
     if (context.mode === 'cache' || context.mode === 'offline') {

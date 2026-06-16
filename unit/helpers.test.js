@@ -15,7 +15,8 @@ import {
   renderBatchNightsReviewHtml,
   getPartnerAssociatedHomeNames,
   isOtherSleepLocation,
-  SLEEP_LOCATION_OTHER
+  SLEEP_LOCATION_OTHER,
+  restoreClearedAdminRoles
 } from '../js/helpers.js';
 import { DEFAULT_AVATARS } from '../js/helpers.js';
 
@@ -245,6 +246,37 @@ describe('getPartnerAssociatedHomeNames', () => {
       'Shared Loft'
     ]);
     expect(getPartnerAssociatedHomeNames(config, 'Unknown')).toEqual([]);
+  });
+});
+
+describe('restoreClearedAdminRoles', () => {
+  it('restores Admin for mpburton when role was cleared', () => {
+    const config = {
+      partners: [{
+        id: 'p1',
+        name: 'Michael Burton',
+        username: 'mpburton',
+        passwordHash: 'hash',
+        role: undefined
+      }]
+    };
+    expect(restoreClearedAdminRoles(config)).toBe(true);
+    expect(config.partners[0].role).toBe('Admin');
+    expect(restoreClearedAdminRoles(config)).toBe(false);
+  });
+
+  it('does not change other users', () => {
+    const config = {
+      partners: [{
+        id: 'p5',
+        name: 'Jordan Lee',
+        username: 'jordan',
+        passwordHash: 'hash',
+        role: 'User'
+      }]
+    };
+    expect(restoreClearedAdminRoles(config)).toBe(false);
+    expect(config.partners[0].role).toBe('User');
   });
 });
 
