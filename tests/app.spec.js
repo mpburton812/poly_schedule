@@ -388,6 +388,15 @@ test.describe('PolySchedule UI E2E Flow Tests', () => {
     await expect(page.locator('h3:has-text("Michael M. Burton")')).toBeVisible();
   });
 
+  test('should apply color theme from profile modal', async ({ page }) => {
+    await page.click('#avatar-container');
+    const modal = page.locator('#app-modal.open');
+    await expect(modal.locator('.theme-swatch[data-color-theme="mint"]')).toBeVisible();
+    await modal.locator('.theme-swatch[data-color-theme="blueberry"]').click();
+    await expect(page.locator('#toast-container')).toContainText('Blueberry applied');
+    await expect(page.locator('html')).toHaveAttribute('data-color-theme', 'blueberry');
+  });
+
   test('should support modifying group name in admin panel', async ({ page }) => {
     await clickAdminNav(page);
     await expect(page.url()).toContain('#admin');
@@ -402,7 +411,6 @@ test.describe('PolySchedule UI E2E Flow Tests', () => {
   test('should support adding an active partner with sleeping rules', async ({ page }) => {
     await clickNav(page, '#logistics');
     await page.click('#btn-add-partner');
-    await expect(page.locator('#new-partner-home option[value=""]')).toHaveCount(1);
     await page.fill('#new-partner-name', 'Robin Williams');
     await page.fill('#new-partner-username', 'robin');
     await page.fill('#new-partner-password', 'password123');
@@ -463,17 +471,11 @@ test.describe('PolySchedule UI E2E Flow Tests', () => {
     await expect(page.locator('text=Red Room, Blue Room').first()).toBeVisible();
   });
 
-  test('should return to add partner after creating home from default home dropdown', async ({ page }) => {
+  test('should show partner homes from home associations on logistics', async ({ page }) => {
     await clickNav(page, '#logistics');
-    await page.click('#btn-add-partner');
-    await page.fill('#new-partner-name', 'Chris Newhome');
-    await page.selectOption('#new-partner-home', '__create_new__');
-    await expect(page.url()).toContain('#add-home');
-    await page.fill('#new-home-name', 'Chris Place');
-    await page.click('#btn-submit-home');
-    await page.waitForURL(/#add-partner/, { timeout: 10000 });
-    await expect(page.locator('#new-partner-name')).toHaveValue('Chris Newhome');
-    await expect(page.locator('#new-partner-home')).toHaveValue(/h/);
+    const michaelCard = page.locator('.partner-card-editable', { hasText: 'Michael Burton' });
+    await expect(michaelCard).toContainText('Homes:');
+    await expect(michaelCard).toContainText("Michael's Place");
   });
 
   test('should not show Sleep Rules on logistics page', async ({ page }) => {

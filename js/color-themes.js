@@ -23,13 +23,6 @@ export function loadStoredColorTheme() {
   }
 }
 
-export function saveColorTheme(themeId) {
-  const normalized = normalizeColorThemeId(themeId);
-  localStorage.setItem(COLOR_THEME_KEY, normalized);
-  applyColorTheme(normalized);
-  return normalized;
-}
-
 export function applyColorTheme(themeId = loadStoredColorTheme()) {
   const normalized = normalizeColorThemeId(themeId);
   if (typeof document !== 'undefined') {
@@ -48,4 +41,23 @@ export function applyColorTheme(themeId = loadStoredColorTheme()) {
   }
 
   return normalized;
+}
+
+export function saveColorTheme(themeId) {
+  const normalized = normalizeColorThemeId(themeId);
+  localStorage.setItem(COLOR_THEME_KEY, normalized);
+  applyColorTheme(normalized);
+  return normalized;
+}
+
+export function renderColorThemePickerHtml(activeTheme = loadStoredColorTheme()) {
+  const theme = normalizeColorThemeId(activeTheme);
+  return COLOR_THEME_IDS.map((themeId) => `
+    <button type="button" class="theme-swatch${theme === themeId ? ' active' : ''}" data-color-theme="${themeId}" aria-pressed="${theme === themeId}">
+      <span class="theme-swatch-color theme-swatch-color--${themeId}" aria-hidden="true"></span>
+      <span>
+        <strong class="font-label-md" style="display: block;">${COLOR_THEME_LABELS[themeId]}</strong>
+      </span>
+    </button>
+  `).join('');
 }

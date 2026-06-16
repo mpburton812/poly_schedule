@@ -7,9 +7,8 @@ import { CalendarSync } from '../../calendar.js';
 import { AuthManager } from '../../auth.js';
 import { hashPassword } from '../../crypto.js';
 import { normalizePronouns } from '../../pronouns.js';
-import { RETURN_ADD_PARTNER_KEY, SELECT_HOME_KEY, ADD_PARTNER_DRAFT_KEY } from '../../storage-keys.js';
 import { assertUsernameAvailable, claimUsernameGlobally } from '../../username-registry.js';
-import { CREATE_NEW_HOME, isPartnerPassive, applyHomeAssociationDefaults, partnerRefsMatch, normalizeEmail } from '../../helpers.js';
+import { isPartnerPassive, partnerRefsMatch, normalizeEmail } from '../../helpers.js';
 import {
   setAutoArchiveDays,
   getAutoArchiveDays,
@@ -42,10 +41,7 @@ import {
   showToast,
   persistHouseholdConfig,
   attemptLogin,
-  bindHomeSelectCreateNew,
-  saveAddPartnerDraft,
   restoreAddPartnerDraft,
-  selectNewHomeAfterReturn,
   bindAvatarPicker,
   bindSleepingPartnerCheckboxes,
   updatePartnerProfile,
@@ -214,7 +210,6 @@ export function bindLoginEvents() {
 
 export function bindAddPartnerEvents() {
   restoreAddPartnerDraft();
-  selectNewHomeAfterReturn();
 
   const btnBack = document.getElementById('btn-add-partner-back');
   if (btnBack) {
@@ -238,11 +233,10 @@ export function bindAddPartnerEvents() {
     });
   }
 
-  bindHomeSelectCreateNew(document.getElementById('new-partner-home'));
+  bindSleepingPartnerCheckboxes();
   const getSelectedAvatar = bindAvatarPicker('#new-partner-avatar-options', {
     onError: (msg) => showToast(msg, 'warning')
   });
-  bindSleepingPartnerCheckboxes();
 
   const btnSubmit = document.getElementById('btn-submit-partner');
   if (btnSubmit) {
@@ -250,14 +244,6 @@ export function bindAddPartnerEvents() {
       const name = document.getElementById('new-partner-name').value.trim();
       const partnerType = document.getElementById('new-partner-type')?.value || flowState.activePartnerType;
       const isPassive = partnerType === 'passive';
-      const defaultHome = document.getElementById('new-partner-home').value;
-
-      if (defaultHome === CREATE_NEW_HOME) {
-        saveAddPartnerDraft();
-        sessionStorage.setItem(RETURN_ADD_PARTNER_KEY, '1');
-        window.location.hash = '#add-home';
-        return;
-      }
 
       if (!name) {
         showToast('Display Name is required.', 'warning');
@@ -332,7 +318,6 @@ export function bindAddPartnerEvents() {
           newPartner.username = username;
           newPartner.passwordHash = passwordHash;
           newPartner.role = role;
-          newPartner.defaultHome = defaultHome || newPartner.defaultHome;
           newPartner.avatar = selectedAvatar || newPartner.avatar;
           newPartner.pronouns = newPartner.pronouns || defaultPronouns;
           newPartner.rules = rules;
@@ -342,10 +327,10 @@ export function bindAddPartnerEvents() {
       } else {
         const newId = `p${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
         if (isPassive) {
-          newPartner = { id: newId, name, passive: true, defaultHome, avatar: selectedAvatar, pronouns: defaultPronouns, rules: {} };
+          newPartner = { id: newId, name, passive: true, avatar: selectedAvatar, pronouns: defaultPronouns, rules: {} };
         } else {
           const passwordHash = await hashPassword(password, newId);
-          newPartner = { id: newId, name, username, passwordHash, role, defaultHome, avatar: selectedAvatar, pronouns: defaultPronouns, rules };
+          newPartner = { id: newId, name, username, passwordHash, role, avatar: selectedAvatar, pronouns: defaultPronouns, rules };
           if (googleEmail) newPartner.googleEmail = googleEmail;
         }
         state.config.partners.push(newPartner);
@@ -380,16 +365,10 @@ export function bindAddPartnerEvents() {
 }
 
 export function bindAddHomeEvents() {
-  const returningToPartner = sessionStorage.getItem(RETURN_ADD_PARTNER_KEY) === '1';
-
   const btnBack = document.getElementById('btn-add-home-back');
   if (btnBack) {
     btnBack.addEventListener('click', () => {
-      if (returningToPartner) {
-        window.location.hash = '#add-partner';
-      } else {
-        window.location.hash = '#logistics';
-      }
+      window.location.hash = '#logistics';
     });
   }
 
@@ -452,19 +431,10 @@ export function bindAddHomeEvents() {
       };
 
       state.config.residences.push(newHome);
-      applyHomeAssociationDefaults(state.config, newHomeId, associatedPeople);
-      if (sessionStorage.getItem(RETURN_ADD_PARTNER_KEY) === '1') {
-        sessionStorage.setItem(SELECT_HOME_KEY, newHomeId);
-      }
       void persistHouseholdConfig(`Added home: ${name}`)
         .then(() => {
           showToast(`Home "${name}" added successfully!`, 'success');
-          if (sessionStorage.getItem(RETURN_ADD_PARTNER_KEY) === '1') {
-            sessionStorage.removeItem(RETURN_ADD_PARTNER_KEY);
-            window.location.hash = '#add-partner';
-          } else {
-            window.location.hash = '#logistics';
-          }
+          window.location.hash = '#logistics';
         })
         .catch(() => {
           state.config.residences.pop();
@@ -590,7 +560,6 @@ export function bindEditPartnerEvents() {
     window.location.hash = '#logistics';
   });
 
-  bindHomeSelectCreateNew(document.getElementById('edit-partner-home'));
   const editPartnerId = document.getElementById('edit-partner-id')?.value;
   const editPartner = state.config.partners.find(p => p.id === editPartnerId);
   const getSelectedAvatar = bindAvatarPicker('#edit-partner-avatar-options', {
@@ -605,17 +574,10 @@ export function bindEditPartnerEvents() {
     if (!partner) return;
 
     const name = document.getElementById('edit-partner-name').value.trim();
-    const defaultHome = document.getElementById('edit-partner-home').value;
-    if (defaultHome === CREATE_NEW_HOME) {
-      window.location.hash = '#add-home';
-      return;
-    }
     if (!name) {
       showToast('Display Name is required.', 'warning');
       return;
     }
-
-    partner.defaultHome = defaultHome;
 
     const profileUpdates = {
       name,
@@ -725,7 +687,6 @@ export function bindEditHomeEvents() {
     home.bedrooms = bedroomsCount;
     home.bedroomDetails = bedroomsList;
     home.associatedPeople = associatedPeople;
-    applyHomeAssociationDefaults(state.config, homeId, associatedPeople);
 
     void persistHouseholdConfig(`Updated home: ${name}`)
       .then(() => {
@@ -740,7 +701,7 @@ export function bindEditHomeEvents() {
     const home = state.config.residences.find(h => h.id === homeId);
     if (!home) return;
 
-    if (!confirm(`Delete home "${home.name}"? Partners linked to this home will have their default home cleared.`)) return;
+    if (!confirm(`Delete home "${home.name}"? This cannot be undone.`)) return;
 
     CalendarSync.removeHome(homeId);
     state.config = CalendarSync.config;

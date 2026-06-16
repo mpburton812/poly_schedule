@@ -2,7 +2,6 @@ import { RulesEngine } from '../rules.js';
 import {
   DEFAULT_AVATARS,
   isPartnerPassive,
-  renderHomeSelectOptions,
   renderAvatarPickerHtml,
   render12HourTimePicker,
   responseStatusLabel,
@@ -24,7 +23,7 @@ import {
 } from '../proposal-workflow.js';
 
 
-export function addPartnerView(state, partnerType = 'active', selectedHomeId = '') {
+export function addPartnerView(state, partnerType = 'active') {
     const isPassive = partnerType === 'passive';
 
     let partnersHtml = '';
@@ -122,12 +121,6 @@ export function addPartnerView(state, partnerType = 'active', selectedHomeId = '
               <input class="form-input" id="new-partner-name" placeholder="e.g. Robin Williams" type="text"/>
             </div>
             ${activeFieldsHtml}
-            <div class="form-group" style="margin-top: var(--space-sm);">
-              <label class="form-label" for="new-partner-home">Default Home</label>
-              <select class="form-input" id="new-partner-home">
-                ${renderHomeSelectOptions(state.config.residences, selectedHomeId)}
-              </select>
-            </div>
             ${isPassive ? '<p class="font-body-md" style="color: var(--on-surface-variant); font-size: 0.85rem;">Passive partners appear in scheduling but cannot log in.</p>' : ''}
           </div>
           <div class="bento-card" style="padding: var(--space-lg);">

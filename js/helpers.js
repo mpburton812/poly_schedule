@@ -226,38 +226,25 @@ export function getPartnerById(config, partnerId) {
 }
 
 /**
- * When a home's associated people list changes, sync partner defaultHome values.
+ * Homes associated with a partner via residence.associatedPeople (not defaultHome).
  */
-export function applyHomeAssociationDefaults(config, homeId, associatedPeople = []) {
-  if (!config?.partners || !homeId) return false;
-
-  const associatedSet = new Set(associatedPeople || []);
-  let changed = false;
-
-  config.partners.forEach(partner => {
-    const isAssociated = associatedSet.has(partner.name);
-    if (isAssociated && partner.defaultHome !== homeId) {
-      partner.defaultHome = homeId;
-      changed = true;
-    } else if (!isAssociated && partner.defaultHome === homeId) {
-      partner.defaultHome = '';
-      changed = true;
-    }
-  });
-
-  return changed;
+export function getPartnerAssociatedHomeNames(config, partnerName) {
+  if (!partnerName) return [];
+  return (config?.residences || [])
+    .filter((home) => (home.associatedPeople || []).includes(partnerName))
+    .map((home) => home.name);
 }
 
-/** Apply associatedPeople from every residence to partner defaultHome (e.g. on config load). */
-export function syncAllHomeAssociationDefaults(config) {
-  if (!config?.residences?.length) return false;
-  let changed = false;
-  config.residences.forEach(home => {
-    if (applyHomeAssociationDefaults(config, home.id, home.associatedPeople || [])) {
-      changed = true;
-    }
-  });
-  return changed;
+/**
+ * @deprecated Home associations are stored on residence.associatedPeople only.
+ */
+export function applyHomeAssociationDefaults(_config, _homeId, _associatedPeople = []) {
+  return false;
+}
+
+/** @deprecated No longer syncs partner defaultHome. */
+export function syncAllHomeAssociationDefaults(_config) {
+  return false;
 }
 
 export function getCurrentUserPartner(config, currentUser) {

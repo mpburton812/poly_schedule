@@ -1,6 +1,6 @@
 import { CalendarSync } from '../calendar.js';
 import { Views } from '../views.js';
-import { ADD_PARTNER_DRAFT_KEY, SELECT_HOME_KEY } from '../storage-keys.js';
+import { ADD_PARTNER_DRAFT_KEY } from '../storage-keys.js';
 import { parseHashParams, getRouteBase, getCurrentUserPartner, canCreateSleepingProposals } from '../helpers.js';
 import {
   state,
@@ -157,9 +157,7 @@ export function renderView() {
       bindAdminEvents();
     },
     'add-partner': () => {
-      const selectedHomeId = sessionStorage.getItem(SELECT_HOME_KEY) || '';
-      if (selectedHomeId) sessionStorage.removeItem(SELECT_HOME_KEY);
-      container.innerHTML = Views.addPartner(state, flowState.activePartnerType, selectedHomeId);
+      container.innerHTML = Views.addPartner(state, flowState.activePartnerType);
       bindAddPartnerEvents();
     },
     'add-home': () => {

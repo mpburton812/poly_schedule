@@ -16,6 +16,7 @@ import { logUserAction, logOperationError, showToast, updateNotificationsBadge, 
 import { getCurrentUserPartner, formatAppDateTime } from '../helpers.js';
 import { renderPronounPickerHtml, bindPronounPicker } from '../pronouns.js';
 import { escapeHtml } from '../escape.js';
+import { loadStoredColorTheme, renderColorThemePickerHtml } from '../color-themes.js';
 import { getEventDisplayPolicy } from '../event-privacy.js';
 import { normalizeEventComments } from '../event-comments.js';
 import { getWorkflowState, WORKFLOW, canUserRedraftEvent } from '../proposal-workflow.js';
@@ -30,7 +31,7 @@ function openModalOverlay(box, ariaLabel) {
   modal.classList.add('open');
   return modal;
 }
-import { bindSettingsEvents, bindLogisticsEvents } from './bindings/logistics.js';
+import { bindSettingsEvents, bindLogisticsEvents, bindColorThemeEvents } from './bindings/logistics.js';
 import { bindAvatarPicker } from '../avatar.js';
 
 export function handleBookingDeletion(event, reason) {
@@ -185,6 +186,18 @@ export function openUserProfileModal() {
       </div>
 
       <div style="display: flex; flex-direction: column; gap: var(--space-md);">
+        <h4 class="font-title-lg" style="font-weight: 700; font-size: 1.1rem; border-bottom: 1px solid rgba(138,113,112,0.1); padding-bottom: var(--space-xs); display: flex; align-items: center; gap: var(--space-sm);">
+          <span class="material-symbols-outlined text-primary" style="font-size: 20px;">palette</span> Color Theme
+        </h4>
+        <p class="font-body-md" style="color: var(--on-surface-variant); font-size: 0.8rem; margin: 0;">
+          Personal accent colors for this device.
+        </p>
+        <div class="theme-swatch-grid" role="group" aria-label="Color theme">
+          ${renderColorThemePickerHtml(loadStoredColorTheme())}
+        </div>
+      </div>
+
+      <div style="display: flex; flex-direction: column; gap: var(--space-md);">
         <h4 class="font-title-lg" style="font-weight: 700; font-size: 1.1rem; border-bottom: 1px solid rgba(138,113,112,0.1); padding-bottom: var(--space-xs);">Google Calendar</h4>
         <p class="font-body-md" style="color: var(--on-surface-variant); font-size: 0.8rem; margin: 0;">
           Status: <strong>${calendarConnected ? 'Connected' : 'Offline'}</strong>.
@@ -202,8 +215,8 @@ export function openUserProfileModal() {
         </p>
 
         <div style="display: flex; gap: var(--space-sm); margin-top: var(--space-xs); flex-wrap: wrap;">
-          <a href="#settings" class="btn btn-filled" id="modal-link-device-settings" style="padding: 6px 16px; font-size: 0.8rem; flex: 1; text-align: center; text-decoration: none;">
-            <span class="material-symbols-outlined" style="font-size: 16px; vertical-align: middle; margin-right: 4px;">notifications_active</span> Mobile Notifications
+          <a href="#settings" class="btn btn-outline" id="modal-link-device-settings" style="padding: 6px 16px; font-size: 0.8rem; flex: 1; text-align: center; text-decoration: none;">
+            <span class="material-symbols-outlined" style="font-size: 16px; vertical-align: middle; margin-right: 4px;">notifications_active</span> Notifications &amp; Settings
           </a>
           <button class="btn btn-outline" id="btn-force-update" style="border-color: var(--primary); color: var(--primary); padding: 6px 16px; font-size: 0.8rem; flex: 1;">
             <span class="material-symbols-outlined" style="font-size: 16px; vertical-align: middle; margin-right: 4px;">system_update_alt</span> Force Update Software
@@ -214,6 +227,8 @@ export function openUserProfileModal() {
   `;
 
   openModalOverlay(box, 'User profile');
+
+  bindColorThemeEvents(box);
 
   document.getElementById('modal-close-btn').addEventListener('click', () => {
     modal.classList.remove('open');

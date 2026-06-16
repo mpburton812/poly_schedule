@@ -161,7 +161,7 @@ export function bindSettingsEvents(container = document) {
   bindColorThemeEvents(container);
 }
 
-function bindColorThemeEvents(container = document) {
+export function bindColorThemeEvents(container = document) {
   container.querySelectorAll('[data-color-theme]').forEach((btn) => {
     btn.addEventListener('click', () => {
       const themeId = btn.dataset.colorTheme;

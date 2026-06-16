@@ -3,7 +3,6 @@ import { escapeHtml } from '../escape.js';
 import {
   DEFAULT_AVATARS,
   isPartnerPassive,
-  renderHomeSelectOptions,
   renderAvatarPickerHtml,
   getCurrentUserPartner,
   hasSleepingPartnerConnections
@@ -116,10 +115,6 @@ export function editPartnerView(state, partnerId) {
             <p class="font-label-sm" style="color: var(--on-surface-variant); margin-top: var(--space-xs);">Matches this partner when they change events directly in Google Calendar.</p>
           </div>
           ${activeFields}
-          <div class="form-group">
-            <label class="form-label" for="edit-partner-home">Default Home</label>
-            <select class="form-input" id="edit-partner-home">${renderHomeSelectOptions(state.config.residences, partner.defaultHome)}</select>
-          </div>
           ${renderAvatarPickerHtml(partner.avatar, 'edit-partner-avatar-options')}
         </div>
         ${sleepingHtml}

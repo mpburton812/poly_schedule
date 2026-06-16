@@ -25,7 +25,6 @@ import {
   normalizeConfigPartners,
   normalizeHouseholdConfigShape,
   pickNewerHouseholdConfig,
-  syncAllHomeAssociationDefaults,
   findPartnerByRef
 } from './helpers.js';
 import {

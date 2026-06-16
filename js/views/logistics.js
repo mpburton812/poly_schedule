@@ -2,7 +2,6 @@ import { RulesEngine } from '../rules.js';
 import {
   DEFAULT_AVATARS,
   isPartnerPassive,
-  renderHomeSelectOptions,
   renderAvatarPickerHtml,
   render12HourTimePicker,
   responseStatusLabel,
@@ -11,7 +10,8 @@ import {
   normalizeBatchNight,
   getBedroomOptionsForHome,
   getCurrentUserPartner,
-  hasSleepingPartnerConnections
+  hasSleepingPartnerConnections,
+  getPartnerAssociatedHomeNames
 } from '../helpers.js';
 import {
   WORKFLOW,
@@ -40,8 +40,8 @@ export function logisticsView(state) {
       } else if (partner.role === 'Admin') {
         badge = `<span class="font-label-sm" style="background-color: var(--secondary-container); color: var(--on-secondary-container); padding: 2px 8px; border-radius: var(--radius-sm); font-size: 9px; font-weight: bold;">ADMIN</span>`;
       }
-      const defaultHomeObj = residences.find(r => r.id === partner.defaultHome);
-      const homeName = defaultHomeObj ? defaultHomeObj.name : 'None';
+      const associatedHomes = getPartnerAssociatedHomeNames(state.config, partner.name);
+      const homesLabel = associatedHomes.length ? associatedHomes.join(', ') : 'None';
       const editBtn = canEditThis ? `
         <button class="btn btn-outline btn-edit-partner" data-partner-id="${partner.id}" style="padding: 4px 12px; font-size: 0.75rem; flex-shrink: 0;">
           <span class="material-symbols-outlined" style="font-size: 16px;">edit</span>
@@ -58,7 +58,7 @@ export function logisticsView(state) {
               <h4 class="font-title-lg" style="font-size: 1.05rem; font-weight: 700;">${partner.name}</h4>
               ${badge}
             </div>
-            <p class="font-body-md" style="color: var(--on-surface-variant); margin-top: 2px;">Default Home: <strong style="color: var(--secondary);">${homeName}</strong></p>
+            <p class="font-body-md" style="color: var(--on-surface-variant); margin-top: 2px;">Homes: <strong style="color: var(--secondary);">${homesLabel}</strong></p>
             ${passive ? '<p class="font-label-sm" style="color: var(--on-surface-variant); margin-top: 2px;">Not using the app — scheduling only</p>' : ''}
           </div>
           ${editBtn}
@@ -83,14 +83,6 @@ export function logisticsView(state) {
         peopleStr = `<div class="font-body-md" style="font-size: 0.8rem; color: var(--on-surface-variant); margin-top: 4px;">
           <span style="font-weight: bold;">Associated:</span> ${home.associatedPeople.join(', ')}
         </div>`;
-      } else {
-        // Fallback: check which partners have defaultHome === home.id
-        const associated = partners.filter(p => p.defaultHome === home.id).map(p => p.name.split(' ')[0]);
-        if (associated.length > 0) {
-          peopleStr = `<div class="font-body-md" style="font-size: 0.8rem; color: var(--on-surface-variant); margin-top: 4px;">
-            <span style="font-weight: bold;">Associated:</span> ${associated.join(', ')}
-          </div>`;
-        }
       }
 
       homesHtml += `

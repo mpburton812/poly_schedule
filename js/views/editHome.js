@@ -38,7 +38,7 @@ export function editHomeView(state, homeId) {
 
     let partnersHtml = '';
     state.config.partners.forEach(partner => {
-      const associated = home.associatedPeople?.includes(partner.name) || partner.defaultHome === home.id;
+      const associated = home.associatedPeople?.includes(partner.name);
       partnersHtml += `
         <label style="display: flex; align-items: center; gap: var(--space-md); cursor: pointer; padding: var(--space-xs);">
           <input type="checkbox" class="home-associated-partner" data-partner-name="${escapeHtml(partner.name)}" ${associated ? 'checked' : ''} style="accent-color: var(--primary); width: 18px; height: 18px;"/>

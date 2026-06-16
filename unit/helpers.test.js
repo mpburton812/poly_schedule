@@ -12,7 +12,9 @@ import {
   parseLocalDateString,
   getMondayOfWeek,
   findPartnerByCalendarEmail,
-  renderBatchNightsReviewHtml
+  renderBatchNightsReviewHtml,
+  getPartnerAssociatedHomeNames,
+  syncAllHomeAssociationDefaults
 } from '../js/helpers.js';
 import { DEFAULT_AVATARS } from '../js/helpers.js';
 
@@ -224,6 +226,35 @@ describe('sleeping proposal helpers', () => {
     const sorted = sortPartnersWithCurrentUserFirst(config.partners, config, { id: 'p2' });
     expect(sorted[0].id).toBe('p2');
     expect(sorted.slice(1).map((p) => p.name)).toEqual(['Alex Rivera']);
+  });
+});
+
+describe('getPartnerAssociatedHomeNames', () => {
+  it('returns home names from associatedPeople only', () => {
+    const config = {
+      residences: [
+        { id: 'h1', name: "Michael's Place", associatedPeople: ['Michael Burton'] },
+        { id: 'h2', name: "Izzy's Place", associatedPeople: ['Izzy Chen'] },
+        { id: 'h3', name: 'Shared Loft', associatedPeople: ['Michael Burton', 'Katie Thompson'] }
+      ],
+      partners: [
+        { id: 'p1', name: 'Michael Burton', defaultHome: 'h2' }
+      ]
+    };
+    expect(getPartnerAssociatedHomeNames(config, 'Michael Burton')).toEqual([
+      "Michael's Place",
+      'Shared Loft'
+    ]);
+    expect(getPartnerAssociatedHomeNames(config, 'Unknown')).toEqual([]);
+  });
+
+  it('does not mutate partner defaultHome when syncing associations', () => {
+    const config = {
+      residences: [{ id: 'h1', name: 'Home A', associatedPeople: ['Alex'] }],
+      partners: [{ id: 'p1', name: 'Alex', defaultHome: 'h9' }]
+    };
+    expect(syncAllHomeAssociationDefaults(config)).toBe(false);
+    expect(config.partners[0].defaultHome).toBe('h9');
   });
 });
 

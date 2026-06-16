@@ -6,7 +6,6 @@ import {
   normalizeHouseholdConfigShape,
   pickNewerHouseholdConfig,
   normalizeConfigPartners,
-  syncAllHomeAssociationDefaults,
   removePartnerReferences,
   removeHomeReferences,
   renamePartnerReferences
@@ -143,7 +142,6 @@ export const HouseholdStore = {
 
   async normalizeAndPersistConfig(context) {
     let changed = normalizeConfigPartners(this.config, EMPTY_HOUSEHOLD);
-    if (syncAllHomeAssociationDefaults(this.config)) changed = true;
     if (!changed) return;
 
     if (context.mode === 'cache' || context.mode === 'offline') {
