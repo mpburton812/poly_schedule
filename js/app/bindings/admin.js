@@ -9,7 +9,8 @@ import { hashPassword } from '../../crypto.js';
 import { normalizePronouns } from '../../pronouns.js';
 import { assertUsernameAvailable, claimUsernameAfterPersist, releaseUsernameGlobally } from '../../username-registry.js';
 import { createPartnerViaNotify, fetchUserHealthReport } from '../../household-partners.js';
-import { isPartnerPassive, partnerRefsMatch, normalizeEmail, escapeHtml } from '../../helpers.js';
+import { isPartnerPassive, partnerRefsMatch, normalizeEmail } from '../../helpers.js';
+import { escapeHtml } from '../../escape.js';
 import {
   setAutoArchiveDays,
   getAutoArchiveDays,
