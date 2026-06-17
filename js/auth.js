@@ -174,10 +174,22 @@ export const AuthManager = {
   /** User-initiated sign-in. Reuses prior consent silently when possible. */
   login(options = {}) {
     this.reloadFromStorage();
-    const { forceConsent = false } = options;
+    return this.requestAccessToken(this.buildTokenRequestOptions(options));
+  },
+
+  buildTokenRequestOptions({
+    forceConsent = false,
+    selectAccount = false,
+    loginHint = ''
+  } = {}) {
     const hasPriorSession = !!(this.userProfile || localStorage.getItem(GOOGLE_PROFILE_KEY));
-    const prompt = forceConsent || !hasPriorSession ? 'consent' : '';
-    return this.requestAccessToken({ prompt });
+    const prompts = [];
+    if (selectAccount) prompts.push('select_account');
+    if (forceConsent || !hasPriorSession) prompts.push('consent');
+    const tokenOptions = { prompt: prompts.join(' ') || '' };
+    const hint = String(loginHint || '').trim();
+    if (hint) tokenOptions.hint = hint;
+    return tokenOptions;
   },
 
   /** Refresh an expired access token without forcing consent when already authorized. */
@@ -193,8 +205,10 @@ export const AuthManager = {
     if (!hasPriorSession && !interactive) {
       throw new Error('Google Calendar is not connected.');
     }
-    const prompt = interactive || !hasPriorSession ? 'consent' : '';
-    await this.requestAccessToken({ prompt });
+    await this.requestAccessToken(this.buildTokenRequestOptions({
+      forceConsent: interactive || !hasPriorSession,
+      selectAccount: interactive
+    }));
     return this.accessToken;
   },
 

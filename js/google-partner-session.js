@@ -42,11 +42,15 @@ export function clearGoogleSessionIfPartnerMismatch(partner) {
 
 /** Start Google OAuth for the signed-in partner, forcing account pick when needed. */
 export function beginPartnerGoogleConnect(partner) {
-  const mismatch = partner && partnerExpectsGoogleEmail(partner)
+  const expectedEmail = normalizeEmail(partner?.googleEmail);
+  const mismatch = partner && expectedEmail
     && !googleEmailMatchesPartner(partner, getConnectedGoogleEmail());
-  const forceConsent = mismatch || partnerExpectsGoogleEmail(partner) || !getConnectedGoogleEmail();
-  if (mismatch) {
-    AuthManager.logout();
-  }
-  return AuthManager.login({ forceConsent });
+
+  AuthManager.logout();
+
+  return AuthManager.login({
+    forceConsent: true,
+    selectAccount: true,
+    loginHint: expectedEmail || undefined
+  });
 }

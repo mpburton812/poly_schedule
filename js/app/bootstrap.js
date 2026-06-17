@@ -40,7 +40,12 @@ import {
   needsGoogleCalendarConnect,
   showGoogleConnectGate
 } from './google-connect-gate.js';
-import { clearGoogleSessionIfPartnerMismatch } from '../google-partner-session.js';
+import {
+  clearGoogleSessionIfPartnerMismatch,
+  googleEmailMatchesPartner,
+  partnerExpectsGoogleEmail
+} from '../google-partner-session.js';
+import { getCurrentUserPartner } from '../helpers.js';
 
 // Global localStorage exception handling
 const originalSetItem = Storage.prototype.setItem;
@@ -218,6 +223,26 @@ export async function handleGoogleAuthState(authState) {
   updateGoogleLoginButton();
 
   if (authState.loggedIn) {
+    const profilePartner = getCurrentUserPartner(state.config, state.currentUser);
+    if (
+      authState.user?.email
+      && profilePartner
+      && partnerExpectsGoogleEmail(profilePartner)
+      && !googleEmailMatchesPartner(profilePartner, authState.user.email)
+    ) {
+      const { AuthManager } = await import('../auth.js');
+      AuthManager.logout();
+      setCalendarStatus('disconnected');
+      showToast(
+        `Wrong Google account. Sign in with ${profilePartner.googleEmail}, not ${authState.user.email}.`,
+        'error'
+      );
+      if (isLoggedIn()) {
+        showGoogleConnectGate();
+      }
+      return;
+    }
+
     const result = await bootstrapData('sync');
     if (result.ok) {
       dismissGoogleConnectGate();

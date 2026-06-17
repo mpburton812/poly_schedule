@@ -78,7 +78,11 @@ describe('google-partner-session', () => {
     authState.accessToken = 'token';
     const partner = { googleEmail: 'thegayagenda36@gmail.com' };
     beginPartnerGoogleConnect(partner);
-    expect(AuthManager.login).toHaveBeenCalledWith({ forceConsent: true });
+    expect(AuthManager.login).toHaveBeenCalledWith({
+      forceConsent: true,
+      selectAccount: true,
+      loginHint: 'thegayagenda36@gmail.com'
+    });
     expect(authState.logoutCalls).toBe(1);
   });
 });

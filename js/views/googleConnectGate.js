@@ -1,10 +1,23 @@
-export function googleConnectGateView({ credentialsReady = false, isAdminUser = false, serverManagedGoogle = false } = {}) {
+import { escapeHtml } from '../escape.js';
+
+export function googleConnectGateView({
+  credentialsReady = false,
+  isAdminUser = false,
+  serverManagedGoogle = false,
+  expectedGoogleEmail = ''
+} = {}) {
   let bodyHtml = '';
+  const expectedEmailHtml = expectedGoogleEmail
+    ? `<p class="font-label-sm" style="color: var(--primary); margin-top: var(--space-sm); padding: var(--space-sm); background: var(--surface-container-low); border-radius: var(--radius-md);">
+        Sign in with <strong>${escapeHtml(expectedGoogleEmail)}</strong>. If Google shows a different account, choose <strong>Use another account</strong>.
+      </p>`
+    : '';
   if (credentialsReady) {
     bodyHtml = `
       <p class="font-body-md" style="color: var(--on-surface-variant); margin-top: 4px;">
         PolySchedule is cloud-based. Sign in with Google on this device to load your household schedule before continuing.
       </p>
+      ${expectedEmailHtml}
       <button class="btn btn-filled" id="btn-google-connect-gate" style="width: 100%; margin-top: var(--space-lg);">
         <span class="material-symbols-outlined" style="font-size: 18px;">login</span>
         Connect Google Calendar

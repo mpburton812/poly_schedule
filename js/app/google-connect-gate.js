@@ -42,10 +42,12 @@ export function showGoogleConnectGate() {
   if (!container) return;
 
   const credentialsReady = prepareGoogleConnectGate();
+  const profilePartner = getCurrentUserPartner(state.config, state.currentUser);
   container.innerHTML = Views.googleConnectGate({
     credentialsReady,
     isAdminUser: hasAdminSessionAccess(),
-    serverManagedGoogle: isGoogleIntegrationServerManaged()
+    serverManagedGoogle: isGoogleIntegrationServerManaged(),
+    expectedGoogleEmail: profilePartner?.googleEmail || ''
   });
   bindGoogleConnectGateEvents();
 }
