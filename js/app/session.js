@@ -39,6 +39,7 @@ import { refreshCurrentUserNotifications, syncPendingProposalAlertsForUser } fro
 import { updateOfflineBanner } from '../calendar-status.js';
 import { needsGoogleCalendarConnect, showGoogleConnectGate } from './google-connect-gate.js';
 import { ensureGoogleCredentialsFromConfig } from '../google-integration.js';
+import { clearGoogleSessionIfPartnerMismatch } from '../google-partner-session.js';
 
 export function getCurrentUserId() {
   return state.currentUser?.id || null;
@@ -136,6 +137,7 @@ export function updateGuestGoogleLoginButton() {
 }
 
 async function completeLogin(partner, message) {
+  clearGoogleSessionIfPartnerMismatch(partner);
   establishSession(partner);
   logUserAction(message, 'info', partner.name);
   showToast(`Welcome back, ${partner.name.split(' ')[0]}!`, 'success');
@@ -256,6 +258,7 @@ export function logoutUser() {
   state.currentUser = null;
   state.impersonatorId = null;
   localStorage.removeItem(LOCAL_SESSION_KEY);
+  AuthManager.logout();
   logUserAction('Logged out.', 'info', name);
   showLoginView();
 }

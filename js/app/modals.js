@@ -13,7 +13,7 @@ import { renderAvatarPickerHtml } from '../avatar.js';
 import { state, flowState } from './state.js';
 import { LOCAL_SESSION_KEY } from '../storage-keys.js';
 import { logUserAction, logOperationError, showToast, updateNotificationsBadge, logoutUser, getCurrentUserName, updatePartnerProfile, persistCurrentUserNotifications, pushAppNotification } from './context.js';
-import { getCurrentUserPartner, formatAppDateTime } from '../helpers.js';
+import { getCurrentUserPartner, formatAppDateTime, normalizeEmail } from '../helpers.js';
 import { renderPronounPickerHtml, bindPronounPicker } from '../pronouns.js';
 import { escapeHtml } from '../escape.js';
 import { loadStoredColorTheme, renderColorThemePickerHtml } from '../color-themes.js';
@@ -109,6 +109,10 @@ export function openUserProfileModal() {
 
   const profilePartner = getCurrentUserPartner(state.config, state.currentUser);
   const connectedGoogleEmail = AuthManager.userProfile?.email || '';
+  const configuredGoogleEmail = profilePartner?.googleEmail || '';
+  const googleEmailMismatch = configuredGoogleEmail
+    && connectedGoogleEmail
+    && normalizeEmail(configuredGoogleEmail) !== normalizeEmail(connectedGoogleEmail);
   const calendarId = state.config?.googleIntegration?.calendarId
     || localStorage.getItem(CALENDAR_ID_KEY)
     || 'primary';
@@ -158,8 +162,12 @@ export function openUserProfileModal() {
 
         <div class="form-group" style="margin-bottom: 0;">
           <label class="form-label" for="setting-google-email" style="font-size: 0.8rem;">Google Calendar account email</label>
-          <input class="form-input" id="setting-google-email" type="email" placeholder="you@gmail.com" value="${escapeHtml(profilePartner?.googleEmail || connectedGoogleEmail || '')}" style="padding: 6px 12px; font-size: 0.85rem;"/>
-          <p class="font-label-sm" style="color: var(--on-surface-variant); margin-top: 4px;">Identifies you when events are added or removed directly in Google Calendar.${calendarConnected && connectedGoogleEmail ? ` Connected as ${escapeHtml(connectedGoogleEmail)}.` : ''}</p>
+          <input class="form-input" id="setting-google-email" type="email" placeholder="you@gmail.com" value="${escapeHtml(configuredGoogleEmail)}" style="padding: 6px 12px; font-size: 0.85rem;"/>
+          <p class="font-label-sm" style="color: var(--on-surface-variant); margin-top: 4px;">
+            Identifies you when events are added or removed directly in Google Calendar.
+            ${calendarConnected && connectedGoogleEmail ? ` Connected as ${escapeHtml(connectedGoogleEmail)}.` : ''}
+            ${googleEmailMismatch ? ` <strong style="color: var(--error);">This browser is signed in to a different Google account. Use the OFFLINE banner to connect as ${escapeHtml(configuredGoogleEmail)}.</strong>` : ''}
+          </p>
         </div>
 
         <div class="grid grid-cols-2 gap-md" style="display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-md);">

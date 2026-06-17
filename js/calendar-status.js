@@ -3,6 +3,8 @@ import { AuthManager } from './auth.js';
 import { ensureGoogleCredentialsFromConfig } from './google-integration.js';
 import { state } from './app/state.js';
 import { showToast } from './app/toast.js';
+import { getCurrentUserPartner } from './helpers.js';
+import { beginPartnerGoogleConnect } from './google-partner-session.js';
 
 /** @typedef {'unknown'|'connecting'|'connected'|'disconnected'} CalendarStatus */
 
@@ -52,7 +54,8 @@ export function bindOfflineBanner() {
       try {
         setCalendarStatus('connecting');
         AuthManager.reloadFromStorage();
-        AuthManager.login();
+        const partner = getCurrentUserPartner(state.config, state.currentUser);
+        beginPartnerGoogleConnect(partner);
       } catch (err) {
         setCalendarStatus('disconnected');
         showToast(err.message || 'Could not start Google sign-in.', 'error');

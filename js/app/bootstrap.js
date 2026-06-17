@@ -40,6 +40,7 @@ import {
   needsGoogleCalendarConnect,
   showGoogleConnectGate
 } from './google-connect-gate.js';
+import { clearGoogleSessionIfPartnerMismatch } from '../google-partner-session.js';
 
 // Global localStorage exception handling
 const originalSetItem = Storage.prototype.setItem;
@@ -68,6 +69,7 @@ function determineInitialView() {
     const partner = state.config?.partners?.find(p => p.id === savedProfile.id && !isPartnerPassive(p));
     if (partner && partner.username === savedProfile.username) {
       state.impersonatorId = savedProfile.impersonatorId || null;
+      clearGoogleSessionIfPartnerMismatch(partner);
       establishSession(partner);
       void routeAfterAuth();
       return;
@@ -222,7 +224,7 @@ export async function handleGoogleAuthState(authState) {
       setCalendarStatus('connected');
       CalendarSync.mode = 'sync';
       syncCalendarSyncFromAuth(CalendarSync);
-      if (authState.user?.email && state.currentUser?.id) {
+      if (authState.user?.email && state.currentUser?.id && !state.impersonatorId) {
         const { syncPartnerGoogleEmailFromAuth } = await import('./household-config.js');
         await syncPartnerGoogleEmailFromAuth(state.currentUser.id, authState.user.email).catch(() => {});
       }

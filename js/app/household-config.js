@@ -128,10 +128,20 @@ export async function updatePartnerProfile(partnerId, updates) {
 export async function syncPartnerGoogleEmailFromAuth(partnerId, email) {
   const partner = state.config?.partners?.find((p) => p.id === partnerId);
   if (!partner) return false;
+  if (state.impersonatorId) return false;
 
   const next = normalizeEmail(email);
   if (!next) return false;
   if (normalizeEmail(partner.googleEmail) === next) return false;
+
+  const configured = normalizeEmail(partner.googleEmail);
+  if (configured && configured !== next) {
+    showToast(
+      `Signed in to Google as ${email}, but this account is configured for ${partner.googleEmail}. Ask an admin to update your Google email, or sign in with the correct Google account.`,
+      'warning'
+    );
+    return false;
+  }
 
   partner.googleEmail = next;
   await persistHouseholdConfig(`Linked Google account for ${partner.name}`);

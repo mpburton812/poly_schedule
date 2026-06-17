@@ -1,4 +1,3 @@
-import { AuthManager } from '../auth.js';
 import { CalendarSync } from '../calendar.js';
 import { Views } from '../views.js';
 import { ensureGoogleCredentialsFromConfig, isGoogleIntegrationServerManaged } from '../google-integration.js';
@@ -6,6 +5,8 @@ import { hasGoogleIntegrationCredentials, isGoogleCalendarReady, setCalendarStat
 import { state, flowState } from './state.js';
 import { isAdmin, hasAdminSessionAccess } from './session.js';
 import { showToast } from './toast.js';
+import { getCurrentUserPartner } from '../helpers.js';
+import { beginPartnerGoogleConnect, isGoogleSessionValidForPartner } from '../google-partner-session.js';
 
 let gateActive = false;
 
@@ -17,7 +18,12 @@ export function needsGoogleCalendarConnect() {
   if (typeof window !== 'undefined' && window.__POLYSCHEDULE_E2E__) {
     return false;
   }
-  return !isGoogleCalendarReady();
+  if (!isGoogleCalendarReady()) return true;
+  const partner = getCurrentUserPartner(state.config, state.currentUser);
+  if (partner && !isGoogleSessionValidForPartner(partner)) {
+    return true;
+  }
+  return false;
 }
 
 export function canBypassGoogleConnectGate(view) {
@@ -53,7 +59,8 @@ function bindGoogleConnectGateEvents() {
     try {
       prepareGoogleConnectGate();
       setCalendarStatus('connecting');
-      AuthManager.login();
+      const partner = getCurrentUserPartner(state.config, state.currentUser);
+      beginPartnerGoogleConnect(partner);
     } catch (err) {
       setCalendarStatus('disconnected');
       showToast(err.message || 'Could not start Google sign-in.', 'error');
