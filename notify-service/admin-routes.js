@@ -1,5 +1,5 @@
 import { buildUserHealthReport } from './user-health.js';
-import { listRegisteredUsernames } from './username-registry.js';
+import { listRegisteredUsernames, pruneOrphanedUsernames } from './username-registry.js';
 import { releaseUsername } from './username-registry.js';
 import {
   createHouseholdPartner,
@@ -18,6 +18,11 @@ export function mountAdminRoutes(app, { requireSecret }) {
   app.get('/v1/admin/users/health', requireSecret, (req, res) => {
     const householdId = req.query.householdId || null;
     res.json(buildUserHealthReport(householdId));
+  });
+
+  app.post('/v1/admin/usernames/prune-orphans', requireSecret, (req, res) => {
+    const removed = pruneOrphanedUsernames();
+    res.json({ ok: true, removed, count: removed.length });
   });
 
   app.post('/v1/usernames/release', requireSecret, (req, res) => {

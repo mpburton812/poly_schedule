@@ -1,5 +1,5 @@
 import { getHousehold } from './sync-store.js';
-import { isUsernameTaken, normalizeUsername } from './username-registry.js';
+import { lookupUsernameForLogin, normalizeUsername } from './username-registry.js';
 import { getFixedHouseholdId } from './fixed-household.js';
 
 function findLoginPartner(config, normalizedUsername) {
@@ -41,8 +41,8 @@ export function resolvePartnerLoginContext(username) {
     return { householdId: fixedHouseholdId, household, partner };
   }
 
-  const lookup = isUsernameTaken(username);
-  if (!lookup.taken) {
+  const lookup = lookupUsernameForLogin(username);
+  if (!lookup.found) {
     return {
       error: {
         code: 'USERNAME_UNKNOWN',

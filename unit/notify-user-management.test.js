@@ -7,9 +7,8 @@ const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'polyschedule-login-'));
 process.env.DATA_DIR = tempDir;
 
 const { resolvePartnerLoginContext } = await import('../notify-service/login-context.js');
-const { claimUsername } = await import('../notify-service/username-registry.js');
+const { claimUsername, isUsernameTaken, pruneOrphanedUsernames, releaseUsername } = await import('../notify-service/username-registry.js');
 const { upsertHouseholdCache } = await import('../notify-service/sync-store.js');
-const { releaseUsername } = await import('../notify-service/username-registry.js');
 const { createHouseholdPartner, deleteHouseholdPartner } = await import('../notify-service/household-partners.js');
 const { buildUserHealthReport } = await import('../notify-service/user-health.js');
 
@@ -100,5 +99,31 @@ describe('notify-service user health', () => {
     const report = buildUserHealthReport('household-a');
     expect(report.summary.registryOrphans).toBe(1);
     expect(report.partners.some((row) => row.username === 'orphan' && row.issues.includes('registry_orphan'))).toBe(true);
+  });
+});
+
+describe('notify-service username availability', () => {
+  beforeEach(() => {
+    fs.rmSync(tempDir, { recursive: true, force: true });
+    fs.mkdirSync(tempDir, { recursive: true });
+  });
+
+  it('treats registry orphans as available', () => {
+    claimUsername('thegayagenda', 'probe-orphan-scan', 'probe');
+    expect(isUsernameTaken('thegayagenda').taken).toBe(false);
+    const removed = pruneOrphanedUsernames();
+    expect(removed).toContain('thegayagenda');
+    expect(isUsernameTaken('thegayagenda').taken).toBe(false);
+  });
+
+  it('still blocks usernames owned by an active partner', () => {
+    upsertHouseholdCache('household-a', {
+      revision: 1,
+      config: {
+        partners: [{ id: 'p1', name: 'Alex', username: 'alex', passwordHash: 'hash' }]
+      }
+    });
+    claimUsername('alex', 'household-a', 'p1');
+    expect(isUsernameTaken('alex').taken).toBe(true);
   });
 });

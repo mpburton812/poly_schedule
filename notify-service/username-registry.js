@@ -49,6 +49,76 @@ function isSameOwner(entry, householdId, partnerId) {
   return entry?.householdId === householdId && entry?.partnerId === partnerId;
 }
 
+function isRegistryEntryActive(normalized, entry) {
+  if (!entry?.householdId || !entry?.partnerId) return false;
+  const households = loadHouseholdsDoc();
+  const household = households.households?.[entry.householdId];
+  if (!household?.config) return false;
+  return (household.config.partners || []).some((partner) => {
+    if (partner?.passive || !partner?.username) return false;
+    return partner.id === entry.partnerId && normalizeUsername(partner.username) === normalized;
+  });
+}
+
+export function pruneOrphanedUsernames() {
+  const doc = loadUsernamesDoc();
+  const removed = [];
+  for (const [normalized, entry] of Object.entries(doc.usernames || {})) {
+    if (!isRegistryEntryActive(normalized, entry)) {
+      delete doc.usernames[normalized];
+      removed.push(normalized);
+    }
+  }
+  if (removed.length) saveUsernamesDoc(doc);
+  return removed;
+}
+
+export function lookupUsernameRegistry(username) {
+  const normalized = normalizeUsername(username);
+  if (!normalized) return { registered: false, normalized };
+  const doc = loadUsernamesDoc();
+  const entry = doc.usernames[normalized];
+  if (!entry) return { registered: false, normalized };
+  return {
+    registered: true,
+    normalized,
+    householdId: entry.householdId,
+    partnerId: entry.partnerId,
+    active: isRegistryEntryActive(normalized, entry)
+  };
+}
+
+/** Registry entry or household cache row — used for login/reset, not availability. */
+export function lookupUsernameForLogin(username) {
+  const normalized = normalizeUsername(username);
+  if (!normalized) return { found: false, normalized };
+
+  const registry = lookupUsernameRegistry(username);
+  if (registry.registered) {
+    return {
+      found: true,
+      normalized,
+      householdId: registry.householdId,
+      partnerId: registry.partnerId,
+      source: 'registry'
+    };
+  }
+
+  const cacheHit = scanHouseholdCachesForUsername(normalized);
+  if (cacheHit.taken) {
+    return {
+      found: true,
+      normalized,
+      householdId: cacheHit.householdId,
+      partnerId: cacheHit.partnerId,
+      source: 'cache'
+    };
+  }
+
+  return { found: false, normalized };
+}
+
+
 function scanHouseholdCachesForUsername(normalized, { excludeHouseholdId = null, excludePartnerId = null, householdId = null } = {}) {
   const doc = loadHouseholdsDoc();
   const entries = householdId
@@ -87,7 +157,9 @@ export function isUsernameTaken(username, { excludeHouseholdId = null, excludePa
   const doc = loadUsernamesDoc();
   const entry = doc.usernames[normalized];
   if (entry && !isSameOwner(entry, excludeHouseholdId, excludePartnerId)) {
-    return { taken: true, householdId: entry.householdId, partnerId: entry.partnerId, source: 'registry' };
+    if (isRegistryEntryActive(normalized, entry)) {
+      return { taken: true, householdId: entry.householdId, partnerId: entry.partnerId, source: 'registry' };
+    }
   }
 
   const cacheHit = scanHouseholdCachesForUsername(normalized, { excludeHouseholdId, excludePartnerId });

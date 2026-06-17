@@ -12,6 +12,7 @@ const {
   isUsernameTaken,
   syncHouseholdUsernames
 } = await import('../notify-service/username-registry.js');
+const { upsertHouseholdCache } = await import('../notify-service/sync-store.js');
 
 describe('notify-service username registry', () => {
   beforeEach(() => {
@@ -24,6 +25,10 @@ describe('notify-service username registry', () => {
   });
 
   it('claims and detects taken usernames across households', () => {
+    upsertHouseholdCache('household-a', {
+      revision: 1,
+      config: { partners: [{ id: 'p1', username: 'mpburton' }] }
+    });
     claimUsername('mpburton', 'household-a', 'p1');
     expect(isUsernameTaken('mpburton').taken).toBe(true);
     expect(isUsernameTaken('mpburton', { excludeHouseholdId: 'household-a', excludePartnerId: 'p1' }).taken).toBe(false);
